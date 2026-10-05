@@ -14,6 +14,7 @@ const OT_REPO_API = 'https://api.github.com/repos/OnTrack-Development/OnTrack-Ag
 
 $root = __DIR__;
 $configPath = $root . '/config/local.php';
+$configBackupPath = $root . '/storage/.ontrack-local.php';
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_name('ontrack_agent_updater');
@@ -100,6 +101,7 @@ function should_preserve(string $relative): bool {
     if ($relative === 'storage/app.sqlite') return true;
     if ($relative === 'storage/app.sqlite-wal') return true;
     if ($relative === 'storage/app.sqlite-shm') return true;
+    if ($relative === 'storage/.ontrack-local.php') return true;
     return false;
 }
 
@@ -243,7 +245,9 @@ if (!$config) {
                 'job_lease_seconds' => 90,
             ];
 
-            atomic_write($configPath, "<?php\nreturn " . var_export($cfg, true) . ";\n");
+            $configPayload = "<?php\nreturn " . var_export($cfg, true) . ";\n";
+            atomic_write($configPath, $configPayload);
+            atomic_write($configBackupPath, $configPayload);
             $config = $cfg;
             session_regenerate_id(true);
             $_SESSION['updater_ok'] = true;
@@ -276,6 +280,19 @@ $authenticated = !empty($_SESSION['updater_ok']);
 if ($config && $authenticated && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update') {
     try {
         $result = perform_update($root);
+
+        if (is_file($configPath)) {
+            $localPayload = file_get_contents($configPath);
+            if ($localPayload !== false) {
+                atomic_write($configBackupPath, $localPayload);
+            }
+        } elseif (is_file($configBackupPath)) {
+            $backupPayload = file_get_contents($configBackupPath);
+            if ($backupPayload !== false) {
+                atomic_write($configPath, $backupPayload);
+            }
+        }
+
         $commit = $result['commit'];
         $message = 'Update completed: ' . $result['files'] . ' files deployed.';
         if (!empty($commit['sha'])) $message .= ' Commit ' . $commit['sha'] . '.';
