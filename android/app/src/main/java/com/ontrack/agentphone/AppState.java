@@ -13,9 +13,22 @@ final class AppState {
     static int deviceId(Context c) { return prefs(c).getInt("device_id", 0); }
     static String phone(Context c) { return prefs(c).getString("phone", ""); }
     static boolean paired(Context c) { return !token(c).isEmpty(); }
+    static boolean bridgeEnabled(Context c) { return prefs(c).getBoolean("bridge_enabled", false); }
+
     static void savePair(Context c, String server, String token, int deviceId, String phone) {
-        prefs(c).edit().putString("server", server).putString("token", token)
-                .putInt("device_id", deviceId).putString("phone", phone).apply();
+        prefs(c).edit()
+                .putString("server", server)
+                .putString("token", token)
+                .putInt("device_id", deviceId)
+                .putString("phone", phone)
+                .apply();
     }
-    static void clearPair(Context c) { prefs(c).edit().clear().apply(); }
+
+    static void setBridgeEnabled(Context c, boolean enabled) {
+        prefs(c).edit().putBoolean("bridge_enabled", enabled).apply();
+    }
+
+    static void clearPair(Context c) {
+        prefs(c).edit().clear().apply();
+    }
 }
