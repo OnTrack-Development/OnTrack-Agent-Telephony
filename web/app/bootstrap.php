@@ -2,10 +2,25 @@
 declare(strict_types=1);
 
 $configFile = __DIR__ . '/../config/local.php';
+$configBackupFile = __DIR__ . '/../storage/.ontrack-local.php';
+
+if (!is_file($configFile) && is_file($configBackupFile)) {
+    $configDir = dirname($configFile);
+    if (!is_dir($configDir)) @mkdir($configDir, 0775, true);
+    @copy($configBackupFile, $configFile);
+    clearstatcache(true, $configFile);
+}
+
 if (!is_file($configFile)) {
+    $uri = (string)($_SERVER['REQUEST_URI'] ?? '');
+    if (!str_contains($uri, '/api/')) {
+        header('Location: /update.php');
+        exit;
+    }
+
     http_response_code(503);
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['ok' => false, 'error' => 'Application is not configured. Copy config/local.example.php to config/local.php.']);
+    echo json_encode(['ok' => false, 'error' => 'Application is not configured. Open /update.php to repair local configuration.']);
     exit;
 }
 
