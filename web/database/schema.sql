@@ -21,6 +21,20 @@ CREATE TABLE IF NOT EXISTS pairing_codes (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS phone_contacts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  device_id INTEGER NOT NULL,
+  contact_name TEXT NOT NULL,
+  phone_number TEXT NOT NULL,
+  phone_key TEXT NOT NULL,
+  synced_at TEXT NOT NULL,
+  FOREIGN KEY(device_id) REFERENCES devices(id) ON DELETE CASCADE,
+  UNIQUE(device_id, phone_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_phone_contacts_device ON phone_contacts(device_id);
+CREATE INDEX IF NOT EXISTS idx_phone_contacts_key ON phone_contacts(device_id, phone_key);
+
 CREATE TABLE IF NOT EXISTS campaigns (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -54,6 +68,7 @@ CREATE TABLE IF NOT EXISTS calls (
   device_id INTEGER NOT NULL,
   direction TEXT NOT NULL DEFAULT 'outbound',
   phone_number TEXT NOT NULL,
+  contact_name TEXT,
   status TEXT NOT NULL DEFAULT 'queued',
   outcome TEXT,
   started_at TEXT,
@@ -64,6 +79,8 @@ CREATE TABLE IF NOT EXISTS calls (
   ai_summary TEXT,
   notes TEXT,
   action_result TEXT,
+  recording_status TEXT NOT NULL DEFAULT 'not_recorded',
+  recording_url TEXT,
   lease_expires_at TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY(campaign_id) REFERENCES campaigns(id),
@@ -79,4 +96,6 @@ CREATE TABLE IF NOT EXISTS settings (
   setting_value TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
-INSERT OR IGNORE INTO settings(setting_key,setting_value,updated_at) VALUES('incoming_mode','ai',datetime('now'));
+
+INSERT OR IGNORE INTO settings(setting_key,setting_value,updated_at)
+VALUES('incoming_mode','ai',datetime('now'));
