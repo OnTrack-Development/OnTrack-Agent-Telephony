@@ -1,0 +1,9 @@
+.DS_Store
+.idea/
+*.iml
+android/.gradle/
+android/build/
+android/app/build/
+web/config/local.php
+web/storage/*.sqlite
+web/storage/*.sqlite-*

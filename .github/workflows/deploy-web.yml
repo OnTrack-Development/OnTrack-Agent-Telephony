@@ -1,0 +1,55 @@
+name: Deploy agent.ontrackegy.com
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FTP_HOST: ${{ secrets.FTP_HOST }}
+      FTP_USER: ${{ secrets.FTP_USER }}
+      FTP_PASS: ${{ secrets.FTP_PASS }}
+      FTP_REMOTE_DIR: ${{ secrets.FTP_REMOTE_DIR }}
+      APP_ADMIN_PASSWORD: ${{ secrets.APP_ADMIN_PASSWORD }}
+      APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PHP syntax check
+        run: find web -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Check deployment secrets
+        id: preflight
+        shell: bash
+        run: |
+          if [ -n "$FTP_HOST" ] && [ -n "$FTP_USER" ] && [ -n "$FTP_PASS" ] && [ -n "$APP_ADMIN_PASSWORD" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Deployment skipped: add FTP_HOST, FTP_USER, FTP_PASS and APP_ADMIN_PASSWORD repository secrets."
+          fi
+
+      - name: Create production config
+        if: steps.preflight.outputs.ready == 'true'
+        working-directory: web
+        shell: bash
+        run: |
+          php -r '$c=require "config/local.example.php"; $c["admin_password_hash"]=password_hash(getenv("APP_ADMIN_PASSWORD"), PASSWORD_DEFAULT); unset($c["admin_password"]); $c["base_url"]=getenv("APP_BASE_URL") ?: "https://agent.ontrackegy.com"; file_put_contents("config/local.php", "<?php\nreturn ".var_export($c,true).";\n");'
+
+      - name: Install lftp
+        if: steps.preflight.outputs.ready == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y lftp
+
+      - name: Deploy web app over FTP/FTPS
+        if: steps.preflight.outputs.ready == 'true'
+        working-directory: web
+        shell: bash
+        run: |
+          REMOTE="${FTP_REMOTE_DIR:-/public_html}"
+          lftp -c "set net:max-retries 2; set net:timeout 20; set ftp:ssl-allow yes; set ssl:verify-certificate no; open -u '$FTP_USER','$FTP_PASS' '$FTP_HOST'; mirror -R --delete --verbose --exclude-glob 'storage/*.sqlite*' ./ '$REMOTE'/"

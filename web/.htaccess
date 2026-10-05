@@ -1,0 +1,6 @@
+Options -Indexes
+RewriteEngine On
+RewriteRule ^(?:app|config|database|storage|\.github)(?:/|$) - [F,L]
+<FilesMatch "^(?:\.env|composer\.(?:json|lock)|README\.md)$">
+  Require all denied
+</FilesMatch>
