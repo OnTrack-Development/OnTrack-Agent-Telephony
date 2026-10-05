@@ -14,6 +14,7 @@ final class AppState {
     static String phone(Context c) { return prefs(c).getString("phone", ""); }
     static boolean paired(Context c) { return !token(c).isEmpty(); }
     static boolean bridgeEnabled(Context c) { return prefs(c).getBoolean("bridge_enabled", false); }
+    static long lastContactSync(Context c) { return prefs(c).getLong("contacts_synced_at", 0L); }
 
     static void savePair(Context c, String server, String token, int deviceId, String phone) {
         prefs(c).edit()
@@ -26,6 +27,10 @@ final class AppState {
 
     static void setBridgeEnabled(Context c, boolean enabled) {
         prefs(c).edit().putBoolean("bridge_enabled", enabled).apply();
+    }
+
+    static void setLastContactSync(Context c, long value) {
+        prefs(c).edit().putLong("contacts_synced_at", value).apply();
     }
 
     static void clearPair(Context c) {
