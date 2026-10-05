@@ -36,11 +36,24 @@ public class BridgeService extends Service {
 
     private void loop() {
         long lastHeartbeat = 0;
+        long lastContactsSyncCheck = 0;
         while (running) {
             try {
                 if (!AppState.paired(this)) { Thread.sleep(3000); continue; }
                 long now = System.currentTimeMillis();
                 if (now - lastHeartbeat > 20000) { heartbeat(); lastHeartbeat = now; }
+
+                if (ContactHelper.allowed(this)
+                        && now - lastContactsSyncCheck > 60L * 60L * 1000L
+                        && now - AppState.lastContactSync(this) > 6L * 60L * 60L * 1000L) {
+                    try {
+                        ContactHelper.sync(this);
+                    } catch (Exception e) {
+                        Log.w("OnTrackBridge", "contacts sync", e);
+                    }
+                    lastContactsSyncCheck = now;
+                }
+
                 JSONObject poll = ApiClient.get(AppState.server(this), "/api/device/poll.php", AppState.token(this));
                 JSONObject job = poll.optJSONObject("job");
                 if (job != null && "place_ai_call".equals(job.optString("action"))) placeJob(job);
@@ -52,7 +65,7 @@ public class BridgeService extends Service {
     }
 
     private void heartbeat() throws Exception {
-        JSONObject b = new JSONObject(); b.put("phone_number", AppState.phone(this)); b.put("app_version", "0.1.0-poc");
+        JSONObject b = new JSONObject(); b.put("phone_number", AppState.phone(this)); b.put("app_version", "0.2.0-poc");
         ApiClient.post(AppState.server(this), "/api/device/heartbeat.php", b, AppState.token(this));
     }
 
@@ -98,6 +111,11 @@ public class BridgeService extends Service {
         }
     }
 
-    @Override public void onDestroy() { running = false; if (worker != null) worker.interrupt(); super.onDestroy(); }
+    @Override public void onDestroy() {
+        running = false;
+        AppState.setBridgeEnabled(this, false);
+        if (worker != null) worker.interrupt();
+        super.onDestroy();
+    }
     @Override public IBinder onBind(Intent intent) { return null; }
 }
