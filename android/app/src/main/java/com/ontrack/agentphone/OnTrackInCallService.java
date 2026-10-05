@@ -85,6 +85,11 @@ public class OnTrackInCallService extends InCallService {
                 b.put("state", "ringing");
                 b.put("phone_number", phone.isEmpty() ? "unknown" : phone);
 
+                String contactName = ContactHelper.findName(this, phone);
+                if (!contactName.isEmpty()) {
+                    b.put("contact_name", contactName);
+                }
+
                 JSONObject out = ApiClient.post(
                         AppState.server(this),
                         "/api/device/incoming-event.php",
