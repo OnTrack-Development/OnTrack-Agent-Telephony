@@ -17,7 +17,6 @@ if (!is_file($configFile)) {
         header('Location: /update.php');
         exit;
     }
-
     http_response_code(503);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['ok' => false, 'error' => 'Application is not configured. Open /update.php to repair local configuration.']);
@@ -44,26 +43,44 @@ function cfg(string $key, mixed $default = null): mixed {
 function db(): PDO {
     static $pdo = null;
     if ($pdo instanceof PDO) return $pdo;
+
     $path = (string) cfg('sqlite_path');
     $dir = dirname($path);
     if (!is_dir($dir)) mkdir($dir, 0775, true);
+
     $pdo = new PDO('sqlite:' . $path, null, null, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
+
     $pdo->exec('PRAGMA journal_mode=WAL;');
     $pdo->exec('PRAGMA foreign_keys=ON;');
     migrate($pdo);
+
     return $pdo;
+}
+
+function ensure_column(PDO $pdo, string $table, string $column, string $definition): void {
+    $rows = $pdo->query("PRAGMA table_info(" . $table . ")")->fetchAll();
+    foreach ($rows as $row) {
+        if (($row['name'] ?? '') === $column) return;
+    }
+    $pdo->exec("ALTER TABLE " . $table . " ADD COLUMN " . $column . " " . $definition);
 }
 
 function migrate(PDO $pdo): void {
     static $done = false;
     if ($done) return;
     $done = true;
+
     $sql = file_get_contents(__DIR__ . '/../database/schema.sql');
     if ($sql === false) throw new RuntimeException('Missing database/schema.sql');
     $pdo->exec($sql);
+
+    // Existing databases from earlier POC builds need additive columns.
+    ensure_column($pdo, 'calls', 'contact_name', 'TEXT');
+    ensure_column($pdo, 'calls', 'recording_status', "TEXT NOT NULL DEFAULT 'not_recorded'");
+    ensure_column($pdo, 'calls', 'recording_url', 'TEXT');
 }
 
 function json_input(): array {
@@ -82,20 +99,53 @@ function json_response(array $payload, int $status = 200): never {
 }
 
 function require_admin_api(): void {
-    if (empty($_SESSION['admin_ok'])) json_response(['ok' => false, 'error' => 'Unauthorized'], 401);
+    if (empty($_SESSION['admin_ok'])) {
+        json_response(['ok' => false, 'error' => 'Unauthorized'], 401);
+    }
 }
 
 function current_device(): array {
     $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-    if (!preg_match('/^Bearer\s+(.+)$/i', $auth, $m)) json_response(['ok' => false, 'error' => 'Missing device token'], 401);
+    if (!preg_match('/^Bearer\s+(.+)$/i', $auth, $m)) {
+        json_response(['ok' => false, 'error' => 'Missing device token'], 401);
+    }
+
     $hash = hash('sha256', trim($m[1]));
     $stmt = db()->prepare('SELECT * FROM devices WHERE token_hash = ? AND revoked_at IS NULL LIMIT 1');
     $stmt->execute([$hash]);
     $device = $stmt->fetch();
-    if (!$device) json_response(['ok' => false, 'error' => 'Invalid device token'], 401);
+
+    if (!$device) {
+        json_response(['ok' => false, 'error' => 'Invalid device token'], 401);
+    }
+
     return $device;
 }
 
-function now_utc(): string { return gmdate('Y-m-d H:i:s'); }
-function random_token(int $bytes = 32): string { return rtrim(strtr(base64_encode(random_bytes($bytes)), '+/', '-_'), '='); }
-function normalize_phone(string $phone): string { return preg_replace('/[^0-9+]/', '', trim($phone)) ?? ''; }
+function now_utc(): string {
+    return gmdate('Y-m-d H:i:s');
+}
+
+function random_token(int $bytes = 32): string {
+    return rtrim(strtr(base64_encode(random_bytes($bytes)), '+/', '-_'), '=');
+}
+
+function normalize_phone(string $phone): string {
+    return preg_replace('/[^0-9+]/', '', trim($phone)) ?? '';
+}
+
+function phone_key(string $phone): string {
+    $digits = str_replace('+', '', normalize_phone($phone));
+    return strlen($digits) > 10 ? substr($digits, -10) : $digits;
+}
+
+function find_contact_name(PDO $pdo, int $deviceId, string $phone): ?string {
+    $key = phone_key($phone);
+    if ($key === '') return null;
+
+    $stmt = $pdo->prepare('SELECT contact_name FROM phone_contacts WHERE device_id=? AND phone_key=? LIMIT 1');
+    $stmt->execute([$deviceId, $key]);
+    $name = $stmt->fetchColumn();
+
+    return is_string($name) && trim($name) !== '' ? trim($name) : null;
+}
