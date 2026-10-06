@@ -9,6 +9,11 @@ CREATE TABLE IF NOT EXISTS devices (
   token_hash TEXT NOT NULL UNIQUE,
   status TEXT NOT NULL DEFAULT 'online',
   last_seen_at TEXT,
+  conference_can_add_call INTEGER,
+  conferenceable_count INTEGER,
+  active_call_count INTEGER,
+  conference_status TEXT NOT NULL DEFAULT 'unknown',
+  conference_checked_at TEXT,
   created_at TEXT NOT NULL,
   revoked_at TEXT
 );
