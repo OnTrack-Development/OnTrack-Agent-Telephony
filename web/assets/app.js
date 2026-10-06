@@ -14,7 +14,20 @@ async function api(url,opts={}){
     headers:{'Content-Type':'application/json',...(opts.headers||{})},
     ...opts
   });
-  const payload=await response.json();
+
+  const raw=await response.text();
+  let payload;
+
+  try{
+    payload=JSON.parse(raw);
+  }catch(error){
+    throw new Error(
+      response.status===401
+        ? 'Admin session expired. Please sign in again.'
+        : 'Server returned an invalid response. Refresh the page and try again.'
+    );
+  }
+
   if(!response.ok) throw new Error(payload.error||'Request failed');
   return payload;
 }
@@ -478,30 +491,132 @@ loadSettings();
 setInterval(load,8000);
 
 
+function appReleaseMarkup(release){
+  const size=release.size_bytes
+    ? (release.size_bytes/1024/1024).toFixed(2)+' MB'
+    : '—';
+
+  return `
+    <div class="app-release-grid">
+      <div><span>Version</span><strong>v${esc(release.version_name)}</strong></div>
+      <div><span>Version code</span><strong>${Number(release.version_code||0)}</strong></div>
+      <div><span>Signing</span><strong class="state-ok">PERSISTENT</strong></div>
+      <div><span>Size</span><strong>${size}</strong></div>
+    </div>
+    <div class="app-release-actions">
+      <a class="primary" href="${esc(release.download_url)}">Download latest APK</a>
+      <span>SHA-256: ${esc(release.sha256)}</span>
+    </div>
+  `;
+}
+
 async function loadAppRelease(){
-  const el=$('#appRelease');
-  if(!el) return;
+  const targets=['#appRelease','#updatesAppRelease']
+    .map(selector=>$(selector))
+    .filter(Boolean);
+
+  if(!targets.length) return;
 
   try{
     const release=await api('api/app/latest.php');
-    const size=release.size_bytes
-      ? (release.size_bytes/1024/1024).toFixed(2)+' MB'
-      : '—';
-
-    el.innerHTML=`
-      <div class="app-release-grid">
-        <div><span>Version</span><strong>v${esc(release.version_name)}</strong></div>
-        <div><span>Version code</span><strong>${Number(release.version_code||0)}</strong></div>
-        <div><span>Signing</span><strong class="state-ok">PERSISTENT</strong></div>
-        <div><span>Size</span><strong>${size}</strong></div>
-      </div>
-      <div class="app-release-actions">
-        <a class="primary" href="${esc(release.download_url)}">Download latest APK</a>
-        <span>SHA-256: ${esc(release.sha256)}</span>
-      </div>
-    `;
+    const html=appReleaseMarkup(release);
+    targets.forEach(el=>el.innerHTML=html);
   }catch(error){
-    el.innerHTML=empty('No signed Android release has been published to this server yet.');
+    targets.forEach(el=>{
+      el.innerHTML=empty('No signed Android release has been published to this server yet.');
+    });
   }
 }
+
+function renderWebsiteUpdateStatus(status){
+  const el=$('#websiteUpdateStatus');
+  if(!el) return;
+
+  const latest=status?.latest||{};
+  const deployed=status?.deployed||{};
+  const available=status?.update_available===true;
+
+  const latestSha=latest.short_sha||(
+    latest.sha ? String(latest.sha).slice(0,12) : 'Unavailable'
+  );
+
+  const deployedSha=deployed.short_sha||(
+    deployed.sha ? String(deployed.sha).slice(0,12) : 'Not recorded yet'
+  );
+
+  el.innerHTML=`
+    <div class="update-status-grid">
+      <div>
+        <span>Deployed</span>
+        <strong>${esc(deployedSha)}</strong>
+      </div>
+      <div>
+        <span>GitHub main</span>
+        <strong>${esc(latestSha)}</strong>
+      </div>
+      <div>
+        <span>Status</span>
+        <strong class="${available?'state-off':'state-ok'}">
+          ${available?'UPDATE AVAILABLE':'UP TO DATE'}
+        </strong>
+      </div>
+    </div>
+    <div class="update-commit-message">
+      ${esc(latest.message||'Latest GitHub commit status')}
+    </div>
+  `;
+
+  const button=$('#runWebsiteUpdate');
+  if(button){
+    button.textContent=available
+      ? 'Update website from GitHub'
+      : 'Reinstall latest website version';
+  }
+}
+
+async function loadWebsiteUpdateStatus(){
+  if(!$('#websiteUpdateStatus')) return;
+
+  try{
+    const result=await api('api/admin/system-update.php');
+    renderWebsiteUpdateStatus(result.status);
+  }catch(error){
+    setHtml(
+      '#websiteUpdateStatus',
+      `<div class="update-error">${esc(error.message)}</div>`
+    );
+  }
+}
+
+const runWebsiteUpdate=$('#runWebsiteUpdate');
+if(runWebsiteUpdate){
+  runWebsiteUpdate.addEventListener('click',async()=>{
+    if(!confirm(
+      'Update the website from GitHub main?\n\nLocal config and the SQLite database will be preserved.'
+    )) return;
+
+    runWebsiteUpdate.disabled=true;
+    runWebsiteUpdate.textContent='Updating website…';
+
+    try{
+      const result=await api('api/admin/system-update.php',{
+        method:'POST',
+        body:JSON.stringify({action:'update'})
+      });
+
+      runWebsiteUpdate.textContent=
+        'Updated '+Number(result.files||0)+' files — reloading…';
+
+      setTimeout(()=>{
+        window.location.href='?view=updates&updated=1';
+      },700);
+    }catch(error){
+      runWebsiteUpdate.disabled=false;
+      runWebsiteUpdate.textContent='Update website from GitHub';
+      alert(error.message);
+    }
+  });
+}
+
 loadAppRelease();
+loadWebsiteUpdateStatus();
