@@ -22,7 +22,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?=htmlspecialchars($pageTitle)?> · OnTrack AI Telephony</title>
-<link rel="stylesheet" href="assets/app.css?v=20261006-2">
+<link rel="stylesheet" href="assets/app.css?v=20261006-3">
 </head>
 <body>
 <div class="shell">
@@ -48,18 +48,19 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
     <section class="view<?=$active('overview')?>">
       <div class="metrics" id="metrics"></div>
       <div class="grid two">
-        <article class="card"><div class="card-head"><h2>Live Devices</h2><span>Android bridges</span></div><div id="overviewDevices" class="list"></div></article>
+        <article class="card"><div class="card-head"><h2>Live Devices</h2><span>Heartbeat-based status</span></div><div id="overviewDevices" class="list"></div></article>
         <article class="card"><div class="card-head"><h2>Recent Calls</h2><span>Name + number + duration</span></div><div id="recentCalls" class="list"></div></article>
       </div>
       <article class="card flow-card">
-        <div class="card-head"><h2>Current POC Flow</h2><span>No GSM hardware required</span></div>
-        <div class="flow"><b>OnTrack Cloud</b><i>→</i><b>Android Bridge</b><i>→</i><b>SIM / Carrier</b><i>→</i><b>Customer</b><i>+</i><b>AI Conference Bridge</b></div>
+        <div class="card-head"><h2>Current Telephony Flow</h2><span id="mediaOverviewLabel">Checking media path…</span></div>
+        <div class="flow"><b>OnTrack Cloud</b><i>→</i><b>Android Bridge</b><i>→</i><b>SIM / Carrier</b><i>→</i><b>Customer</b></div>
+        <div id="mediaOverview" class="media-strip"></div>
       </article>
     </section>
 
     <section class="view<?=$active('devices')?>">
       <article class="card">
-        <div class="card-head"><h2>Registered Phones</h2><span>Each phone represents one customer SIM endpoint</span></div>
+        <div class="card-head"><h2>Registered Phones</h2><span>Rename or remove paired endpoints at any time</span></div>
         <div id="devicesTable"></div>
       </article>
     </section>
@@ -96,7 +97,17 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
       <article class="card">
         <div class="card-head">
           <h2>Call History</h2>
-          <span>Duration is from answer → hangup. Recording will activate with the media bridge.</span>
+          <span>Duration is answer → hangup. Server recording starts only after Media Bridge is connected.</span>
+        </div>
+        <div class="history-toolbar">
+          <input id="callSearch" placeholder="Search name or number">
+          <select id="callDirection">
+            <option value="">All directions</option>
+            <option value="inbound">Inbound</option>
+            <option value="outbound">Outbound</option>
+          </select>
+          <button class="secondary-action" id="deleteNumberBtn">Delete by number</button>
+          <button class="danger-action" id="clearHistoryBtn">Clear all history</button>
         </div>
         <div id="callsTable"></div>
       </article>
@@ -110,12 +121,21 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
           <p>Pairing, contacts, heartbeat, incoming-call instructions, job polling and result reporting are active.</p>
         </article>
         <article class="card status-card">
-          <h2>Voice Media Adapter</h2>
-          <div class="big-status pending">NEXT</div>
-          <p>The next milestone connects carrier conference audio to the Voice Agent and enables server-side call recordings.</p>
+          <h2>Server Media Path</h2>
+          <div class="big-status media-off" id="mediaStatus">DISCONNECTED</div>
+          <p id="mediaStatusDetail">The phone is carrying the audio locally. This server currently receives call events only.</p>
         </article>
       </div>
 
+      <article class="card" style="margin-top:14px">
+        <div class="card-head"><h2>Media & Recording State</h2><span>Never infer audio from call events</span></div>
+        <div class="media-state-grid">
+          <div><span>Android call audio</span><strong class="state-ok">LOCAL / ACTIVE WHEN CALLING</strong></div>
+          <div><span>Live audio on server</span><strong id="serverAudioState" class="state-off">NO</strong></div>
+          <div><span>Server recording</span><strong id="recordingState" class="state-off">OFF</strong></div>
+          <div><span>Recording storage</span><strong>Prepared; activates with media bridge</strong></div>
+        </div>
+      </article>
       <article class="card" style="margin-top:14px">
         <div class="card-head"><h2>Incoming Call Policy</h2><span>Server instruction returned to the Android bridge</span></div>
         <div class="form-grid">
@@ -133,6 +153,6 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
   </main>
 </div>
 
-<script src="assets/app.js?v=20261006-2"></script>
+<script src="assets/app.js?v=20261006-3"></script>
 </body>
 </html>
