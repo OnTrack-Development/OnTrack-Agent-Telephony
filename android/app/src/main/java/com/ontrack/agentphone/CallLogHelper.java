@@ -42,22 +42,24 @@ final class CallLogHelper {
         }
 
         String durationLabel() {
-            long m = duration / 60;
-            long s = duration % 60;
-            return String.format(Locale.US, "%02d:%02d", m, s);
+            long minutes = duration / 60;
+            long seconds = duration % 60;
+            return String.format(Locale.US, "%02d:%02d", minutes, seconds);
         }
     }
 
     private CallLogHelper() {}
 
-    static boolean allowed(Context c) {
+    static boolean allowed(Context context) {
         return android.os.Build.VERSION.SDK_INT < 23 ||
-                c.checkSelfPermission(Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED;
+                context.checkSelfPermission(Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED;
     }
 
-    static List<Entry> recent(Context c, int limit) {
+    static List<Entry> recent(Context context, int limit) {
         ArrayList<Entry> out = new ArrayList<>();
-        if (!allowed(c)) return out;
+        if (!allowed(context)) return out;
+
+        int max = Math.max(1, Math.min(100, limit));
 
         String[] projection = {
                 CallLog.Calls.NUMBER,
@@ -67,14 +69,12 @@ final class CallLogHelper {
                 CallLog.Calls.DURATION
         };
 
-        String sort = CallLog.Calls.DATE + " DESC LIMIT " + Math.max(1, Math.min(100, limit));
-
-        try (Cursor cursor = c.getContentResolver().query(
+        try (Cursor cursor = context.getContentResolver().query(
                 CallLog.Calls.CONTENT_URI,
                 projection,
                 null,
                 null,
-                sort)) {
+                CallLog.Calls.DATE + " DESC")) {
 
             if (cursor == null) return out;
 
@@ -84,11 +84,12 @@ final class CallLogHelper {
             int dateIx = cursor.getColumnIndex(CallLog.Calls.DATE);
             int durationIx = cursor.getColumnIndex(CallLog.Calls.DURATION);
 
-            while (cursor.moveToNext()) {
+            while (cursor.moveToNext() && out.size() < max) {
                 String number = numberIx >= 0 ? cursor.getString(numberIx) : "";
                 String name = nameIx >= 0 ? cursor.getString(nameIx) : "";
+
                 if ((name == null || name.trim().isEmpty()) && number != null) {
-                    name = ContactHelper.findName(c, number);
+                    name = ContactHelper.findName(context, number);
                 }
 
                 out.add(new Entry(
@@ -99,6 +100,7 @@ final class CallLogHelper {
                         durationIx >= 0 ? cursor.getLong(durationIx) : 0L
                 ));
             }
+
         } catch (Exception ignored) { }
 
         return out;
