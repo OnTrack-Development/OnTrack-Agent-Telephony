@@ -357,3 +357,13 @@ input,select,textarea,button,a{touch-action:manipulation}
     gap:9px;
   }
 }
+
+.media-status-card.ready{background:#2a2110;border-color:#5d481c}
+.media-chip.pending{background:#3a2913;color:#ffd18b}
+.recording-live{display:inline-block;color:#ff8e93;font-size:11px;font-weight:850;letter-spacing:.04em}
+.secret-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center}
+.secret-row .secondary-action{white-space:nowrap}
+@media(max-width:680px){
+  .secret-row{grid-template-columns:1fr 1fr}
+  .secret-row input{grid-column:1/-1}
+}
