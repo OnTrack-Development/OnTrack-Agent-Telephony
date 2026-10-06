@@ -24,7 +24,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?=htmlspecialchars($pageTitle)?> · OnTrack AI Telephony</title>
 <link rel="icon" type="image/svg+xml" href="assets/ontrack-icon.svg">
-<link rel="stylesheet" href="assets/app.css?v=20261006-8">
+<link rel="stylesheet" href="assets/app.css?v=20261006-9">
 </head>
 <body>
 <div class="shell">
@@ -153,6 +153,45 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
         </div>
       </article>
       <article class="card" style="margin-top:14px">
+        <div class="card-head"><h2>Media Gateway</h2><span>PSTN bridge that carries call audio to the server</span></div>
+        <div class="form-grid">
+          <label>Bridge enabled
+            <select id="mediaBridgeEnabled">
+              <option value="0">Disabled</option>
+              <option value="1">Enabled</option>
+            </select>
+          </label>
+          <label>Bridge phone number
+            <input id="mediaBridgeNumber" placeholder="+20... or provider DID">
+          </label>
+          <label>Automatic carrier merge
+            <select id="mediaAutoMerge">
+              <option value="1">Enabled</option>
+              <option value="0">Manual merge only</option>
+            </select>
+          </label>
+          <div style="align-self:end">
+            <button class="primary" id="saveMediaBridge">Save media bridge</button>
+          </div>
+          <label class="full">Gateway API secret
+            <div class="secret-row">
+              <input id="mediaGatewaySecret" type="password" readonly value="">
+              <button type="button" class="secondary-action" id="toggleMediaSecret">Show</button>
+              <button type="button" class="secondary-action" id="copyMediaSecret">Copy</button>
+            </div>
+          </label>
+          <label class="full">Gateway event endpoint
+            <input id="mediaGatewayEventUrl" readonly>
+          </label>
+          <label class="full">Recording upload endpoint
+            <input id="mediaGatewayUploadUrl" readonly>
+          </label>
+        </div>
+        <div class="conference-note">
+          The Android phone calls the Bridge number using the same SIM/PhoneAccount as the customer call, sends an 8-digit session PIN by DTMF, then merges both carrier calls. The gateway reports CONNECTED only when it actually receives the media leg.
+        </div>
+      </article>
+      <article class="card" style="margin-top:14px">
         <div class="card-head"><h2>Carrier Conference Capability</h2><span>Measured live from each Android InCallService</span></div>
         <div id="conferenceDevices"></div>
         <div class="conference-note">
@@ -232,6 +271,6 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
   </main>
 </div>
 
-<script src="assets/app.js?v=20261006-8"></script>
+<script src="assets/app.js?v=20261006-9"></script>
 </body>
 </html>
