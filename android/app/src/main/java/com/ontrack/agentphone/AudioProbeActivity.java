@@ -77,10 +77,19 @@ public class AudioProbeActivity extends Activity {
         card.addView(text("3 · Run during a real SIM call", 16, true));
         card.addView(note(
                 "Make a normal cellular call, keep the other phone talking, return here and press Run. " +
-                "The probe tests VOICE_CALL, DOWNLINK and UPLINK for ~1.4 seconds each."));
+                "The probe tests VOICE_CALL, DOWNLINK and UPLINK digitally, then the next step tests audio injection."));
         TextView run = button("Run SIM audio probe", v -> runProbe());
         run.setBackground(roundRect(RED, 14, RED));
         card.addView(run);
+        card.addView(space(16));
+
+        card.addView(text("4 · Inject a test tone to the caller", 16, true));
+        card.addView(note(
+                "Keep the real SIM call connected. Tap Inject and ask the remote party if they hear one short 700 Hz beep. " +
+                "This tests the Android PSTN uplink injection path; it does not use the phone speaker."));
+        TextView inject = button("Inject test tone", v -> runInjectionProbe());
+        inject.setBackground(roundRect(Color.rgb(43, 78, 67), 14, Color.rgb(55, 201, 147)));
+        card.addView(inject);
 
         root.addView(card);
         root.addView(space(14));
@@ -150,6 +159,51 @@ public class AudioProbeActivity extends Activity {
                 ui("FAIL · " + message(error), RED);
             }
         }, "OnTrackAudioProbeRun").start();
+    }
+
+    private void runInjectionProbe() {
+        if (Build.VERSION.SDK_INT < 31) {
+            status.setText("This injection probe is intentionally limited to Android 12+.");
+            return;
+        }
+
+        status.setText(
+                "Injecting a short test tone into the SIM call uplink… ask the remote party if they hear it.");
+
+        new Thread(() -> {
+            try {
+                String output = LocalAdb.runUplinkInjectionProbe(this);
+
+                boolean shell = output.contains("|uid=2000");
+                boolean interceptable =
+                        output.contains("pstn_interceptable=true");
+                boolean written =
+                        output.contains("result=written");
+
+                int color =
+                        shell && interceptable && written
+                                ? GREEN
+                                : RED;
+
+                String headline;
+
+                if (shell && interceptable && written) {
+                    headline =
+                            "TONE SENT · ask the remote party if they heard the beep";
+                } else if (output.contains("pstn_interceptable=false")) {
+                    headline =
+                            "RESULT · Android reports PSTN uplink injection unavailable";
+                } else {
+                    headline =
+                            "RESULT · injection probe ran; inspect the details below";
+                }
+
+                ui(headline + "\n\n" + output, color);
+
+            } catch (Throwable error) {
+                ui("FAIL · " + message(error), RED);
+            }
+        }, "OnTrackUplinkInjectionProbe").start();
     }
 
     private void ui(String value, int color) {
