@@ -39,6 +39,7 @@ final class MediaBridgeCoordinator {
 
     private boolean configured;
     private boolean activated;
+    private boolean localOnlyReported;
     private boolean dialStarted;
     private boolean pinSent;
     private boolean mergeRequested;
@@ -127,6 +128,9 @@ final class MediaBridgeCoordinator {
             if (state == Call.STATE_ACTIVE || state == Call.STATE_HOLDING) {
                 if (activated && !dialStarted) {
                     handler.postDelayed(() -> maybeStartBridge(0), 700L);
+                } else if (!activated && !localOnlyReported) {
+                    localOnlyReported = true;
+                    reportAsync(callId, "not_connected", null);
                 }
             } else if (state == Call.STATE_DISCONNECTED) {
                 finish(true, null);
@@ -468,6 +472,7 @@ final class MediaBridgeCoordinator {
         autoMerge = false;
         configured = false;
         activated = false;
+        localOnlyReported = false;
         dialStarted = false;
         pinSent = false;
         mergeRequested = false;
