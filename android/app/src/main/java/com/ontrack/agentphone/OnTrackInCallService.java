@@ -184,6 +184,22 @@ public class OnTrackInCallService extends InCallService {
                     }
                     reportCapabilitiesAsync();
                 }
+
+                @Override public void onParentChanged(Call changedCall, Call parent) {
+                    if (mediaBridge != null) {
+                        mediaBridge.onConferenceStructureChanged(changedCall);
+                    }
+                    reportCapabilitiesAsync();
+                }
+
+                @Override public void onChildrenChanged(
+                        Call changedCall,
+                        List<Call> children) {
+                    if (mediaBridge != null) {
+                        mediaBridge.onConferenceStructureChanged(changedCall);
+                    }
+                    reportCapabilitiesAsync();
+                }
             });
 
             reportCapabilitiesAsync();
