@@ -66,3 +66,165 @@
 .update-commit-message{margin-top:10px;padding:11px 12px;border-radius:10px;background:#0b0d10;border:1px solid #272b32;color:var(--muted);font-size:11px;line-height:1.45}
 .update-error{padding:12px;border-radius:10px;background:#3b171a;border:1px solid #63252b;color:#ffb2b5;font-size:12px}
 @media(max-width:760px){.update-status-grid{grid-template-columns:1fr}}
+
+/* Responsive dashboard v2 */
+html,body{max-width:100%;overflow-x:hidden}
+.shell,.main,.card,.metric,.grid,.view{min-width:0}
+.topbar-title{display:flex;align-items:center;gap:12px;min-width:0}
+.mobile-menu-toggle,.mobile-nav-overlay{display:none}
+#devicesTable,#contactsTable,#callsTable{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+#devicesTable .table,#contactsTable .table,#callsTable .table{min-width:760px}
+.table td,.table th{white-space:nowrap}
+.table td:first-child,.table th:first-child{white-space:normal}
+.primary,.secondary-action,.danger-action,.mini-action,button{min-height:42px}
+input,select,textarea,button,a{touch-action:manipulation}
+.card-head{gap:12px}
+.card-head>*{min-width:0}
+.card-head span{max-width:58%;text-align:right;line-height:1.35}
+.topbar .primary{flex:0 0 auto}
+
+@media(max-width:1100px){
+  .main{padding:22px 20px}
+  .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .grid.two,.campaign-layout{grid-template-columns:1fr}
+  .media-state-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media(max-width:900px){
+  .shell{display:block;min-height:100vh}
+  .main{margin:0;padding:18px 16px 28px;width:100%;max-width:none}
+
+  .mobile-menu-toggle{
+    display:grid;
+    place-items:center;
+    width:42px;
+    min-width:42px;
+    height:42px;
+    border:1px solid var(--line);
+    border-radius:11px;
+    background:#171a20;
+    color:#fff;
+    font-size:20px;
+    cursor:pointer;
+    padding:0;
+  }
+
+  .sidebar{
+    position:fixed;
+    inset:0 auto 0 0;
+    z-index:1002;
+    width:min(320px,86vw);
+    height:100dvh;
+    padding:20px 16px;
+    display:flex;
+    flex-direction:column;
+    background:#0b0c0f;
+    border-right:1px solid var(--line);
+    transform:translateX(-104%);
+    transition:transform .22s ease;
+    box-shadow:18px 0 55px #0009;
+    overflow-y:auto;
+  }
+
+  body.mobile-nav-open .sidebar{transform:translateX(0)}
+
+  .mobile-nav-overlay{
+    position:fixed;
+    inset:0;
+    z-index:1001;
+    border:0;
+    background:#000a;
+    width:100%;
+    height:100%;
+    padding:0;
+  }
+
+  body.mobile-nav-open .mobile-nav-overlay{display:block}
+
+  .sidebar .brand{margin-bottom:24px}
+  .sidebar nav{display:grid;gap:7px;overflow:visible}
+  .sidebar .nav{white-space:normal;font-size:14px;padding:13px}
+  .sidebar-footer{display:block;margin-top:auto;padding-top:22px}
+
+  .topbar{
+    align-items:center;
+    gap:12px;
+    margin-bottom:18px;
+  }
+
+  .topbar h1{font-size:24px;line-height:1.12}
+  .topbar p{font-size:12px;line-height:1.35}
+  .pair-phone-button{padding:11px 13px;font-size:11px}
+
+  .status-card{padding:26px 18px}
+  .big-status{font-size:24px;margin:18px 0}
+  .conference-grid{grid-template-columns:1fr}
+  .app-release-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media(max-width:680px){
+  .main{padding:14px 12px 24px}
+  .topbar{align-items:stretch;flex-direction:column}
+  .topbar-title{width:100%}
+  .topbar-title>div{min-width:0}
+  .pair-phone-button{width:100%;text-align:center}
+
+  .metrics{grid-template-columns:1fr 1fr;gap:10px}
+  .metric{padding:15px}
+  .metric strong{font-size:25px}
+
+  .card{padding:14px;border-radius:15px}
+  .card-head{align-items:flex-start;flex-direction:column;margin-bottom:13px}
+  .card-head span{max-width:none;text-align:left}
+
+  .row{align-items:flex-start;flex-direction:column}
+  .row>.badge{align-self:flex-start}
+  .row .row-main[style]{text-align:left!important}
+
+  .form-grid{grid-template-columns:1fr}
+  .form-grid .full{grid-column:auto}
+  .history-toolbar{grid-template-columns:1fr}
+  .history-toolbar>*{width:100%}
+  .media-state-grid{grid-template-columns:1fr}
+  .media-status-card{align-items:flex-start;flex-direction:column}
+
+  .conference-device-head{flex-direction:column}
+  .conference-badge{white-space:normal}
+  .conference-facts{grid-template-columns:1fr 1fr}
+
+  .flow{display:grid;grid-template-columns:1fr;gap:7px}
+  .flow i{display:none}
+  .flow b{text-align:center;width:100%}
+
+  .app-release-grid,.update-status-grid{grid-template-columns:1fr}
+  .app-release-actions{align-items:stretch;flex-direction:column}
+  .app-release-actions .primary{width:100%;text-align:center}
+  .update-actions .primary{width:100%}
+
+  #devicesTable,#contactsTable,#callsTable{
+    margin:0 -4px;
+    width:calc(100% + 8px);
+    padding-bottom:4px;
+  }
+  #devicesTable .table,#contactsTable .table,#callsTable .table{min-width:720px}
+}
+
+@media(max-width:440px){
+  .main{padding:12px 10px 22px}
+  .mobile-menu-toggle{width:40px;min-width:40px;height:40px}
+  .topbar h1{font-size:21px}
+  .topbar p{font-size:11px}
+  .metrics{grid-template-columns:1fr}
+  .metric{padding:14px}
+  .metric strong{font-size:24px}
+  .card{padding:13px}
+  .status-card{padding:22px 14px}
+  .big-status{font-size:20px;letter-spacing:.04em}
+  .conference-facts{grid-template-columns:1fr}
+  .pair-code{font-size:29px;letter-spacing:.12em}
+  .login-card{padding:22px 18px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .sidebar{transition:none}
+}
