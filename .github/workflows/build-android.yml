@@ -80,7 +80,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OnTrack-AI-Phone-Bridge-v0.5.4
+          name: OnTrack-AI-Phone-Bridge-v0.6.0
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/release/app-release.apk
@@ -114,7 +114,7 @@ jobs:
             "sha256": "${SHA256}",
             "size_bytes": ${SIZE_BYTES},
             "published_at": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
-            "release_notes": "OnTrack AI Phone v0.5.4: keeps the CALL_ASSISTANT PSTN test and adds Android's generic in-call-music uplink route using explicit TELEPHONY_TX device selection.",
+            "release_notes": "OnTrack AI Phone v0.6.0: platform-controlled Voice Agent sessions, direct SIM RX/TX media bridge on Android, short-lived Gemini Live sessions, transcripts and per-call AI session logging.",
             "signing_certificate_sha256": "${CERT_SHA256}"
           }
           EOF
