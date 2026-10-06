@@ -67,9 +67,44 @@ function identity(call){
 
 function recording(call){
   if(call.recording_url){
-    return `<audio class="call-audio" controls preload="none" src="${esc(call.recording_url)}"></audio>`;
+    return `<audio class="call-audio" controls preload="metadata" src="${esc(call.recording_url)}"></audio>`;
   }
-  return '<span class="muted">Not recorded — media bridge offline</span>';
+
+  if(call.recording_status==='recording'){
+    return '<span class="recording-live">● RECORDING</span>';
+  }
+
+  if(call.media_status==='failed'){
+    return `<span class="muted">No recording — ${esc(call.media_error||'media bridge failed')}</span>`;
+  }
+
+  if(['requested','waiting_for_add_call','bridge_leg_dialing','bridge_leg_answered','dtmf_sent','merge_waiting','merge_requested'].includes(call.media_status)){
+    return '<span class="muted">Waiting for media gateway…</span>';
+  }
+
+  return '<span class="muted">Not recorded</span>';
+}
+
+function mediaChip(call){
+  const state=call.media_status||'not_connected';
+
+  if(state==='connected' || state==='recording'){
+    return '<span class="media-chip on">CONNECTED</span>';
+  }
+
+  if(state==='merge_requested'){
+    return '<span class="media-chip pending">MERGING</span>';
+  }
+
+  if(['requested','waiting_for_add_call','bridge_leg_dialing','bridge_leg_answered','dtmf_sent','merge_waiting'].includes(state)){
+    return `<span class="media-chip pending">${esc(state.replaceAll('_',' ').toUpperCase())}</span>`;
+  }
+
+  if(state==='failed' || state==='add_call_unavailable' || state==='merge_unavailable'){
+    return '<span class="media-chip off">FAILED</span>';
+  }
+
+  return '<span class="media-chip off">NOT CONNECTED</span>';
 }
 
 function setHtml(selector,html){
@@ -207,7 +242,7 @@ function renderCalls(){
               <td>${badge(x.status)}</td>
               <td>${esc(x.outcome||'—')}</td>
               <td><b>${duration(x.duration_seconds)}</b></td>
-              <td><span class="media-chip off">NOT CONNECTED</span></td>
+              <td>${mediaChip(x)}${x.media_error?`<div class="tiny">${esc(x.media_error)}</div>`:''}</td>
               <td>${recording(x)}</td>
               <td>${esc(x.created_at)}</td>
               <td><button class="mini-action danger" onclick="deleteCall(${x.id})">Delete</button></td>
@@ -308,21 +343,28 @@ function renderConference(devices){
 
 function renderMedia(media){
   const connected=media.status==='connected' && media.audio_on_server===true;
+  const ready=media.status==='ready' && media.bridge_enabled===true;
 
   const overview=$('#mediaOverview');
   if(overview){
     overview.innerHTML=connected
-      ? `<div class="media-status-card connected"><b>Server Media Connected</b><span>Live call audio is reaching the server.</span></div>`
-      : `<div class="media-status-card disconnected"><b>Server Media Disconnected</b><span>Audio is currently on the Android phone only. The website receives call events, not sound.</span></div>`;
+      ? `<div class="media-status-card connected"><b>Server Media Connected</b><span>Live carrier audio is reaching the Media Gateway.</span></div>`
+      : ready
+        ? `<div class="media-status-card ready"><b>Media Bridge Armed</b><span>${esc(media.bridge_number||'Bridge number configured')} · waiting for an AI-handled call.</span></div>`
+        : `<div class="media-status-card disconnected"><b>Server Media Disconnected</b><span>Configure the PSTN/SIP bridge before call audio can reach the server.</span></div>`;
   }
 
   const label=$('#mediaOverviewLabel');
-  if(label) label.textContent=connected?'Audio on server':'Phone audio only';
+  if(label) label.textContent=connected
+    ? 'Audio on server'
+    : ready
+      ? 'Media bridge armed'
+      : 'Phone audio only';
 
   const status=$('#mediaStatus');
   if(status){
-    status.textContent=connected?'CONNECTED':'DISCONNECTED';
-    status.className='big-status '+(connected?'ok':'media-off');
+    status.textContent=connected?'CONNECTED':ready?'READY':'DISCONNECTED';
+    status.className='big-status '+(connected?'ok':ready?'pending':'media-off');
   }
 
   const detail=$('#mediaStatusDetail');
@@ -336,7 +378,7 @@ function renderMedia(media){
 
   const recordingState=$('#recordingState');
   if(recordingState){
-    recordingState.textContent=media.recording_enabled?'ON':'OFF';
+    recordingState.textContent=media.recording_enabled?'REC':'OFF';
     recordingState.className=media.recording_enabled?'state-ok':'state-off';
   }
 }
@@ -486,8 +528,77 @@ if(saveIncoming){
   });
 }
 
+async function loadMediaSettings(){
+  const enabled=$('#mediaBridgeEnabled');
+  if(!enabled) return;
+
+  try{
+    const settings=await api('api/admin/media-settings.php');
+
+    enabled.value=settings.enabled?'1':'0';
+    $('#mediaBridgeNumber').value=settings.bridge_number||'';
+    $('#mediaAutoMerge').value=settings.auto_merge?'1':'0';
+    $('#mediaGatewaySecret').value=settings.gateway_secret||'';
+    $('#mediaGatewayEventUrl').value=settings.gateway_event_url||'';
+    $('#mediaGatewayUploadUrl').value=settings.gateway_upload_url||'';
+  }catch(error){
+    console.error('Media settings load failed:',error);
+  }
+}
+
+const saveMediaBridge=$('#saveMediaBridge');
+if(saveMediaBridge){
+  saveMediaBridge.addEventListener('click',async()=>{
+    try{
+      const payload={
+        enabled:$('#mediaBridgeEnabled').value==='1',
+        bridge_number:$('#mediaBridgeNumber').value.trim(),
+        auto_merge:$('#mediaAutoMerge').value==='1'
+      };
+
+      await api('api/admin/media-settings.php',{
+        method:'POST',
+        body:JSON.stringify(payload)
+      });
+
+      alert('Media bridge settings saved.');
+      await loadMediaSettings();
+      await load();
+    }catch(error){
+      alert(error.message);
+    }
+  });
+}
+
+const toggleMediaSecret=$('#toggleMediaSecret');
+if(toggleMediaSecret){
+  toggleMediaSecret.addEventListener('click',()=>{
+    const input=$('#mediaGatewaySecret');
+    const showing=input.type==='text';
+    input.type=showing?'password':'text';
+    toggleMediaSecret.textContent=showing?'Show':'Hide';
+  });
+}
+
+const copyMediaSecret=$('#copyMediaSecret');
+if(copyMediaSecret){
+  copyMediaSecret.addEventListener('click',async()=>{
+    const value=$('#mediaGatewaySecret').value||'';
+    if(!value) return;
+
+    try{
+      await navigator.clipboard.writeText(value);
+      copyMediaSecret.textContent='Copied';
+      setTimeout(()=>copyMediaSecret.textContent='Copy',1200);
+    }catch(error){
+      alert('Could not copy the secret automatically.');
+    }
+  });
+}
+
 load();
 loadSettings();
+loadMediaSettings();
 setInterval(load,8000);
 
 
