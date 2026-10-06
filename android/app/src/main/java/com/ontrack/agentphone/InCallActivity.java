@@ -264,10 +264,6 @@ public class InCallActivity extends Activity {
         endParams.setMargins(0, dp(18), 0, 0);
         root.addView(endCall, endParams);
 
-        LinearLayout.LayoutParams spacer =
-                new LinearLayout.LayoutParams(1, 0, 1f);
-        root.addView(new View(this), 1, root.getChildCount() - 5);
-
         setContentView(root);
         refresh();
     }
