@@ -35,6 +35,7 @@ public class OnTrackInCallService extends InCallService {
     private final Map<Call, Integer> outboundIds = new ConcurrentHashMap<>();
     private final Map<Call, Runnable> pendingAutoAnswers = new ConcurrentHashMap<>();
     private final Map<Call, Boolean> trackedCalls = new ConcurrentHashMap<>();
+    private final Map<Call, Boolean> customerCalls = new ConcurrentHashMap<>();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private MediaBridgeCoordinator mediaBridge;
 
@@ -70,6 +71,22 @@ public class OnTrackInCallService extends InCallService {
             boolean bridgeLeg = !incoming
                     && mediaBridge != null
                     && mediaBridge.isExpectedBridgeNumber(number);
+
+            if (!bridgeLeg && incoming && hasBusyCustomerCall(call)) {
+                Log.i(TAG, "Rejecting second customer call while device is busy");
+                try {
+                    call.reject(false, null);
+                } catch (Throwable error) {
+                    Log.w(TAG, "Could not reject second customer call", error);
+                }
+                trackedCalls.remove(call);
+                reportCapabilitiesAsync();
+                return;
+            }
+
+            if (!bridgeLeg) {
+                customerCalls.put(call, Boolean.TRUE);
+            }
 
             if (bridgeLeg) {
                 mediaBridge.onBridgeCallAdded(call, number);
@@ -229,6 +246,7 @@ public class OnTrackInCallService extends InCallService {
             }
 
             trackedCalls.remove(call);
+            customerCalls.remove(call);
 
             Integer out = outboundIds.remove(call);
             if (out != null) {
@@ -270,6 +288,26 @@ public class OnTrackInCallService extends InCallService {
     @Override public void onCanAddCallChanged(boolean canAddCall) {
         super.onCanAddCallChanged(canAddCall);
         reportCapabilitiesAsync();
+    }
+
+    private boolean hasBusyCustomerCall(Call except) {
+        for (Call existing : customerCalls.keySet()) {
+            if (existing == except) continue;
+
+            int state = existing.getState();
+            if (state != Call.STATE_DISCONNECTED
+                    && state != Call.STATE_DISCONNECTING) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static boolean hasActiveCustomerCallNow() {
+        OnTrackInCallService service = instance;
+        if (service == null) return false;
+
+        return service.hasBusyCustomerCall(null);
     }
 
     private Call choosePrimaryCall(Call preferred) {
