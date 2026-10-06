@@ -96,7 +96,7 @@ public class BridgeService extends Service {
     private void heartbeat() throws Exception {
         JSONObject body = new JSONObject();
         body.put("phone_number", AppState.phone(this));
-        body.put("app_version", "0.3.3-poc");
+        body.put("app_version", "0.4.0-poc");
 
         ApiClient.post(
                 AppState.server(this),
