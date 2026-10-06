@@ -24,7 +24,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?=htmlspecialchars($pageTitle)?> · OnTrack AI Telephony</title>
 <link rel="icon" type="image/svg+xml" href="assets/ontrack-icon.svg">
-<link rel="stylesheet" href="assets/app.css?v=20261006-11">
+<link rel="stylesheet" href="assets/app.css?v=20261006-12">
 </head>
 <body>
 <div class="shell">
@@ -153,42 +153,35 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
         </div>
       </article>
       <article class="card" style="margin-top:14px">
-        <div class="card-head"><h2>Hosted Media Bridge</h2><span>Managed PSTN bridge — no VPS required</span></div>
+        <div class="card-head">
+          <h2>AI Platform & Default Voice Agent</h2>
+          <span>Platform-controlled agent provisioning for every paired phone</span>
+        </div>
         <div class="form-grid">
-          <label>Bridge enabled
-            <select id="mediaBridgeEnabled">
-              <option value="0">Disabled</option>
-              <option value="1">Enabled</option>
-            </select>
+          <label>Gemini API key
+            <input id="geminiApiKey" type="password" autocomplete="off" placeholder="Enter once — never sent to Android">
           </label>
-          <label>Bridge phone number
-            <input id="mediaBridgeNumber" placeholder="+20... or provider DID">
+          <label>Provider status
+            <input id="geminiStatus" readonly value="Checking…">
           </label>
-          <label>Automatic carrier merge
-            <select id="mediaAutoMerge">
-              <option value="1">Enabled</option>
-              <option value="0">Manual merge only</option>
-            </select>
+          <label>Agent name
+            <input id="defaultAgentName" placeholder="Default Voice Agent">
+          </label>
+          <label>Gemini voice
+            <input id="defaultAgentVoice" placeholder="Puck">
+          </label>
+          <label>Live model
+            <input id="defaultAgentModel" placeholder="gemini-3.8-live">
           </label>
           <div style="align-self:end">
-            <button class="primary" id="saveMediaBridge">Save media bridge</button>
+            <button class="primary" id="saveAiPlatform">Save AI platform</button>
           </div>
-          <label class="full">Bridge callback secret
-            <div class="secret-row">
-              <input id="mediaGatewaySecret" type="password" readonly value="">
-              <button type="button" class="secondary-action" id="toggleMediaSecret">Show</button>
-              <button type="button" class="secondary-action" id="copyMediaSecret">Copy</button>
-            </div>
-          </label>
-          <label class="full">Bridge event endpoint
-            <input id="mediaGatewayEventUrl" readonly>
-          </label>
-          <label class="full">Recording upload endpoint
-            <input id="mediaGatewayUploadUrl" readonly>
+          <label class="full">System prompt
+            <textarea id="defaultAgentPrompt" rows="12" placeholder="Voice agent rules, role, tone and platform policy…"></textarea>
           </label>
         </div>
         <div class="conference-note">
-          The Android phone uses one logical customer session. It calls the hosted Bridge number only as an internal media leg, sends an 8-digit session PIN by DTMF, then merges it with the customer call. A second customer call is never handled on the same device while it is busy.
+          Each Android phone is assigned to a platform tenant and Voice Agent. The handset authenticates only to OnTrack; OnTrack selects the assigned agent and provisions a short-lived Live session. The permanent Gemini key never leaves the platform.
         </div>
       </article>
       <article class="card" style="margin-top:14px">
@@ -271,6 +264,6 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
   </main>
 </div>
 
-<script src="assets/app.js?v=20261006-11"></script>
+<script src="assets/app.js?v=20261006-12"></script>
 </body>
 </html>
