@@ -1,6 +1,7 @@
 package com.ontrack.agentphone;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -40,6 +41,8 @@ public class InCallActivity extends Activity {
     private Button endButton;
     private Button muteButton;
     private Button speakerButton;
+    private Button addCallButton;
+    private Button mergeButton;
 
     private long activeSince = 0L;
 
@@ -157,10 +160,36 @@ public class InCallActivity extends Activity {
         audioRow.addView(muteButton, half);
         audioRow.addView(speakerButton, half);
 
+        LinearLayout conferenceRow = new LinearLayout(this);
+        conferenceRow.setOrientation(LinearLayout.HORIZONTAL);
+
+        addCallButton = button("Add call", Color.rgb(35, 39, 45), TEXT);
+        addCallButton.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_DIAL);
+            intent.setClass(this, MainActivity.class);
+            startActivity(intent);
+        });
+
+        mergeButton = button("Merge", Color.rgb(57, 23, 27), Color.rgb(255, 186, 188));
+        mergeButton.setOnClickListener(v -> {
+            boolean merged = OnTrackInCallService.mergeConferenceNow();
+            if (!merged) {
+                android.widget.Toast.makeText(
+                        this,
+                        "Calls are not mergeable yet",
+                        android.widget.Toast.LENGTH_SHORT).show();
+            }
+            refresh();
+        });
+
+        conferenceRow.addView(addCallButton, half);
+        conferenceRow.addView(mergeButton, half);
+
         controls.addView(answerButton);
         controls.addView(declineButton);
         controls.addView(endButton);
         controls.addView(audioRow);
+        controls.addView(conferenceRow);
 
         root.addView(controls, new LinearLayout.LayoutParams(-1, -2));
 
@@ -229,6 +258,23 @@ public class InCallActivity extends Activity {
 
         } else {
             stateView.setText("Call in progress");
+        }
+
+        boolean canAdd = OnTrackInCallService.canAddCallNow();
+        int activeCalls = OnTrackInCallService.activeCallCountNow();
+        int conferenceable = OnTrackInCallService.conferenceableCountNow();
+
+        if (addCallButton != null) {
+            addCallButton.setEnabled(canAdd);
+            addCallButton.setAlpha(canAdd ? 1f : .42f);
+            addCallButton.setText(canAdd ? "Add call" : "Add call unavailable");
+        }
+
+        if (mergeButton != null) {
+            boolean mergeReady = activeCalls >= 2 && conferenceable > 0;
+            mergeButton.setEnabled(mergeReady);
+            mergeButton.setAlpha(mergeReady ? 1f : .42f);
+            mergeButton.setText(mergeReady ? "Merge calls" : "Merge unavailable");
         }
 
         CallAudioState audio = OnTrackInCallService.audioState();
