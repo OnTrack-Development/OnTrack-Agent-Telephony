@@ -604,9 +604,60 @@ if(copyMediaSecret){
   });
 }
 
+async function loadAiPlatformSettings(){
+  const status=$('#geminiStatus');
+  if(!status) return;
+
+  try{
+    const settings=await api('api/admin/ai-settings.php');
+    const agent=settings.agent||{};
+
+    status.value=settings.gemini_configured
+      ? 'CONFIGURED '+(settings.gemini_key_hint||'')
+      : 'NOT CONFIGURED';
+
+    $('#defaultAgentName').value=agent.name||'';
+    $('#defaultAgentVoice').value=agent.voice_name||'Puck';
+    $('#defaultAgentModel').value=agent.model||'gemini-3.8-live';
+    $('#defaultAgentPrompt').value=agent.system_prompt||'';
+  }catch(error){
+    status.value='ERROR';
+    console.error('AI platform settings load failed:',error);
+  }
+}
+
+const saveAiPlatform=$('#saveAiPlatform');
+if(saveAiPlatform){
+  saveAiPlatform.addEventListener('click',async()=>{
+    try{
+      const payload={
+        agent_name:$('#defaultAgentName').value.trim(),
+        voice_name:$('#defaultAgentVoice').value.trim(),
+        model:$('#defaultAgentModel').value.trim(),
+        system_prompt:$('#defaultAgentPrompt').value.trim()
+      };
+
+      const key=$('#geminiApiKey').value.trim();
+      if(key) payload.gemini_api_key=key;
+
+      await api('api/admin/ai-settings.php',{
+        method:'POST',
+        body:JSON.stringify(payload)
+      });
+
+      $('#geminiApiKey').value='';
+      await loadAiPlatformSettings();
+      alert('AI platform and default Voice Agent saved.');
+    }catch(error){
+      alert(error.message);
+    }
+  });
+}
+
 load();
 loadSettings();
 loadMediaSettings();
+loadAiPlatformSettings();
 setInterval(load,8000);
 
 
