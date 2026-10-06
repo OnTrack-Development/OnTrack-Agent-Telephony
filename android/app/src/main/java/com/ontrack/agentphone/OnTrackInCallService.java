@@ -17,6 +17,7 @@ import android.util.Log;
 
 import org.json.JSONObject;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -33,6 +34,7 @@ public class OnTrackInCallService extends InCallService {
     private final Map<Call, Integer> inboundIds = new ConcurrentHashMap<>();
     private final Map<Call, Integer> outboundIds = new ConcurrentHashMap<>();
     private final Map<Call, Runnable> pendingAutoAnswers = new ConcurrentHashMap<>();
+    private final Map<Call, Boolean> trackedCalls = new ConcurrentHashMap<>();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @Override public void onCreate() {
@@ -50,6 +52,7 @@ public class OnTrackInCallService extends InCallService {
         super.onCallAdded(call);
 
         try {
+            trackedCalls.put(call, Boolean.TRUE);
             activeCall = call;
 
             Call.Details details = call.getDetails();
@@ -87,10 +90,12 @@ public class OnTrackInCallService extends InCallService {
             call.registerCallback(new Call.Callback() {
                 @Override public void onStateChanged(Call changedCall, int state) {
                     try {
-                        if (activeCall == changedCall) {
-                            activeNumber = number(changedCall.getDetails() == null
+                        activeCall = choosePrimaryCall(changedCall);
+
+                        if (activeCall != null) {
+                            activeNumber = number(activeCall.getDetails() == null
                                     ? null
-                                    : changedCall.getDetails().getHandle());
+                                    : activeCall.getDetails().getHandle());
 
                             String name = ContactHelper.findName(
                                     OnTrackInCallService.this,
@@ -127,40 +132,49 @@ public class OnTrackInCallService extends InCallService {
                         }
 
                         if (state == Call.STATE_DISCONNECTED) {
-                            cancelCallNotification();
                             mainHandler.postDelayed(() -> {
                                 if (activeCall == changedCall) {
-                                    activeCall = null;
-                                    activeNumber = "";
-                                    activeContactName = "";
+                                    activeCall = choosePrimaryCall(null);
                                 }
-                            }, 1200L);
+                            }, 400L);
                         }
+
+                        reportCapabilitiesAsync();
 
                     } catch (Throwable error) {
                         Log.e(TAG, "Call state callback failed", error);
                     }
                 }
+
+                @Override public void onConferenceableCallsChanged(
+                        Call changedCall,
+                        List<Call> conferenceableCalls) {
+                    reportCapabilitiesAsync();
+                }
             });
 
+            reportCapabilitiesAsync();
+
         } catch (Throwable error) {
-            // A default dialer must not let InCallService crash. If this throws,
-            // Android Telecom can fall back to the preloaded dialer.
             Log.e(TAG, "onCallAdded failed", error);
 
+            trackedCalls.put(call, Boolean.TRUE);
             activeCall = call;
+
             try {
                 Call.Details details = call.getDetails();
                 activeNumber = number(details == null ? null : details.getHandle());
             } catch (Throwable ignored) { }
 
             launchInCallUi();
+            reportCapabilitiesAsync();
         }
     }
 
     @Override public void onCallRemoved(Call call) {
         try {
             cancelAutoAnswer(call);
+            trackedCalls.remove(call);
 
             Integer out = outboundIds.remove(call);
             if (out != null) {
@@ -179,18 +193,160 @@ public class OnTrackInCallService extends InCallService {
             }
 
             if (activeCall == call) {
-                activeCall = null;
-                activeNumber = "";
-                activeContactName = "";
+                activeCall = choosePrimaryCall(null);
+                if (activeCall == null) {
+                    activeNumber = "";
+                    activeContactName = "";
+                }
             }
 
-            cancelCallNotification();
+            if (trackedCalls.isEmpty()) {
+                cancelCallNotification();
+            }
+
+            reportCapabilitiesAsync();
 
         } catch (Throwable error) {
             Log.e(TAG, "onCallRemoved failed", error);
         }
 
         super.onCallRemoved(call);
+    }
+
+    @Override public void onCanAddCallChanged(boolean canAddCall) {
+        super.onCanAddCallChanged(canAddCall);
+        reportCapabilitiesAsync();
+    }
+
+    private Call choosePrimaryCall(Call preferred) {
+        if (preferred != null
+                && preferred.getState() != Call.STATE_DISCONNECTED
+                && preferred.getState() != Call.STATE_DISCONNECTING) {
+            return preferred;
+        }
+
+        Call best = null;
+        for (Call call : trackedCalls.keySet()) {
+            int state = call.getState();
+            if (state == Call.STATE_ACTIVE) return call;
+            if (state == Call.STATE_RINGING) best = call;
+            else if (best == null && state != Call.STATE_DISCONNECTED) best = call;
+        }
+        return best;
+    }
+
+    private void reportCapabilitiesAsync() {
+        if (!AppState.paired(this)) return;
+
+        new Thread(() -> {
+            try {
+                boolean canAdd = false;
+                try {
+                    canAdd = canAddCall();
+                } catch (Throwable ignored) { }
+
+                int activeCount = 0;
+                int conferenceableCount = 0;
+
+                for (Call call : trackedCalls.keySet()) {
+                    int state = call.getState();
+                    if (state != Call.STATE_DISCONNECTED && state != Call.STATE_DISCONNECTING) {
+                        activeCount++;
+                    }
+
+                    try {
+                        List<Call> conferenceable = call.getConferenceableCalls();
+                        if (conferenceable != null) {
+                            conferenceableCount += conferenceable.size();
+                        }
+                    } catch (Throwable ignored) { }
+                }
+
+                String status;
+                if (conferenceableCount > 0 && activeCount >= 2) {
+                    status = "merge_ready";
+                } else if (canAdd) {
+                    status = "add_call_ready";
+                } else if (activeCount > 0) {
+                    status = "unavailable";
+                } else {
+                    status = "unknown";
+                }
+
+                JSONObject body = new JSONObject();
+                body.put("can_add_call", canAdd);
+                body.put("conferenceable_count", conferenceableCount);
+                body.put("active_call_count", activeCount);
+                body.put("conference_status", status);
+
+                ApiClient.post(
+                        AppState.server(this),
+                        "/api/device/capabilities.php",
+                        body,
+                        AppState.token(this));
+
+            } catch (Throwable error) {
+                Log.w(TAG, "Capability report failed", error);
+            }
+        }, "OnTrackConferenceCapabilities").start();
+    }
+
+    static boolean canAddCallNow() {
+        OnTrackInCallService service = instance;
+        if (service == null) return false;
+
+        try {
+            return service.canAddCall();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    static int activeCallCountNow() {
+        OnTrackInCallService service = instance;
+        if (service == null) return 0;
+
+        int count = 0;
+        for (Call call : service.trackedCalls.keySet()) {
+            int state = call.getState();
+            if (state != Call.STATE_DISCONNECTED && state != Call.STATE_DISCONNECTING) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    static int conferenceableCountNow() {
+        OnTrackInCallService service = instance;
+        if (service == null) return 0;
+
+        int count = 0;
+        for (Call call : service.trackedCalls.keySet()) {
+            try {
+                List<Call> list = call.getConferenceableCalls();
+                if (list != null) count += list.size();
+            } catch (Throwable ignored) { }
+        }
+        return count;
+    }
+
+    static boolean mergeConferenceNow() {
+        OnTrackInCallService service = instance;
+        if (service == null) return false;
+
+        try {
+            for (Call call : service.trackedCalls.keySet()) {
+                List<Call> conferenceable = call.getConferenceableCalls();
+                if (conferenceable != null && !conferenceable.isEmpty()) {
+                    call.conference(conferenceable.get(0));
+                    service.reportCapabilitiesAsync();
+                    return true;
+                }
+            }
+        } catch (Throwable error) {
+            Log.e(TAG, "Conference merge failed", error);
+        }
+        return false;
     }
 
     private void createCallNotificationChannel() {
@@ -207,7 +363,6 @@ public class OnTrackInCallService extends InCallService {
 
             channel.setDescription("Incoming and ongoing phone calls");
             channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-            // Telecom/system handles the ringtone in this build.
             channel.setSound(null, null);
 
             manager.createNotificationChannel(channel);
@@ -258,7 +413,7 @@ public class OnTrackInCallService extends InCallService {
             }
 
             Notification.Builder builder = new Notification.Builder(this, CALL_CHANNEL)
-                    .setSmallIcon(android.R.drawable.sym_call_incoming)
+                    .setSmallIcon(com.ontrack.agentphone.R.drawable.ic_stat_ontrack)
                     .setContentTitle(title)
                     .setContentText(text)
                     .setCategory(Notification.CATEGORY_CALL)
@@ -317,19 +472,12 @@ public class OnTrackInCallService extends InCallService {
                 inboundIds.put(call, id);
 
                 JSONObject instruction = response.optJSONObject("instruction");
-                if (instruction == null) {
-                    Log.i(TAG, "No incoming policy returned");
-                    return;
-                }
+                if (instruction == null) return;
 
                 String action = instruction.optString("action", "ring_human");
                 int delaySeconds = Math.max(
                         0,
                         instruction.optInt("delay_seconds", 0));
-
-                Log.i(TAG,
-                        "Incoming policy action=" + action +
-                        " delay=" + delaySeconds + "s");
 
                 if ("answer_and_bridge_ai".equals(action)) {
                     scheduleAutoAnswer(call, 0L);
@@ -340,7 +488,6 @@ public class OnTrackInCallService extends InCallService {
                 }
 
             } catch (Throwable error) {
-                // Never crash the InCallService because the dashboard/API failed.
                 Log.e(TAG, "Incoming registration failed", error);
             }
         }, "OnTrackIncomingRegister").start();
@@ -354,14 +501,8 @@ public class OnTrackInCallService extends InCallService {
                 pendingAutoAnswers.remove(call);
 
                 try {
-                    if (call.getState() != Call.STATE_RINGING) {
-                        Log.i(TAG, "Auto-answer skipped; call is not ringing");
-                        return;
-                    }
-
-                    Log.i(TAG, "Auto-answering incoming call");
+                    if (call.getState() != Call.STATE_RINGING) return;
                     call.answer(VideoProfile.STATE_AUDIO_ONLY);
-
                 } catch (Throwable error) {
                     Log.e(TAG, "Auto-answer failed", error);
                 }
@@ -374,9 +515,7 @@ public class OnTrackInCallService extends InCallService {
 
     private void cancelAutoAnswer(Call call) {
         Runnable task = pendingAutoAnswers.remove(call);
-        if (task != null) {
-            mainHandler.removeCallbacks(task);
-        }
+        if (task != null) mainHandler.removeCallbacks(task);
     }
 
     private void updateInbound(int id, int state) {
@@ -394,9 +533,7 @@ public class OnTrackInCallService extends InCallService {
                 body.put("state", state);
                 body.put("call_id", id);
 
-                if (phone != null) {
-                    body.put("phone_number", phone);
-                }
+                if (phone != null) body.put("phone_number", phone);
 
                 ApiClient.post(
                         AppState.server(this),
@@ -539,19 +676,9 @@ public class OnTrackInCallService extends InCallService {
         if (state == Call.STATE_DIALING || state == Call.STATE_CONNECTING) {
             return "dialing";
         }
-
-        if (state == Call.STATE_RINGING) {
-            return "ringing";
-        }
-
-        if (state == Call.STATE_ACTIVE) {
-            return "answered";
-        }
-
-        if (state == Call.STATE_DISCONNECTED) {
-            return "completed";
-        }
-
+        if (state == Call.STATE_RINGING) return "ringing";
+        if (state == Call.STATE_ACTIVE) return "answered";
+        if (state == Call.STATE_DISCONNECTED) return "completed";
         return "dialing";
     }
 
