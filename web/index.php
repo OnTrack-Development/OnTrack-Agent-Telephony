@@ -24,7 +24,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?=htmlspecialchars($pageTitle)?> · OnTrack AI Telephony</title>
 <link rel="icon" type="image/svg+xml" href="assets/ontrack-icon.svg">
-<link rel="stylesheet" href="assets/app.css?v=20261006-10">
+<link rel="stylesheet" href="assets/app.css?v=20261006-11">
 </head>
 <body>
 <div class="shell">
@@ -153,7 +153,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
         </div>
       </article>
       <article class="card" style="margin-top:14px">
-        <div class="card-head"><h2>Media Gateway</h2><span>PSTN bridge that carries call audio to the server</span></div>
+        <div class="card-head"><h2>Hosted Media Bridge</h2><span>Managed PSTN bridge — no VPS required</span></div>
         <div class="form-grid">
           <label>Bridge enabled
             <select id="mediaBridgeEnabled">
@@ -173,14 +173,14 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
           <div style="align-self:end">
             <button class="primary" id="saveMediaBridge">Save media bridge</button>
           </div>
-          <label class="full">Gateway API secret
+          <label class="full">Bridge callback secret
             <div class="secret-row">
               <input id="mediaGatewaySecret" type="password" readonly value="">
               <button type="button" class="secondary-action" id="toggleMediaSecret">Show</button>
               <button type="button" class="secondary-action" id="copyMediaSecret">Copy</button>
             </div>
           </label>
-          <label class="full">Gateway event endpoint
+          <label class="full">Bridge event endpoint
             <input id="mediaGatewayEventUrl" readonly>
           </label>
           <label class="full">Recording upload endpoint
@@ -188,7 +188,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
           </label>
         </div>
         <div class="conference-note">
-          The Android phone calls the Bridge number using the same SIM/PhoneAccount as the customer call, sends an 8-digit session PIN by DTMF, then merges both carrier calls. The gateway reports CONNECTED only when it actually receives the media leg.
+          The Android phone uses one logical customer session. It calls the hosted Bridge number only as an internal media leg, sends an 8-digit session PIN by DTMF, then merges it with the customer call. A second customer call is never handled on the same device while it is busy.
         </div>
       </article>
       <article class="card" style="margin-top:14px">
@@ -271,6 +271,6 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
   </main>
 </div>
 
-<script src="assets/app.js?v=20261006-10"></script>
+<script src="assets/app.js?v=20261006-11"></script>
 </body>
 </html>
