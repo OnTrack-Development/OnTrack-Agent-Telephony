@@ -13,16 +13,21 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.telecom.TelecomManager;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.GridLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import org.json.JSONObject;
+
+import java.util.List;
 
 public class MainActivity extends Activity {
     private static final int REQ_PERMS = 21;
@@ -37,360 +42,619 @@ public class MainActivity extends Activity {
     private static final int GREEN = Color.rgb(49, 196, 141);
     private static final int AMBER = Color.rgb(246, 173, 60);
 
-    private EditText server;
-    private EditText pairCode;
-    private EditText simPhone;
-    private EditText deviceName;
-    private EditText quickDial;
+    private FrameLayout body;
+    private TextView headerState;
+    private String activeTab = "calls";
+    private String pendingDialNumber = "";
 
-    private TextView pairState;
-    private TextView dialerState;
-    private TextView bridgeState;
-    private TextView contactsState;
-    private TextView deviceMeta;
-
-    private Button pairButton;
-    private Button dialerButton;
-    private Button startButton;
-    private Button stopButton;
-    private Button syncButton;
+    private EditText dialNumber;
+    private EditText serverField;
+    private EditText pairCodeField;
+    private EditText simField;
+    private EditText deviceField;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
-        buildUi();
+
+        buildShell();
         requestRuntimePermissions();
         handleDialIntent(getIntent());
-        refreshStatus();
+        showTab("calls");
     }
 
     @Override protected void onResume() {
         super.onResume();
-        refreshStatus();
+        refreshHeader();
+        if ("calls".equals(activeTab)) showTab("calls");
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
         handleDialIntent(intent);
+        showTab("calls");
     }
 
-    private void buildUi() {
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(BG);
-
-        LinearLayout root = vertical();
-        root.setPadding(dp(18), dp(22), dp(18), dp(34));
-        scroll.addView(root, new ScrollView.LayoutParams(-1, -2));
+    private void buildShell() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(BG);
 
         root.addView(buildHeader());
-        root.addView(space(18));
-        root.addView(buildStatusCard());
-        root.addView(space(14));
-        root.addView(buildQuickDialCard());
-        root.addView(space(14));
-        root.addView(buildContactsCard());
-        root.addView(space(14));
-        root.addView(buildConnectionCard());
-        root.addView(space(14));
-        root.addView(buildControlsCard());
-        root.addView(space(14));
-        root.addView(buildInfoCard());
 
-        setContentView(scroll);
+        body = new FrameLayout(this);
+        root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        root.addView(buildBottomNav());
+
+        setContentView(root);
+        refreshHeader();
     }
 
     private View buildHeader() {
         LinearLayout row = horizontal();
         row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(18), dp(14), dp(18), dp(12));
+        row.setBackgroundColor(Color.rgb(10, 11, 14));
 
-        TextView logo = text("OT", 17, true);
+        TextView logo = text("OT", 15, true);
         logo.setGravity(Gravity.CENTER);
-        logo.setBackground(roundRect(RED, 14, RED, 0));
-        row.addView(logo, new LinearLayout.LayoutParams(dp(52), dp(52)));
+        logo.setBackground(roundRect(RED, 13, RED, 0));
+        row.addView(logo, new LinearLayout.LayoutParams(dp(44), dp(44)));
 
-        LinearLayout copy = vertical();
-        LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(0, -2, 1f);
-        copyParams.setMargins(dp(14), 0, 0, 0);
+        LinearLayout titleWrap = vertical();
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, -2, 1f);
+        titleParams.setMargins(dp(12), 0, dp(8), 0);
 
-        TextView title = text("OnTrack AI Phone", 25, true);
-        TextView subtitle = text("Android telephony bridge", 13, false);
-        subtitle.setTextColor(MUTED);
-        copy.addView(title);
-        copy.addView(subtitle);
+        TextView title = text("OnTrack Phone", 20, true);
+        TextView sub = text("AI Telephony", 11, false);
+        sub.setTextColor(MUTED);
 
-        TextView version = text("v0.2.0", 11, true);
-        version.setTextColor(Color.rgb(255, 166, 169));
-        version.setPadding(dp(10), dp(6), dp(10), dp(6));
-        version.setBackground(roundRect(Color.rgb(61, 23, 27), 99, Color.rgb(84, 30, 34), 1));
+        titleWrap.addView(title);
+        titleWrap.addView(sub);
+        row.addView(titleWrap, titleParams);
 
-        row.addView(copy, copyParams);
-        row.addView(version);
+        headerState = text("OFFLINE", 10, true);
+        headerState.setPadding(dp(10), dp(6), dp(10), dp(6));
+        row.addView(headerState);
 
         return row;
     }
 
-    private View buildStatusCard() {
-        LinearLayout card = card();
+    private View buildBottomNav() {
+        LinearLayout nav = horizontal();
+        nav.setPadding(dp(8), dp(7), dp(8), dp(8));
+        nav.setBackgroundColor(Color.rgb(12, 13, 16));
 
-        TextView kicker = text("PHONE STATUS", 11, true);
-        kicker.setTextColor(MUTED);
-        kicker.setLetterSpacing(.10f);
-        card.addView(kicker);
+        nav.addView(navButton("Calls", "calls"), weighted());
+        nav.addView(navButton("Contacts", "contacts"), weighted());
+        nav.addView(navButton("Messages", "messages"), weighted());
+        nav.addView(navButton("Link", "link"), weighted());
+        nav.addView(navButton("Settings", "settings"), weighted());
 
-        LinearLayout heading = horizontal();
-        heading.setGravity(Gravity.CENTER_VERTICAL);
-        heading.setPadding(0, dp(14), 0, 0);
-
-        TextView phone = text("OnTrack Phone", 20, true);
-        pairState = pill("NOT PAIRED", AMBER);
-
-        heading.addView(phone, new LinearLayout.LayoutParams(0, -2, 1f));
-        heading.addView(pairState);
-        card.addView(heading);
-
-        deviceMeta = text("", 12, false);
-        deviceMeta.setTextColor(MUTED);
-        deviceMeta.setLineSpacing(0, 1.15f);
-        deviceMeta.setPadding(0, dp(8), 0, dp(13));
-        card.addView(deviceMeta);
-
-        dialerState = pill("REQUIRED", AMBER);
-        bridgeState = pill("STOPPED", AMBER);
-        contactsState = pill("REQUIRED", AMBER);
-
-        card.addView(statusLine("Default phone app", dialerState));
-        card.addView(divider());
-        card.addView(statusLine("Background bridge", bridgeState));
-        card.addView(divider());
-        card.addView(statusLine("Contacts access", contactsState));
-
-        return card;
+        return nav;
     }
 
-    private View buildQuickDialCard() {
-        LinearLayout card = card();
-        card.addView(sectionTitle("Quick call"));
+    private LinearLayout.LayoutParams weighted() {
+        return new LinearLayout.LayoutParams(0, dp(52), 1f);
+    }
 
-        TextView description = text("Call directly through this phone's SIM.", 12, false);
-        description.setTextColor(MUTED);
-        description.setPadding(0, dp(4), 0, dp(12));
-        card.addView(description);
+    private Button navButton(String label, String tab) {
+        Button b = new Button(this);
+        b.setText(label);
+        b.setTextSize(10);
+        b.setAllCaps(false);
+        b.setTextColor(MUTED);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setBackgroundColor(Color.TRANSPARENT);
+        b.setTag(tab);
+        b.setOnClickListener(v -> showTab(tab));
+        return b;
+    }
 
+    private void styleNav() {
+        View root = (View) body.getParent();
+        if (!(root instanceof LinearLayout)) return;
+        LinearLayout shell = (LinearLayout) root;
+        View navView = shell.getChildAt(shell.getChildCount() - 1);
+        if (!(navView instanceof LinearLayout)) return;
+
+        LinearLayout nav = (LinearLayout) navView;
+        for (int i = 0; i < nav.getChildCount(); i++) {
+            View child = nav.getChildAt(i);
+            if (!(child instanceof Button)) continue;
+            Button b = (Button) child;
+            boolean active = activeTab.equals(String.valueOf(b.getTag()));
+            b.setTextColor(active ? Color.WHITE : MUTED);
+            b.setBackground(active
+                    ? roundRect(Color.rgb(39, 25, 28), 11, Color.rgb(78, 34, 39), 1)
+                    : roundRect(Color.TRANSPARENT, 11, Color.TRANSPARENT, 0));
+        }
+    }
+
+    private void showTab(String tab) {
+        activeTab = tab;
+        body.removeAllViews();
+
+        View page;
+        switch (tab) {
+            case "contacts": page = buildContactsPage(); break;
+            case "messages": page = buildMessagesPage(); break;
+            case "link": page = buildLinkPage(); break;
+            case "settings": page = buildSettingsPage(); break;
+            case "calls":
+            default: page = buildCallsPage(); break;
+        }
+
+        body.addView(page, new FrameLayout.LayoutParams(-1, -1));
+        styleNav();
+        refreshHeader();
+    }
+
+    private View buildCallsPage() {
+        LinearLayout page = page();
+
+        TextView title = text("Calls", 28, true);
+        TextView subtitle = text("Dial from your SIM and review recent phone calls.", 12, false);
+        subtitle.setTextColor(MUTED);
+
+        page.addView(title);
+        page.addView(subtitle);
+        page.addView(space(18));
+
+        LinearLayout dialer = card();
+
+        dialNumber = input("Enter phone number", pendingDialNumber);
+        dialNumber.setInputType(InputType.TYPE_CLASS_PHONE);
+        dialNumber.setGravity(Gravity.CENTER);
+        dialNumber.setTextSize(24);
+        dialNumber.setPadding(dp(14), dp(13), dp(14), dp(13));
+        dialer.addView(dialNumber);
+
+        GridLayout keypad = new GridLayout(this);
+        keypad.setColumnCount(3);
+        keypad.setRowCount(4);
+        keypad.setPadding(0, dp(12), 0, dp(8));
+
+        String[] keys = {"1","2","3","4","5","6","7","8","9","*","0","#"};
+        for (String key : keys) {
+            Button b = keypadButton(key);
+            b.setOnClickListener(v -> appendDial(key));
+            GridLayout.LayoutParams params = new GridLayout.LayoutParams();
+            params.width = 0;
+            params.height = dp(54);
+            params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
+            params.setMargins(dp(4), dp(4), dp(4), dp(4));
+            keypad.addView(b, params);
+        }
+
+        dialer.addView(keypad);
+
+        LinearLayout actions = horizontal();
+
+        Button backspace = actionButton("⌫", Color.rgb(35, 39, 45), TEXT);
+        backspace.setOnClickListener(v -> backspaceDial());
+
+        Button call = actionButton("Call", Color.rgb(20, 110, 79), Color.WHITE);
+        call.setOnClickListener(v -> dial(dialNumber.getText().toString()));
+
+        LinearLayout.LayoutParams half = new LinearLayout.LayoutParams(0, dp(50), 1f);
+        half.setMargins(dp(4), dp(4), dp(4), dp(4));
+
+        actions.addView(backspace, half);
+        actions.addView(call, half);
+
+        dialer.addView(actions);
+        page.addView(dialer);
+
+        page.addView(space(18));
+
+        LinearLayout recentHeader = horizontal();
+        recentHeader.setGravity(Gravity.CENTER_VERTICAL);
+        recentHeader.addView(text("Recent calls", 18, true), new LinearLayout.LayoutParams(0, -2, 1f));
+
+        if (!CallLogHelper.allowed(this)) {
+            Button allow = compactButton("Allow call history", RED);
+            allow.setOnClickListener(v ->
+                    requestPermissions(new String[]{Manifest.permission.READ_CALL_LOG}, 45));
+            recentHeader.addView(allow);
+        }
+
+        page.addView(recentHeader);
+        page.addView(space(8));
+
+        if (CallLogHelper.allowed(this)) {
+            List<CallLogHelper.Entry> entries = CallLogHelper.recent(this, 25);
+            if (entries.isEmpty()) {
+                page.addView(emptyView("No recent calls yet."));
+            } else {
+                for (CallLogHelper.Entry entry : entries) {
+                    page.addView(callLogRow(entry));
+                    page.addView(space(7));
+                }
+            }
+        } else {
+            page.addView(emptyView("Allow Call Log access to show your recent calls here."));
+        }
+
+        return scroll(page);
+    }
+
+    private View callLogRow(CallLogHelper.Entry entry) {
         LinearLayout row = horizontal();
         row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(14), dp(12), dp(12), dp(12));
+        row.setBackground(roundRect(PANEL, 14, LINE, 1));
+        row.setOnClickListener(v -> {
+            pendingDialNumber = entry.number;
+            showTab("calls");
+        });
 
-        quickDial = input("Phone number", "");
-        quickDial.setInputType(android.text.InputType.TYPE_CLASS_PHONE);
-        LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(0, dp(52), 1f);
-        inputParams.setMargins(0, 0, dp(10), 0);
-        row.addView(quickDial, inputParams);
+        LinearLayout info = vertical();
+
+        TextView name = text(
+                entry.name.isEmpty() ? entry.number : entry.name,
+                15,
+                true);
+
+        TextView meta = text(
+                (entry.name.isEmpty() ? "" : entry.number + " · ")
+                        + entry.typeLabel()
+                        + " · "
+                        + entry.timeLabel(),
+                11,
+                false);
+        meta.setTextColor(MUTED);
+
+        info.addView(name);
+        info.addView(meta);
+
+        row.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
+
+        TextView duration = text(entry.durationLabel(), 12, true);
+        duration.setTextColor(entry.typeLabel().equals("Missed")
+                ? Color.rgb(255, 140, 144)
+                : Color.rgb(190, 196, 205));
+
+        row.addView(duration);
+        return row;
+    }
+
+    private View buildContactsPage() {
+        LinearLayout page = page();
+
+        page.addView(text("Contacts", 28, true));
+
+        TextView subtitle = text(
+                "Names and phone numbers from this Android phone.",
+                12,
+                false);
+        subtitle.setTextColor(MUTED);
+        page.addView(subtitle);
+        page.addView(space(14));
+
+        if (!ContactHelper.allowed(this)) {
+            LinearLayout card = card();
+            card.addView(text("Contacts permission required", 17, true));
+            TextView body = text(
+                    "Allow contacts so the dialer can identify callers and sync names + phone numbers to the dashboard.",
+                    12,
+                    false);
+            body.setTextColor(MUTED);
+            body.setPadding(0, dp(7), 0, dp(12));
+            card.addView(body);
+
+            Button allow = actionButton("Allow contacts", RED, Color.WHITE);
+            allow.setOnClickListener(v ->
+                    requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, 31));
+            card.addView(allow);
+
+            page.addView(card);
+            return scroll(page);
+        }
+
+        List<ContactHelper.Entry> contacts = ContactHelper.load(this);
+
+        LinearLayout topActions = horizontal();
+        Button all = actionButton("Open all contacts", Color.rgb(35, 39, 45), TEXT);
+        all.setOnClickListener(v -> startActivity(new Intent(this, ContactsActivity.class)));
+
+        Button sync = actionButton("Sync to dashboard", Color.rgb(57, 23, 27), Color.rgb(255, 190, 192));
+        sync.setOnClickListener(v -> syncContacts());
+
+        LinearLayout.LayoutParams half = new LinearLayout.LayoutParams(0, dp(48), 1f);
+        half.setMargins(dp(3), 0, dp(3), 0);
+        topActions.addView(all, half);
+        topActions.addView(sync, half);
+        page.addView(topActions);
+        page.addView(space(14));
+
+        TextView count = text(contacts.size() + " contacts", 12, true);
+        count.setTextColor(MUTED);
+        page.addView(count);
+        page.addView(space(8));
+
+        int limit = Math.min(40, contacts.size());
+        for (int i = 0; i < limit; i++) {
+            page.addView(contactRow(contacts.get(i)));
+            page.addView(space(7));
+        }
+
+        if (contacts.size() > limit) {
+            TextView more = text(
+                    "+" + (contacts.size() - limit) + " more — tap Open all contacts",
+                    12,
+                    false);
+            more.setTextColor(MUTED);
+            more.setGravity(Gravity.CENTER);
+            more.setPadding(0, dp(10), 0, dp(10));
+            page.addView(more);
+        }
+
+        return scroll(page);
+    }
+
+    private View contactRow(ContactHelper.Entry entry) {
+        LinearLayout row = horizontal();
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(14), dp(11), dp(11), dp(11));
+        row.setBackground(roundRect(PANEL, 14, LINE, 1));
+
+        LinearLayout info = vertical();
+        TextView name = text(entry.name, 15, true);
+        TextView phone = text(entry.phone, 11, false);
+        phone.setTextColor(MUTED);
+
+        info.addView(name);
+        info.addView(phone);
+        row.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
 
         Button call = compactButton("CALL", RED);
-        call.setOnClickListener(v -> dial(quickDial.getText().toString()));
-        row.addView(call, new LinearLayout.LayoutParams(dp(94), dp(52)));
+        call.setOnClickListener(v -> dial(entry.phone));
+        row.addView(call);
 
-        card.addView(row);
-        return card;
+        return row;
     }
 
-    private View buildContactsCard() {
-        LinearLayout card = card();
-        card.addView(sectionTitle("Contacts"));
+    private View buildMessagesPage() {
+        LinearLayout page = page();
+        page.addView(text("Messages", 28, true));
 
-        TextView description = text(
-                "Browse contacts on this phone. Sync sends only contact name + phone number to the dashboard.",
+        TextView subtitle = text(
+                "SMS channel will live here as part of the phone bridge.",
                 12,
                 false);
-        description.setTextColor(MUTED);
-        description.setLineSpacing(0, 1.15f);
-        description.setPadding(0, dp(4), 0, dp(13));
-        card.addView(description);
+        subtitle.setTextColor(MUTED);
+        page.addView(subtitle);
+        page.addView(space(18));
 
-        Button open = actionButton("Open phone contacts", Color.rgb(38, 42, 49), TEXT);
-        open.setOnClickListener(v -> {
-            if (!ContactHelper.allowed(this)) {
-                requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, 31);
-            } else {
-                startActivity(new Intent(this, ContactsActivity.class));
-            }
+        LinearLayout card = card();
+        TextView state = text("SMS BRIDGE NOT ENABLED YET", 13, true);
+        state.setTextColor(AMBER);
+        card.addView(state);
+
+        TextView bodyText = text(
+                "This tab is now part of the dialer layout, but v0.3 does not request SMS-role permissions or read/send messages yet. We will enable it separately so telephony permissions stay controlled.",
+                12,
+                false);
+        bodyText.setTextColor(MUTED);
+        bodyText.setLineSpacing(0, 1.15f);
+        bodyText.setPadding(0, dp(9), 0, 0);
+        card.addView(bodyText);
+
+        page.addView(card);
+        return scroll(page);
+    }
+
+    private View buildLinkPage() {
+        LinearLayout page = page();
+
+        page.addView(text("Link", 28, true));
+
+        TextView subtitle = text(
+                "Connect this SIM endpoint to the OnTrack dashboard.",
+                12,
+                false);
+        subtitle.setTextColor(MUTED);
+        page.addView(subtitle);
+        page.addView(space(16));
+
+        LinearLayout statusCard = card();
+        statusCard.addView(text(
+                AppState.paired(this) ? "CONNECTED" : "NOT PAIRED",
+                18,
+                true));
+
+        TextView status = text(
+                AppState.paired(this)
+                        ? "Device #" + AppState.deviceId(this)
+                            + "\n" + AppState.phone(this)
+                            + "\n" + AppState.server(this)
+                        : "Generate a pairing code from the dashboard and enter it below.",
+                12,
+                false);
+        status.setTextColor(MUTED);
+        status.setLineSpacing(0, 1.2f);
+        status.setPadding(0, dp(8), 0, dp(3));
+        statusCard.addView(status);
+
+        page.addView(statusCard);
+        page.addView(space(12));
+
+        LinearLayout linkCard = card();
+
+        serverField = input("Server URL", AppState.server(this));
+        pairCodeField = input("6-digit pairing code", "");
+        pairCodeField.setInputType(InputType.TYPE_CLASS_NUMBER);
+        simField = input("SIM phone number", AppState.phone(this));
+        simField.setInputType(InputType.TYPE_CLASS_PHONE);
+        deviceField = input("Device name", Build.MANUFACTURER + " " + Build.MODEL);
+
+        linkCard.addView(field("SERVER", serverField));
+        linkCard.addView(field("PAIRING CODE", pairCodeField));
+        linkCard.addView(field("SIM NUMBER", simField));
+        linkCard.addView(field("DEVICE NAME", deviceField));
+
+        Button pair = actionButton(
+                AppState.paired(this) ? "Pair again / create new endpoint" : "Pair with dashboard",
+                RED,
+                Color.WHITE);
+        pair.setOnClickListener(v -> pair(pair));
+
+        linkCard.addView(pair);
+
+        Button sync = actionButton(
+                "Sync contacts now",
+                Color.rgb(35, 39, 45),
+                TEXT);
+        sync.setEnabled(AppState.paired(this) && ContactHelper.allowed(this));
+        sync.setAlpha(sync.isEnabled() ? 1f : .45f);
+        sync.setOnClickListener(v -> syncContacts());
+        linkCard.addView(sync);
+
+        page.addView(linkCard);
+        return scroll(page);
+    }
+
+    private View buildSettingsPage() {
+        LinearLayout page = page();
+
+        page.addView(text("Settings", 28, true));
+
+        TextView subtitle = text(
+                "Phone role, bridge service and local app controls.",
+                12,
+                false);
+        subtitle.setTextColor(MUTED);
+        page.addView(subtitle);
+        page.addView(space(16));
+
+        LinearLayout status = card();
+        status.addView(settingsStateLine(
+                "Default phone app",
+                isDefaultDialer() ? "ACTIVE" : "REQUIRED",
+                isDefaultDialer() ? GREEN : AMBER));
+        status.addView(divider());
+        status.addView(settingsStateLine(
+                "Dashboard link",
+                AppState.paired(this) ? "CONNECTED" : "NOT PAIRED",
+                AppState.paired(this) ? GREEN : AMBER));
+        status.addView(divider());
+        status.addView(settingsStateLine(
+                "Background bridge",
+                AppState.bridgeEnabled(this) ? "RUNNING" : "STOPPED",
+                AppState.bridgeEnabled(this) ? GREEN : AMBER));
+        status.addView(divider());
+        status.addView(settingsStateLine(
+                "Contacts",
+                ContactHelper.allowed(this) ? "ALLOWED" : "REQUIRED",
+                ContactHelper.allowed(this) ? GREEN : AMBER));
+
+        page.addView(status);
+        page.addView(space(12));
+
+        LinearLayout controls = card();
+
+        Button dialer = actionButton(
+                isDefaultDialer() ? "Default phone app is active" : "Set as default phone app",
+                Color.rgb(35, 39, 45),
+                TEXT);
+        dialer.setOnClickListener(v -> requestDialerRole());
+        controls.addView(dialer);
+
+        Button start = actionButton("Start bridge service", Color.rgb(18, 85, 64), Color.rgb(157, 244, 207));
+        start.setEnabled(AppState.paired(this) && !AppState.bridgeEnabled(this));
+        start.setAlpha(start.isEnabled() ? 1f : .45f);
+        start.setOnClickListener(v -> {
+            startBridge();
+            showTab("settings");
         });
-        card.addView(open);
+        controls.addView(start);
 
-        syncButton = actionButton(
-                "Sync contacts to dashboard",
-                Color.rgb(57, 23, 27),
-                Color.rgb(255, 186, 188));
-        syncButton.setOnClickListener(v -> syncContacts());
-        card.addView(syncButton);
-
-        return card;
-    }
-
-    private View buildConnectionCard() {
-        LinearLayout card = card();
-        card.addView(sectionTitle("Dashboard connection"));
-
-        TextView description = text(
-                "Pair this phone once using the 6-digit code generated on agent.ontrackegy.com.",
-                12,
-                false);
-        description.setTextColor(MUTED);
-        description.setPadding(0, dp(4), 0, dp(14));
-        card.addView(description);
-
-        server = input("Server URL", AppState.server(this));
-        card.addView(field("SERVER", server));
-
-        pairCode = input("6-digit pairing code", "");
-        pairCode.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        card.addView(field("PAIRING CODE", pairCode));
-
-        simPhone = input("This SIM phone number", AppState.phone(this));
-        simPhone.setInputType(android.text.InputType.TYPE_CLASS_PHONE);
-        card.addView(field("SIM NUMBER", simPhone));
-
-        deviceName = input("Device name", Build.MANUFACTURER + " " + Build.MODEL);
-        card.addView(field("DEVICE NAME", deviceName));
-
-        pairButton = actionButton("Pair with dashboard", RED, Color.WHITE);
-        pairButton.setOnClickListener(v -> pair());
-        card.addView(pairButton);
-
-        return card;
-    }
-
-    private View buildControlsCard() {
-        LinearLayout card = card();
-        card.addView(sectionTitle("Phone controls"));
-
-        dialerButton = actionButton("Set as default phone app", Color.rgb(38, 42, 49), TEXT);
-        dialerButton.setOnClickListener(v -> requestDialerRole());
-        card.addView(dialerButton);
-
-        startButton = actionButton(
-                "Start bridge service",
-                Color.rgb(18, 85, 64),
-                Color.rgb(157, 244, 207));
-        startButton.setOnClickListener(v -> startBridge());
-        card.addView(startButton);
-
-        stopButton = actionButton(
-                "Stop bridge service",
-                Color.rgb(54, 30, 32),
-                Color.rgb(255, 171, 174));
-        stopButton.setOnClickListener(v -> {
+        Button stop = actionButton("Stop bridge service", Color.rgb(54, 30, 32), Color.rgb(255, 171, 174));
+        stop.setEnabled(AppState.bridgeEnabled(this));
+        stop.setAlpha(stop.isEnabled() ? 1f : .45f);
+        stop.setOnClickListener(v -> {
             stopService(new Intent(this, BridgeService.class));
             AppState.setBridgeEnabled(this, false);
-            refreshStatus();
-            toast("Bridge stopped");
+            refreshHeader();
+            showTab("settings");
         });
-        card.addView(stopButton);
+        controls.addView(stop);
 
-        Button settings = ghostButton("Android app settings");
-        settings.setOnClickListener(v -> openSettings());
-        card.addView(settings);
+        Button appSettings = actionButton("Android app settings", Color.rgb(35, 39, 45), TEXT);
+        appSettings.setOnClickListener(v -> openSettings());
+        controls.addView(appSettings);
 
-        Button unpair = ghostButton("Unpair this device");
-        unpair.setTextColor(Color.rgb(255, 143, 147));
-        unpair.setOnClickListener(v -> {
+        Button unlink = actionButton("Unpair this phone locally", Color.rgb(57, 23, 27), Color.rgb(255, 177, 180));
+        unlink.setOnClickListener(v -> {
             stopService(new Intent(this, BridgeService.class));
             AppState.clearPair(this);
-            refreshStatus();
-            toast("Device unpaired");
+            refreshHeader();
+            showTab("link");
+            toast("Local pairing removed");
         });
-        card.addView(unpair);
+        controls.addView(unlink);
 
-        return card;
-    }
+        page.addView(controls);
 
-    private View buildInfoCard() {
-        LinearLayout card = card();
-        card.setBackground(roundRect(Color.rgb(13, 15, 18), 18, LINE, 1));
+        page.addView(space(12));
 
-        TextView title = text("POC v0.2.0", 13, true);
-        title.setTextColor(Color.rgb(255, 179, 181));
-        card.addView(title);
+        LinearLayout note = card();
+        TextView version = text("OnTrack AI Phone v0.3.0", 14, true);
+        note.addView(version);
 
-        TextView body = text(
-                "Active now: quick dial, phone contacts, contact sync, caller name lookup, incoming detection, policy auto-answer and SIM outbound calls.\n\nNext: carrier conference + Voice Agent media bridge + server-side call recordings.",
+        TextView bodyText = text(
+                "Calls is the primary screen. Link and Settings are secondary configuration areas. Server-side audio and recording are not active until the Media Bridge is connected.",
                 12,
                 false);
-        body.setTextColor(MUTED);
-        body.setLineSpacing(0, 1.18f);
-        body.setPadding(0, dp(7), 0, 0);
-        card.addView(body);
+        bodyText.setTextColor(MUTED);
+        bodyText.setPadding(0, dp(7), 0, 0);
+        bodyText.setLineSpacing(0, 1.15f);
+        note.addView(bodyText);
 
-        return card;
+        page.addView(note);
+        return scroll(page);
     }
 
-    private void pair() {
-        String base = server.getText().toString().trim();
-        String code = pairCode.getText().toString().trim();
-        String number = simPhone.getText().toString().trim();
-        String name = deviceName.getText().toString().trim();
+    private View settingsStateLine(String label, String state, int color) {
+        LinearLayout row = horizontal();
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(10), 0, dp(10));
 
-        if (!base.startsWith("https://")) {
-            toast("Server must use HTTPS");
-            return;
-        }
+        TextView left = text(label, 13, true);
+        TextView right = text(state, 10, true);
+        right.setTextColor(color);
+        right.setPadding(dp(9), dp(5), dp(9), dp(5));
+        right.setBackground(roundRect(Color.rgb(27, 30, 35), 99, Color.rgb(48, 53, 61), 1));
 
-        if (!code.matches("\\d{6}")) {
-            toast("Enter the 6-digit pairing code");
-            return;
-        }
-
-        pairButton.setEnabled(false);
-        pairButton.setText("Pairing...");
-
-        new Thread(() -> {
-            try {
-                JSONObject body = new JSONObject();
-                body.put("pairing_code", code);
-                body.put("name", name.isEmpty() ? "Android Phone" : name);
-                body.put("phone_number", number);
-                body.put("manufacturer", Build.MANUFACTURER);
-                body.put("model", Build.MODEL);
-                body.put("app_version", "0.2.0-poc");
-
-                JSONObject out = ApiClient.post(
-                        base,
-                        "/api/device/register.php",
-                        body,
-                        null);
-
-                AppState.savePair(
-                        this,
-                        base,
-                        out.getString("device_token"),
-                        out.getInt("device_id"),
-                        number);
-
-                runOnUiThread(() -> {
-                    pairCode.setText("");
-                    pairButton.setEnabled(true);
-                    refreshStatus();
-                    startBridge();
-                    if (ContactHelper.allowed(this)) syncContacts();
-                    toast("Phone connected to dashboard");
-                });
-
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    pairButton.setEnabled(true);
-                    pairButton.setText("Pair with dashboard");
-                    toast("Pair failed: " + e.getMessage());
-                });
-            }
-        }, "OnTrackPair").start();
+        row.addView(left, new LinearLayout.LayoutParams(0, -2, 1f));
+        row.addView(right);
+        return row;
     }
 
-    private void dial(String number) {
-        String normalized = ContactHelper.normalize(number);
+    private void appendDial(String key) {
+        if (dialNumber == null) return;
+        dialNumber.append(key);
+        pendingDialNumber = dialNumber.getText().toString();
+    }
 
-        if (normalized.length() < 5) {
+    private void backspaceDial() {
+        if (dialNumber == null) return;
+        String value = dialNumber.getText().toString();
+        if (!value.isEmpty()) {
+            dialNumber.setText(value.substring(0, value.length() - 1));
+            dialNumber.setSelection(dialNumber.length());
+            pendingDialNumber = dialNumber.getText().toString();
+        }
+    }
+
+    private void dial(String raw) {
+        String number = ContactHelper.normalize(raw);
+
+        if (number.length() < 5) {
             toast("Enter a valid phone number");
             return;
         }
@@ -402,13 +666,73 @@ public class MainActivity extends Activity {
         }
 
         TelecomManager telecom = (TelecomManager)getSystemService(TELECOM_SERVICE);
-
         if (telecom == null) {
             toast("Phone service unavailable");
             return;
         }
 
-        telecom.placeCall(Uri.parse("tel:" + normalized), new Bundle());
+        pendingDialNumber = number;
+        telecom.placeCall(Uri.parse("tel:" + number), new Bundle());
+    }
+
+    private void pair(Button button) {
+        String base = serverField == null ? "" : serverField.getText().toString().trim();
+        String code = pairCodeField == null ? "" : pairCodeField.getText().toString().trim();
+        String number = simField == null ? "" : simField.getText().toString().trim();
+        String name = deviceField == null ? "" : deviceField.getText().toString().trim();
+
+        if (!base.startsWith("https://")) {
+            toast("Server must use HTTPS");
+            return;
+        }
+
+        if (!code.matches("\\d{6}")) {
+            toast("Enter the 6-digit pairing code");
+            return;
+        }
+
+        button.setEnabled(false);
+        button.setText("Pairing...");
+
+        new Thread(() -> {
+            try {
+                JSONObject payload = new JSONObject();
+                payload.put("pairing_code", code);
+                payload.put("name", name.isEmpty() ? "Android Phone" : name);
+                payload.put("phone_number", number);
+                payload.put("manufacturer", Build.MANUFACTURER);
+                payload.put("model", Build.MODEL);
+                payload.put("app_version", "0.3.0-poc");
+
+                JSONObject result = ApiClient.post(
+                        base,
+                        "/api/device/register.php",
+                        payload,
+                        null);
+
+                AppState.savePair(
+                        this,
+                        base,
+                        result.getString("device_token"),
+                        result.getInt("device_id"),
+                        number);
+
+                runOnUiThread(() -> {
+                    button.setEnabled(true);
+                    startBridge();
+                    if (ContactHelper.allowed(this)) syncContacts();
+                    refreshHeader();
+                    showTab("link");
+                    toast("Phone connected to dashboard");
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    button.setEnabled(true);
+                    button.setText("Pair with dashboard");
+                    toast("Pair failed: " + e.getMessage());
+                });
+            }
+        }, "OnTrackPair").start();
     }
 
     private void syncContacts() {
@@ -422,14 +746,9 @@ public class MainActivity extends Activity {
             return;
         }
 
-        syncButton.setEnabled(false);
-        syncButton.setText("Syncing contacts...");
+        toast("Syncing contacts…");
 
         ContactHelper.syncAsync(this, (count, error) -> {
-            syncButton.setEnabled(true);
-            syncButton.setText("Sync contacts to dashboard");
-            refreshStatus();
-
             if (error != null) {
                 toast("Sync failed: " + error.getMessage());
             } else {
@@ -441,7 +760,6 @@ public class MainActivity extends Activity {
     private void requestDialerRole() {
         if (Build.VERSION.SDK_INT >= 29) {
             RoleManager manager = (RoleManager)getSystemService(ROLE_SERVICE);
-
             if (manager != null && manager.isRoleAvailable(RoleManager.ROLE_DIALER)) {
                 startActivityForResult(
                         manager.createRequestRoleIntent(RoleManager.ROLE_DIALER),
@@ -473,12 +791,10 @@ public class MainActivity extends Activity {
             }
 
             AppState.setBridgeEnabled(this, true);
-            refreshStatus();
-            toast("Bridge is running");
-
+            refreshHeader();
         } catch (Exception e) {
             AppState.setBridgeEnabled(this, false);
-            refreshStatus();
+            refreshHeader();
             toast("Could not start bridge: " + e.getMessage());
         }
     }
@@ -490,10 +806,8 @@ public class MainActivity extends Activity {
                 ? ""
                 : intent.getData().getSchemeSpecificPart();
 
-        if (number != null && !number.isEmpty() && quickDial != null) {
-            quickDial.setText(number);
-            quickDial.setSelection(quickDial.length());
-            quickDial.requestFocus();
+        if (number != null) {
+            pendingDialNumber = number;
         }
     }
 
@@ -507,7 +821,8 @@ public class MainActivity extends Activity {
                 Manifest.permission.READ_PHONE_STATE,
                 Manifest.permission.ANSWER_PHONE_CALLS,
                 Manifest.permission.READ_PHONE_NUMBERS,
-                Manifest.permission.READ_CONTACTS
+                Manifest.permission.READ_CONTACTS,
+                Manifest.permission.READ_CALL_LOG
         };
 
         for (String permission : wanted) {
@@ -532,11 +847,14 @@ public class MainActivity extends Activity {
             int[] grantResults) {
 
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        refreshStatus();
 
-        if (requestCode == 31 && ContactHelper.allowed(this) && AppState.paired(this)) {
-            syncContacts();
+        if ((requestCode == 31 || requestCode == REQ_PERMS)
+                && ContactHelper.allowed(this)
+                && AppState.paired(this)) {
+            ContactHelper.syncAsync(this, null);
         }
+
+        showTab(activeTab);
     }
 
     private boolean isDefaultDialer() {
@@ -544,95 +862,61 @@ public class MainActivity extends Activity {
         return telecom != null && getPackageName().equals(telecom.getDefaultDialerPackage());
     }
 
-    private void refreshStatus() {
-        if (pairState == null) return;
+    private void refreshHeader() {
+        if (headerState == null) return;
 
-        boolean paired = AppState.paired(this);
-        boolean dialer = isDefaultDialer();
-        boolean bridge = AppState.bridgeEnabled(this);
-        boolean contacts = ContactHelper.allowed(this);
-
-        stylePill(pairState, paired ? "CONNECTED" : "NOT PAIRED", paired ? GREEN : AMBER);
-        stylePill(dialerState, dialer ? "ACTIVE" : "REQUIRED", dialer ? GREEN : AMBER);
-        stylePill(bridgeState, bridge ? "RUNNING" : "STOPPED", bridge ? GREEN : AMBER);
-        stylePill(contactsState, contacts ? "ALLOWED" : "REQUIRED", contacts ? GREEN : AMBER);
-
-        String number = AppState.phone(this).isEmpty()
-                ? "SIM number not set"
-                : AppState.phone(this);
-
-        String id = paired
-                ? "Device #" + AppState.deviceId(this)
-                : "Waiting for pairing";
-
-        String synced = AppState.lastContactSync(this) > 0
-                ? "contacts synced"
-                : "contacts not synced";
-
-        deviceMeta.setText(
-                id + "  •  " + number + "\n" +
-                AppState.server(this) + "  •  " + synced);
-
-        pairButton.setText(paired
-                ? "Pair another / refresh connection"
-                : "Pair with dashboard");
-
-        dialerButton.setText(dialer
-                ? "Default phone app is active"
-                : "Set as default phone app");
-
-        startButton.setEnabled(paired && !bridge);
-        stopButton.setEnabled(bridge);
-        syncButton.setEnabled(paired && contacts);
-
-        startButton.setAlpha(startButton.isEnabled() ? 1f : .45f);
-        stopButton.setAlpha(stopButton.isEnabled() ? 1f : .45f);
-        syncButton.setAlpha(syncButton.isEnabled() ? 1f : .45f);
+        if (AppState.paired(this) && AppState.bridgeEnabled(this)) {
+            headerState.setText("ONLINE");
+            headerState.setTextColor(GREEN);
+            headerState.setBackground(roundRect(Color.rgb(17, 52, 43), 99, Color.rgb(26, 86, 68), 1));
+        } else if (AppState.paired(this)) {
+            headerState.setText("PAIRED");
+            headerState.setTextColor(AMBER);
+            headerState.setBackground(roundRect(Color.rgb(57, 42, 20), 99, Color.rgb(85, 62, 28), 1));
+        } else {
+            headerState.setText("OFFLINE");
+            headerState.setTextColor(Color.rgb(255, 143, 147));
+            headerState.setBackground(roundRect(Color.rgb(57, 23, 27), 99, Color.rgb(84, 30, 34), 1));
+        }
     }
 
-    private View statusLine(String label, TextView value) {
-        LinearLayout row = horizontal();
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(11), 0, dp(11));
+    private LinearLayout page() {
+        LinearLayout page = vertical();
+        page.setPadding(dp(18), dp(20), dp(18), dp(28));
+        return page;
+    }
 
-        TextView text = text(label, 13, true);
-        text.setTextColor(Color.rgb(214, 217, 222));
-
-        row.addView(text, new LinearLayout.LayoutParams(0, -2, 1f));
-        row.addView(value);
-
-        return row;
+    private ScrollView scroll(View child) {
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(BG);
+        scroll.addView(child, new ScrollView.LayoutParams(-1, -2));
+        return scroll;
     }
 
     private LinearLayout card() {
         LinearLayout card = vertical();
-        card.setPadding(dp(17), dp(17), dp(17), dp(17));
-        card.setBackground(roundRect(PANEL, 18, LINE, 1));
+        card.setPadding(dp(16), dp(16), dp(16), dp(16));
+        card.setBackground(roundRect(PANEL, 17, LINE, 1));
         return card;
     }
 
-    private TextView sectionTitle(String value) {
-        TextView title = text(value, 17, true);
-        title.setPadding(0, 0, 0, dp(3));
-        return title;
-    }
-
     private View field(String label, EditText input) {
-        LinearLayout wrapper = vertical();
+        LinearLayout wrap = vertical();
 
         TextView caption = text(label, 10, true);
         caption.setTextColor(MUTED);
         caption.setLetterSpacing(.08f);
         caption.setPadding(dp(2), 0, 0, dp(6));
 
-        wrapper.addView(caption);
-        wrapper.addView(input);
+        wrap.addView(caption);
+        wrap.addView(input);
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
         params.setMargins(0, 0, 0, dp(13));
-        wrapper.setLayoutParams(params);
+        wrap.setLayoutParams(params);
 
-        return wrapper;
+        return wrap;
     }
 
     private EditText input(String hint, String value) {
@@ -648,11 +932,22 @@ public class MainActivity extends Activity {
         return field;
     }
 
+    private Button keypadButton(String label) {
+        Button button = new Button(this);
+        button.setText(label);
+        button.setTextColor(TEXT);
+        button.setTextSize(19);
+        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        button.setAllCaps(false);
+        button.setBackground(roundRect(Color.rgb(30, 33, 39), 14, LINE, 1));
+        return button;
+    }
+
     private Button actionButton(String label, int background, int foreground) {
         Button button = new Button(this);
         button.setText(label);
         button.setTextColor(foreground);
-        button.setTextSize(13);
+        button.setTextSize(12);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setAllCaps(false);
         button.setGravity(Gravity.CENTER);
@@ -669,33 +964,21 @@ public class MainActivity extends Activity {
         Button button = new Button(this);
         button.setText(label);
         button.setTextColor(Color.WHITE);
-        button.setTextSize(12);
+        button.setTextSize(10);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setAllCaps(false);
-        button.setGravity(Gravity.CENTER);
-        button.setBackground(roundRect(background, 12, background, 0));
+        button.setBackground(roundRect(background, 10, background, 0));
+        button.setPadding(dp(10), dp(7), dp(10), dp(7));
         return button;
     }
 
-    private Button ghostButton(String label) {
-        return actionButton(label, Color.rgb(28, 31, 36), Color.rgb(202, 206, 213));
-    }
-
-    private TextView pill(String value, int color) {
-        TextView view = text(value, 10, true);
-        stylePill(view, value, color);
+    private TextView emptyView(String value) {
+        TextView view = text(value, 12, false);
+        view.setTextColor(MUTED);
+        view.setGravity(Gravity.CENTER);
+        view.setPadding(dp(16), dp(24), dp(16), dp(24));
+        view.setBackground(roundRect(PANEL, 14, LINE, 1));
         return view;
-    }
-
-    private void stylePill(TextView view, String value, int color) {
-        view.setText(value);
-        view.setTextColor(color);
-        view.setPadding(dp(10), dp(6), dp(10), dp(6));
-        view.setBackground(roundRect(
-                Color.rgb(26, 29, 34),
-                99,
-                Color.rgb(50, 54, 62),
-                1));
     }
 
     private View divider() {
@@ -736,9 +1019,7 @@ public class MainActivity extends Activity {
         GradientDrawable drawable = new GradientDrawable();
         drawable.setColor(fill);
         drawable.setCornerRadius(dp(radius));
-        if (strokeWidth > 0) {
-            drawable.setStroke(dp(strokeWidth), stroke);
-        }
+        if (strokeWidth > 0) drawable.setStroke(dp(strokeWidth), stroke);
         return drawable;
     }
 
