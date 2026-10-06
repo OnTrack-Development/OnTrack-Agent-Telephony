@@ -547,6 +547,11 @@ public class OnTrackInCallService extends InCallService {
 
                 try {
                     if (call.getState() != Call.STATE_RINGING) return;
+
+                    if (mediaBridge != null) {
+                        mediaBridge.activateForAi(call);
+                    }
+
                     call.answer(VideoProfile.STATE_AUDIO_ONLY);
                 } catch (Throwable error) {
                     Log.e(TAG, "Auto-answer failed", error);
