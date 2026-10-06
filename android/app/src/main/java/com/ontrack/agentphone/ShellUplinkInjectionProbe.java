@@ -2,6 +2,7 @@ package com.ontrack.agentphone;
 
 import android.content.Context;
 import android.media.AudioAttributes;
+import android.media.AudioDeviceInfo;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
@@ -9,16 +10,17 @@ import android.os.Looper;
 import android.os.Process;
 
 import java.lang.reflect.Method;
-import java.util.Locale;
+import java.util.Arrays;
 
 /**
- * Runs only through the local ADB bootstrap as uid=2000(shell).
+ * Generic PSTN uplink injection probe.
  *
- * It tests Android's PSTN call-uplink injection path with one short test tone.
- * The remote party must confirm whether the tone was actually heard.
+ * Runs only through the local ADB bootstrap as uid=2000(shell).
+ * No handset model table is used: the probe queries the active Android
+ * TELEPHONY_TX device and builds formats only from capabilities advertised
+ * by that device.
  */
 public final class ShellUplinkInjectionProbe {
-    private static final int[] RATES = new int[]{8000, 16000, 48000};
     private static final double FREQ_HZ = 700.0;
     private static final int DURATION_MS = 650;
     private static final int AMPLITUDE = 4200;
@@ -33,15 +35,14 @@ public final class ShellUplinkInjectionProbe {
             relaxHiddenApiChecks();
 
             Context context = createShellContext();
-            AudioManager audioManager =
+            AudioManager audio =
                     (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
 
-            if (audioManager == null) {
+            if (audio == null) {
                 throw new IllegalStateException("AudioManager unavailable");
             }
 
-            int mode = audioManager.getMode();
-            System.out.println("ONTRACK_INJECT|mode=" + mode
+            System.out.println("ONTRACK_INJECT|mode=" + audio.getMode()
                     + "|package=" + context.getPackageName()
                     + "|op_package=" + context.getOpPackageName());
 
@@ -50,7 +51,7 @@ public final class ShellUplinkInjectionProbe {
             interceptableMethod.setAccessible(true);
 
             boolean interceptable =
-                    (Boolean) interceptableMethod.invoke(audioManager);
+                    (Boolean) interceptableMethod.invoke(audio);
 
             System.out.println(
                     "ONTRACK_INJECT|pstn_interceptable=" + interceptable);
@@ -58,150 +59,217 @@ public final class ShellUplinkInjectionProbe {
             if (!interceptable) {
                 System.out.println(
                         "ONTRACK_INJECT|result=unsupported|reason=pstn_not_interceptable");
-                System.out.println("ONTRACK_INJECT|done");
+                return;
+            }
+
+            AudioDeviceInfo telephonyTx = findTelephonyTx(audio);
+
+            if (telephonyTx == null) {
+                System.out.println(
+                        "ONTRACK_INJECT|result=unsupported|reason=telephony_tx_not_exposed");
+                return;
+            }
+
+            int[] rates = telephonyTx.getSampleRates();
+            int[] channelCounts = telephonyTx.getChannelCounts();
+            int[] encodings = telephonyTx.getEncodings();
+
+            System.out.println(
+                    "ONTRACK_INJECT|telephony_tx"
+                            + "|id=" + telephonyTx.getId()
+                            + "|rates=" + compact(rates)
+                            + "|channels=" + compact(channelCounts)
+                            + "|encodings=" + compact(encodings));
+
+            if (rates == null || rates.length == 0) {
+                System.out.println(
+                        "ONTRACK_INJECT|result=unsupported|reason=no_advertised_tx_sample_rates");
+                return;
+            }
+
+            if (channelCounts == null || channelCounts.length == 0) {
+                System.out.println(
+                        "ONTRACK_INJECT|result=unsupported|reason=no_advertised_tx_channel_counts");
+                return;
+            }
+
+            if (!contains(encodings, AudioFormat.ENCODING_PCM_16BIT)) {
+                System.out.println(
+                        "ONTRACK_INJECT|result=unsupported|reason=pcm16_not_advertised_by_tx");
                 return;
             }
 
             int lastError = 0;
+            int attempts = 0;
 
-            for (int rate : RATES) {
-                AudioTrack track = null;
+            // Use exactly what TELEPHONY_TX advertises. Prefer higher rates first
+            // because the Android audio policy commonly exposes telephony TX at
+            // 48 kHz / 44.1 kHz even when the modem voice codec is narrowband.
+            int[] orderedRates = preferredRates(rates);
 
-                try {
-                    AudioFormat format = new AudioFormat.Builder()
-                            .setSampleRate(rate)
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                            .build();
+            for (int rate : orderedRates) {
+                if (rate < 8000 || rate > 48000) {
+                    continue;
+                }
 
-                    track = createShellAttributedTrack(
-                            context,
-                            format);
-
-                    if (track == null
-                            || track.getState() != AudioTrack.STATE_INITIALIZED) {
-                        System.out.println(
-                                "ONTRACK_INJECT|attempt|rate=" + rate
-                                        + "|initialized=false");
+                for (int channels : channelCounts) {
+                    if (channels != 1 && channels != 2) {
                         continue;
                     }
 
-                    short[] tone = makeTone(rate);
-
-                    System.out.println(
-                            "ONTRACK_INJECT|attempt|rate=" + rate
-                                    + "|initialized=true"
-                                    + "|buffer_frames=" + track.getBufferSizeInFrames()
-                                    + "|sample_rate=" + track.getSampleRate()
-                                    + "|play_state=" + track.getPlayState());
-
-                    // Prime before play. Android explicitly allows filling a
-                    // streaming AudioTrack before play(), which avoids starting
-                    // an empty call-assistant track on vendor HALs.
-                    int primeTarget = Math.min(
-                            tone.length,
-                            Math.max(160, track.getBufferSizeInFrames() / 2));
-
-                    int primed = track.write(
-                            tone,
-                            0,
-                            primeTarget,
-                            AudioTrack.WRITE_NON_BLOCKING);
-
-                    System.out.println(
-                            "ONTRACK_INJECT|attempt|rate=" + rate
-                                    + "|prime_written=" + primed);
-
-                    if (primed == AudioTrack.ERROR_DEAD_OBJECT) {
-                        lastError = primed;
-                        continue;
-                    }
-
-                    if (primed < 0) {
-                        lastError = primed;
-                        continue;
-                    }
-
-                    track.play();
-
-                    int totalWritten = primed;
-                    int offset = Math.max(0, primed);
-
-                    while (offset < tone.length) {
-                        int written = track.write(
-                                tone,
-                                offset,
-                                tone.length - offset,
-                                AudioTrack.WRITE_NON_BLOCKING);
-
-                        if (written > 0) {
-                            offset += written;
-                            totalWritten += written;
-                            continue;
-                        }
-
-                        if (written == 0) {
-                            try {
-                                Thread.sleep(12L);
-                            } catch (InterruptedException ignored) {
-                                Thread.currentThread().interrupt();
-                                break;
-                            }
-                            continue;
-                        }
-
-                        lastError = written;
-                        System.out.println(
-                                "ONTRACK_INJECT|attempt|rate=" + rate
-                                        + "|stream_write_error=" + written);
-                        break;
-                    }
+                    attempts++;
+                    AudioTrack track = null;
+                    int attemptError = 0;
 
                     try {
-                        Thread.sleep(DURATION_MS + 180L);
-                    } catch (InterruptedException ignored) {
-                        Thread.currentThread().interrupt();
-                    }
+                        int channelMask = channels == 2
+                                ? AudioFormat.CHANNEL_OUT_STEREO
+                                : AudioFormat.CHANNEL_OUT_MONO;
 
-                    System.out.println(String.format(
-                            Locale.US,
-                            "ONTRACK_INJECT|attempt|rate=%d|samples=%d|total_written=%d|freq_hz=%.1f|duration_ms=%d|underruns=%d|play_state=%d",
-                            rate,
-                            tone.length,
-                            totalWritten,
-                            FREQ_HZ,
-                            DURATION_MS,
-                            track.getUnderrunCount(),
-                            track.getPlayState()));
+                        AudioFormat format = new AudioFormat.Builder()
+                                .setSampleRate(rate)
+                                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                                .setChannelMask(channelMask)
+                                .build();
 
-                    if (totalWritten > 0 && lastError >= 0) {
+                        track = createShellAttributedTrack(context, format);
+
+                        if (track == null
+                                || track.getState() != AudioTrack.STATE_INITIALIZED) {
+                            System.out.println(
+                                    "ONTRACK_INJECT|attempt"
+                                            + "|rate=" + rate
+                                            + "|channels=" + channels
+                                            + "|initialized=false");
+                            continue;
+                        }
+
+                        short[] tone = makeTone(rate, channels);
+
                         System.out.println(
-                                "ONTRACK_INJECT|result=written"
+                                "ONTRACK_INJECT|attempt"
                                         + "|rate=" + rate
-                                        + "|remote_confirmation_required=true");
-                        System.out.println("ONTRACK_INJECT|done");
-                        return;
-                    }
+                                        + "|channels=" + channels
+                                        + "|initialized=true"
+                                        + "|buffer_frames=" + track.getBufferSizeInFrames()
+                                        + "|actual_rate=" + track.getSampleRate()
+                                        + "|play_state=" + track.getPlayState());
 
-                } catch (Throwable attemptError) {
-                    Throwable root = root(attemptError);
-                    String message = safeMessage(root);
+                        int primeTargetSamples = Math.min(
+                                tone.length,
+                                Math.max(
+                                        160 * channels,
+                                        (track.getBufferSizeInFrames() * channels) / 2));
 
-                    System.out.println(
-                            "ONTRACK_INJECT|attempt|rate=" + rate
-                                    + "|error=" + root.getClass().getName()
-                                    + ":" + message);
-                } finally {
-                    if (track != null) {
-                        try { track.stop(); } catch (Throwable ignored) {}
-                        try { track.flush(); } catch (Throwable ignored) {}
-                        try { track.release(); } catch (Throwable ignored) {}
+                        int primed = track.write(
+                                tone,
+                                0,
+                                primeTargetSamples,
+                                AudioTrack.WRITE_NON_BLOCKING);
+
+                        System.out.println(
+                                "ONTRACK_INJECT|attempt"
+                                        + "|rate=" + rate
+                                        + "|channels=" + channels
+                                        + "|prime_written=" + primed);
+
+                        if (primed < 0) {
+                            attemptError = primed;
+                            lastError = primed;
+                            continue;
+                        }
+
+                        track.play();
+
+                        int totalWritten = primed;
+                        int offset = Math.max(0, primed);
+                        long deadline = System.currentTimeMillis() + 2200L;
+
+                        while (offset < tone.length
+                                && System.currentTimeMillis() < deadline) {
+
+                            int written = track.write(
+                                    tone,
+                                    offset,
+                                    tone.length - offset,
+                                    AudioTrack.WRITE_NON_BLOCKING);
+
+                            if (written > 0) {
+                                offset += written;
+                                totalWritten += written;
+                                continue;
+                            }
+
+                            if (written == 0) {
+                                try {
+                                    Thread.sleep(10L);
+                                } catch (InterruptedException ignored) {
+                                    Thread.currentThread().interrupt();
+                                    break;
+                                }
+                                continue;
+                            }
+
+                            attemptError = written;
+                            lastError = written;
+
+                            System.out.println(
+                                    "ONTRACK_INJECT|attempt"
+                                            + "|rate=" + rate
+                                            + "|channels=" + channels
+                                            + "|stream_write_error=" + written
+                                            + "|state=" + track.getState()
+                                            + "|play_state=" + track.getPlayState());
+                            break;
+                        }
+
+                        try {
+                            Thread.sleep(DURATION_MS + 150L);
+                        } catch (InterruptedException ignored) {
+                            Thread.currentThread().interrupt();
+                        }
+
+                        System.out.println(
+                                "ONTRACK_INJECT|attempt"
+                                        + "|rate=" + rate
+                                        + "|channels=" + channels
+                                        + "|samples=" + tone.length
+                                        + "|total_written=" + totalWritten
+                                        + "|attempt_error=" + attemptError
+                                        + "|underruns=" + track.getUnderrunCount()
+                                        + "|play_state=" + track.getPlayState());
+
+                        if (offset >= tone.length && attemptError >= 0) {
+                            System.out.println(
+                                    "ONTRACK_INJECT|result=written"
+                                            + "|rate=" + rate
+                                            + "|channels=" + channels
+                                            + "|remote_confirmation_required=true");
+                            return;
+                        }
+
+                    } catch (Throwable attemptFailure) {
+                        Throwable root = root(attemptFailure);
+
+                        System.out.println(
+                                "ONTRACK_INJECT|attempt"
+                                        + "|rate=" + rate
+                                        + "|channels=" + channels
+                                        + "|error=" + root.getClass().getName()
+                                        + ":" + safeMessage(root));
+                    } finally {
+                        if (track != null) {
+                            try { track.stop(); } catch (Throwable ignored) {}
+                            try { track.flush(); } catch (Throwable ignored) {}
+                            try { track.release(); } catch (Throwable ignored) {}
+                        }
                     }
                 }
             }
 
             System.out.println(
-                    "ONTRACK_INJECT|result=all_attempts_failed"
+                    "ONTRACK_INJECT|result=all_advertised_formats_failed"
+                            + "|attempts=" + attempts
                             + "|last_error=" + lastError);
 
         } catch (Throwable error) {
@@ -216,6 +284,23 @@ public final class ShellUplinkInjectionProbe {
         }
     }
 
+    private static AudioDeviceInfo findTelephonyTx(AudioManager audio) {
+        AudioDeviceInfo[] devices =
+                audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+
+        if (devices == null) return null;
+
+        for (AudioDeviceInfo device : devices) {
+            if (device != null
+                    && device.getType() == AudioDeviceInfo.TYPE_TELEPHONY
+                    && device.isSink()) {
+                return device;
+            }
+        }
+
+        return null;
+    }
+
     private static AudioTrack createShellAttributedTrack(
             Context context,
             AudioFormat format) throws Exception {
@@ -228,6 +313,8 @@ public final class ShellUplinkInjectionProbe {
                         "setSystemUsage",
                         int.class);
         setSystemUsage.setAccessible(true);
+
+        // AudioAttributes.USAGE_CALL_ASSISTANT
         setSystemUsage.invoke(attributes, 17);
 
         AudioTrack.Builder builder =
@@ -245,32 +332,75 @@ public final class ShellUplinkInjectionProbe {
                         "setCallRedirectionMode",
                         int.class);
         setCallMode.setAccessible(true);
+
+        // AudioManager.CALL_REDIRECT_PSTN
         setCallMode.invoke(builder, 1);
 
         return builder.build();
     }
 
-    private static short[] makeTone(int rate) {
-        int count = rate * DURATION_MS / 1000;
-        short[] pcm = new short[count];
+    private static int[] preferredRates(int[] advertised) {
+        int[] copy = advertised == null
+                ? new int[0]
+                : Arrays.copyOf(advertised, advertised.length);
 
-        int fade = Math.max(1, rate * 30 / 1000);
+        // Small array; deterministic descending order avoids vendor/model tables.
+        for (int i = 0; i < copy.length; i++) {
+            for (int j = i + 1; j < copy.length; j++) {
+                if (copy[j] > copy[i]) {
+                    int t = copy[i];
+                    copy[i] = copy[j];
+                    copy[j] = t;
+                }
+            }
+        }
 
-        for (int i = 0; i < count; i++) {
+        return copy;
+    }
+
+    private static short[] makeTone(int rate, int channels) {
+        int frames = rate * DURATION_MS / 1000;
+        short[] pcm = new short[frames * channels];
+
+        int fadeFrames = Math.max(1, rate * 30 / 1000);
+
+        for (int frame = 0; frame < frames; frame++) {
             double env = 1.0;
 
-            if (i < fade) {
-                env = (double) i / fade;
-            } else if (i > count - fade) {
-                env = (double) (count - i) / fade;
+            if (frame < fadeFrames) {
+                env = (double) frame / fadeFrames;
+            } else if (frame > frames - fadeFrames) {
+                env = (double) (frames - frame) / fadeFrames;
             }
 
-            double phase = 2.0 * Math.PI * FREQ_HZ * i / rate;
-            pcm[i] = (short) Math.round(
+            double phase =
+                    2.0 * Math.PI * FREQ_HZ * frame / rate;
+
+            short sample = (short) Math.round(
                     Math.sin(phase) * AMPLITUDE * env);
+
+            int base = frame * channels;
+            for (int channel = 0; channel < channels; channel++) {
+                pcm[base + channel] = sample;
+            }
         }
 
         return pcm;
+    }
+
+    private static boolean contains(int[] values, int target) {
+        if (values == null) return false;
+
+        for (int value : values) {
+            if (value == target) return true;
+        }
+
+        return false;
+    }
+
+    private static String compact(int[] values) {
+        if (values == null) return "[]";
+        return Arrays.toString(values).replace(" ", "");
     }
 
     private static Context createShellContext() throws Exception {
@@ -328,14 +458,14 @@ public final class ShellUplinkInjectionProbe {
     }
 
     private static Throwable root(Throwable error) {
-        Throwable root = error;
+        Throwable value = error;
 
-        while (root.getCause() != null
-                && root.getCause() != root) {
-            root = root.getCause();
+        while (value.getCause() != null
+                && value.getCause() != value) {
+            value = value.getCause();
         }
 
-        return root;
+        return value;
     }
 
     private static String safeMessage(Throwable error) {
