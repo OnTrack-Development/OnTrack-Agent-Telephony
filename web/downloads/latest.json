@@ -1,10 +1,10 @@
 {
-  "version_code": 13,
-  "version_name": "0.4.6",
-  "filename": "OnTrack-AI-Phone-v0.4.6.apk",
-  "sha256": "0ae1b81cca60ab242610b90da9755c35e8ad4744168f8e45e481979d793e7a3c",
-  "size_bytes": 13757320,
-  "published_at": "2026-10-06T03:44:36Z",
-  "release_notes": "OnTrack AI Phone v0.4.5 Audio Probe: result is written by shell to app-local external storage, avoiding ADB Stream closed transport failures.",
+  "version_code": 14,
+  "version_name": "0.4.7",
+  "filename": "OnTrack-AI-Phone-v0.4.7.apk",
+  "sha256": "20d0ae68195a82b5e096af313dfab58ef1ef9d558d6b941c83e59d90821674b4",
+  "size_bytes": 13757333,
+  "published_at": "2026-10-06T03:45:31Z",
+  "release_notes": "OnTrack AI Phone v0.4.7: confirms digital SIM capture and adds a shell-side PSTN uplink injection tone test for the remote caller.",
   "signing_certificate_sha256": "61:EE:0C:F7:0A:AE:92:39:E0:96:D4:42:2D:3D:4C:3B:2D:B4:D7:67:D6:FF:B6:1A:48:66:81:2C:08:EC:7B:02"
 }
