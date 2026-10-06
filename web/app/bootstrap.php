@@ -81,6 +81,11 @@ function migrate(PDO $pdo): void {
     ensure_column($pdo, 'calls', 'contact_name', 'TEXT');
     ensure_column($pdo, 'calls', 'recording_status', "TEXT NOT NULL DEFAULT 'not_recorded'");
     ensure_column($pdo, 'calls', 'recording_url', 'TEXT');
+    ensure_column($pdo, 'devices', 'conference_can_add_call', 'INTEGER');
+    ensure_column($pdo, 'devices', 'conferenceable_count', 'INTEGER');
+    ensure_column($pdo, 'devices', 'active_call_count', 'INTEGER');
+    ensure_column($pdo, 'devices', 'conference_status', "TEXT NOT NULL DEFAULT 'unknown'");
+    ensure_column($pdo, 'devices', 'conference_checked_at', 'TEXT');
 }
 
 function json_input(): array {
