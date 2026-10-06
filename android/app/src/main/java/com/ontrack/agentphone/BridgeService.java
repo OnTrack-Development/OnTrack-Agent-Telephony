@@ -70,6 +70,11 @@ public class BridgeService extends Service {
                     lastContactsSyncCheck = now;
                 }
 
+                if (OnTrackInCallService.hasActiveCustomerCallNow()) {
+                    sleepQuiet(2000);
+                    continue;
+                }
+
                 JSONObject poll = ApiClient.get(
                         AppState.server(this),
                         "/api/device/poll.php",
@@ -108,6 +113,11 @@ public class BridgeService extends Service {
     private void placeJob(JSONObject job) throws Exception {
         int callId = job.getInt("call_id");
         String number = job.getString("phone_number");
+
+        if (OnTrackInCallService.hasActiveCustomerCallNow()) {
+            updateCall(callId, "failed", "Device became busy before dialing");
+            return;
+        }
 
         getSharedPreferences("ontrack_agent_phone", MODE_PRIVATE)
                 .edit()
