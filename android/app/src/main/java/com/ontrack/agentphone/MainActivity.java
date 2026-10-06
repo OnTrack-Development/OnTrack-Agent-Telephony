@@ -1287,6 +1287,11 @@ public class MainActivity extends Activity {
     }
 
     private void dial(String raw) {
+        if (OnTrackInCallService.hasActiveCustomerCallNow()) {
+            toast("This phone is already handling a call");
+            return;
+        }
+
         String number = ContactHelper.normalize(raw);
 
         if (number.length() < 5) {
