@@ -603,7 +603,7 @@ public class MainActivity extends Activity {
         page.addView(space(12));
 
         LinearLayout note = card();
-        TextView version = text("OnTrack AI Phone v0.3.1", 14, true);
+        TextView version = text("OnTrack AI Phone v0.3.2", 14, true);
         note.addView(version);
 
         TextView bodyText = text(
@@ -702,7 +702,7 @@ public class MainActivity extends Activity {
                 payload.put("phone_number", number);
                 payload.put("manufacturer", Build.MANUFACTURER);
                 payload.put("model", Build.MODEL);
-                payload.put("app_version", "0.3.1-poc");
+                payload.put("app_version", "0.3.2-poc");
 
                 JSONObject result = ApiClient.post(
                         base,
