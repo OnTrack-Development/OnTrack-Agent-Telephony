@@ -46,3 +46,13 @@
 .conference-facts b{font-size:11px}
 .conference-note{margin-top:12px;color:var(--muted);font-size:11px;line-height:1.55}
 @media(max-width:900px){.conference-grid{grid-template-columns:1fr}}
+
+.app-release-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.app-release-grid>div{background:#0d0f12;border:1px solid var(--line);border-radius:12px;padding:13px}
+.app-release-grid span,.app-release-grid strong{display:block}
+.app-release-grid span{font-size:9px;color:var(--muted);margin-bottom:6px}
+.app-release-grid strong{font-size:12px}
+.app-release-actions{display:flex;align-items:center;gap:12px;justify-content:space-between;margin-top:12px;flex-wrap:wrap}
+.app-release-actions span{font-size:9px;color:var(--muted);word-break:break-all}
+@media(max-width:900px){.app-release-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.app-release-grid{grid-template-columns:1fr}}
