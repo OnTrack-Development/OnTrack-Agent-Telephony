@@ -15,7 +15,7 @@ import java.util.Locale;
  */
 public final class ShellAudioProbe {
     private static final int RATE = 16000;
-    private static final long WINDOW_MS = 1400L;
+    private static final long WINDOW_MS = 350L;
 
     private ShellAudioProbe() {}
 
