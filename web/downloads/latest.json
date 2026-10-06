@@ -2,9 +2,9 @@
   "version_code": 16,
   "version_name": "0.4.9",
   "filename": "OnTrack-AI-Phone-v0.4.9.apk",
-  "sha256": "674146f3b2b7ba7a9dc09e5dddd6d05870cb606389fb94489bc133021ee2162f",
-  "size_bytes": 13757325,
-  "published_at": "2026-10-06T03:58:30Z",
+  "sha256": "71be6d444d479baf9185a72886355c25ab6896cedd8b6ff39d4b09108c2d2916",
+  "size_bytes": 13757331,
+  "published_at": "2026-10-06T04:09:08Z",
   "release_notes": "OnTrack AI Phone v0.4.9: retries PSTN uplink injection with 8k/16k/48k mono PCM, primes the AudioTrack before play, and recreates dead call-audio endpoints.",
   "signing_certificate_sha256": "61:EE:0C:F7:0A:AE:92:39:E0:96:D4:42:2D:3D:4C:3B:2D:B4:D7:67:D6:FF:B6:1A:48:66:81:2C:08:EC:7B:02"
 }
