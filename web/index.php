@@ -24,7 +24,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?=htmlspecialchars($pageTitle)?> · OnTrack AI Telephony</title>
 <link rel="icon" type="image/svg+xml" href="assets/ontrack-icon.svg">
-<link rel="stylesheet" href="assets/app.css?v=20261006-6">
+<link rel="stylesheet" href="assets/app.css?v=20261006-7">
 </head>
 <body>
 <div class="shell">
@@ -41,11 +41,18 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
     </nav>
     <div class="sidebar-footer"><span class="dot"></span> POC Server Online<br><a href="logout.php">Sign out</a></div>
   </aside>
+  <button class="mobile-nav-overlay" id="mobileNavOverlay" aria-label="Close menu"></button>
 
   <main class="main">
     <header class="topbar">
-      <div><h1><?=htmlspecialchars($pageTitle)?></h1><p><?=htmlspecialchars($pageSubtitle)?></p></div>
-      <a class="primary" href="pair.php">+ Pair Android Phone</a>
+      <div class="topbar-title">
+        <button class="mobile-menu-toggle" id="mobileMenuToggle" type="button" aria-label="Open navigation" aria-expanded="false">☰</button>
+        <div>
+          <h1><?=htmlspecialchars($pageTitle)?></h1>
+          <p><?=htmlspecialchars($pageSubtitle)?></p>
+        </div>
+      </div>
+      <a class="primary pair-phone-button" href="pair.php">+ Pair Android Phone</a>
     </header>
 
     <section class="view<?=$active('overview')?>">
@@ -225,6 +232,6 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
   </main>
 </div>
 
-<script src="assets/app.js?v=20261006-6"></script>
+<script src="assets/app.js?v=20261006-7"></script>
 </body>
 </html>
