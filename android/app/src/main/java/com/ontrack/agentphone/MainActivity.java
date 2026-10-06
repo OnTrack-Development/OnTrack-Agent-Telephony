@@ -62,11 +62,13 @@ public class MainActivity extends Activity {
         requestRuntimePermissions();
         handleDialIntent(getIntent());
         showTab("calls");
+        UpdateManager.checkInBackground(this, false, null);
     }
 
     @Override protected void onResume() {
         super.onResume();
         refreshHeader();
+        UpdateManager.resumePendingInstall(this);
         if ("calls".equals(activeTab)) showTab("calls");
     }
 
@@ -588,6 +590,27 @@ public class MainActivity extends Activity {
         appSettings.setOnClickListener(v -> openSettings());
         controls.addView(appSettings);
 
+        Button updates = actionButton("Check for app updates", Color.rgb(35, 39, 45), TEXT);
+        updates.setOnClickListener(v -> {
+            updates.setEnabled(false);
+            updates.setText("Checking for updates…");
+
+            UpdateManager.checkInBackground(this, true, result -> {
+                updates.setEnabled(true);
+                updates.setText("Check for app updates");
+
+                if (!result.ok) {
+                    toast("Update check failed: " + result.message);
+                } else if (!result.updateAvailable) {
+                    toast(result.message);
+                } else if (result.downloaded && result.apk != null) {
+                    toast("Update v" + result.versionName + " downloaded");
+                    UpdateManager.install(this, result.apk);
+                }
+            });
+        });
+        controls.addView(updates);
+
         Button unlink = actionButton("Unpair this phone locally", Color.rgb(57, 23, 27), Color.rgb(255, 177, 180));
         unlink.setOnClickListener(v -> {
             stopService(new Intent(this, BridgeService.class));
@@ -603,7 +626,7 @@ public class MainActivity extends Activity {
         page.addView(space(12));
 
         LinearLayout note = card();
-        TextView version = text("OnTrack AI Phone v0.3.2", 14, true);
+        TextView version = text("OnTrack AI Phone v0.3.3", 14, true);
         note.addView(version);
 
         TextView bodyText = text(
@@ -702,7 +725,7 @@ public class MainActivity extends Activity {
                 payload.put("phone_number", number);
                 payload.put("manufacturer", Build.MANUFACTURER);
                 payload.put("model", Build.MODEL);
-                payload.put("app_version", "0.3.2-poc");
+                payload.put("app_version", "0.3.3-poc");
 
                 JSONObject result = ApiClient.post(
                         base,
