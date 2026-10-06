@@ -1,5 +1,9 @@
 package com.ontrack.agentphone;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -18,6 +22,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class OnTrackInCallService extends InCallService {
     private static final String TAG = "OnTrackInCall";
+    private static final String CALL_CHANNEL = "ontrack_calls_v1";
+    private static final int CALL_NOTIFICATION_ID = 2201;
 
     private static volatile OnTrackInCallService instance;
     private static volatile Call activeCall;
@@ -32,6 +38,7 @@ public class OnTrackInCallService extends InCallService {
     @Override public void onCreate() {
         super.onCreate();
         instance = this;
+        createCallNotificationChannel();
     }
 
     @Override public void onDestroy() {
@@ -62,8 +69,10 @@ public class OnTrackInCallService extends InCallService {
             }
 
             if (incoming || call.getState() == Call.STATE_RINGING) {
+                postCallNotification(true);
                 registerInbound(call, number, contactName);
             } else {
+                postCallNotification(false);
                 int id = pendingOutbound(number);
                 if (id > 0) {
                     outboundIds.put(call, id);
@@ -108,7 +117,17 @@ public class OnTrackInCallService extends InCallService {
                             cancelAutoAnswer(changedCall);
                         }
 
+                        if (state == Call.STATE_RINGING) {
+                            postCallNotification(true);
+                        } else if (state == Call.STATE_ACTIVE
+                                || state == Call.STATE_DIALING
+                                || state == Call.STATE_CONNECTING
+                                || state == Call.STATE_HOLDING) {
+                            postCallNotification(false);
+                        }
+
                         if (state == Call.STATE_DISCONNECTED) {
+                            cancelCallNotification();
                             mainHandler.postDelayed(() -> {
                                 if (activeCall == changedCall) {
                                     activeCall = null;
@@ -165,11 +184,111 @@ public class OnTrackInCallService extends InCallService {
                 activeContactName = "";
             }
 
+            cancelCallNotification();
+
         } catch (Throwable error) {
             Log.e(TAG, "onCallRemoved failed", error);
         }
 
         super.onCallRemoved(call);
+    }
+
+    private void createCallNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+
+        try {
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager == null) return;
+
+            NotificationChannel channel = new NotificationChannel(
+                    CALL_CHANNEL,
+                    "Phone calls",
+                    NotificationManager.IMPORTANCE_HIGH);
+
+            channel.setDescription("Incoming and ongoing phone calls");
+            channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            // Telecom/system handles the ringtone in this build.
+            channel.setSound(null, null);
+
+            manager.createNotificationChannel(channel);
+
+        } catch (Throwable error) {
+            Log.e(TAG, "Could not create call notification channel", error);
+        }
+    }
+
+    private void postCallNotification(boolean incoming) {
+        try {
+            Intent uiIntent = new Intent(this, InCallActivity.class);
+            uiIntent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK |
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP |
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+            PendingIntent pending = PendingIntent.getActivity(
+                    this,
+                    77,
+                    uiIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            String title = activeContactName == null || activeContactName.isEmpty()
+                    ? (activeNumber == null || activeNumber.isEmpty()
+                        ? "Phone call"
+                        : activeNumber)
+                    : activeContactName;
+
+            String text;
+            if (incoming) {
+                text = activeNumber == null || activeNumber.isEmpty()
+                        ? "Incoming call"
+                        : "Incoming call · " + activeNumber;
+            } else {
+                Call call = activeCall;
+                int state = call == null ? Call.STATE_NEW : call.getState();
+
+                if (state == Call.STATE_ACTIVE) {
+                    text = activeNumber == null || activeNumber.isEmpty()
+                            ? "Call in progress"
+                            : "Call in progress · " + activeNumber;
+                } else {
+                    text = activeNumber == null || activeNumber.isEmpty()
+                            ? "Calling…"
+                            : "Calling · " + activeNumber;
+                }
+            }
+
+            Notification.Builder builder = new Notification.Builder(this, CALL_CHANNEL)
+                    .setSmallIcon(android.R.drawable.sym_call_incoming)
+                    .setContentTitle(title)
+                    .setContentText(text)
+                    .setCategory(Notification.CATEGORY_CALL)
+                    .setVisibility(Notification.VISIBILITY_PUBLIC)
+                    .setOngoing(true)
+                    .setAutoCancel(false)
+                    .setContentIntent(pending)
+                    .setPriority(Notification.PRIORITY_MAX);
+
+            if (incoming) {
+                builder.setFullScreenIntent(pending, true);
+            }
+
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.notify(CALL_NOTIFICATION_ID, builder.build());
+            }
+
+        } catch (Throwable error) {
+            Log.e(TAG, "Could not post call notification", error);
+        }
+    }
+
+    private void cancelCallNotification() {
+        try {
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) manager.cancel(CALL_NOTIFICATION_ID);
+        } catch (Throwable error) {
+            Log.e(TAG, "Could not cancel call notification", error);
+        }
     }
 
     private void registerInbound(Call call, String phone, String contactName) {
