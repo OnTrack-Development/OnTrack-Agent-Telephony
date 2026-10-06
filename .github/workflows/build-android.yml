@@ -76,7 +76,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OnTrack-AI-Phone-Bridge-v0.3.3
+          name: OnTrack-AI-Phone-Bridge-v0.4.0
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/release/app-release.apk
@@ -110,7 +110,7 @@ jobs:
             "sha256": "${SHA256}",
             "size_bytes": ${SIZE_BYTES},
             "published_at": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
-            "release_notes": "Signed OnTrack AI Phone release with in-app updates and conference capability testing.",
+            "release_notes": "OnTrack AI Phone v0.4.0 production UI refresh with signed in-app updates and conference capability testing.",
             "signing_certificate_sha256": "${CERT_SHA256}"
           }
           EOF
