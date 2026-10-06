@@ -36,10 +36,12 @@ public class OnTrackInCallService extends InCallService {
     private final Map<Call, Runnable> pendingAutoAnswers = new ConcurrentHashMap<>();
     private final Map<Call, Boolean> trackedCalls = new ConcurrentHashMap<>();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private MediaBridgeCoordinator mediaBridge;
 
     @Override public void onCreate() {
         super.onCreate();
         instance = this;
+        mediaBridge = new MediaBridgeCoordinator(this);
         createCallNotificationChannel();
     }
 
@@ -53,16 +55,10 @@ public class OnTrackInCallService extends InCallService {
 
         try {
             trackedCalls.put(call, Boolean.TRUE);
-            activeCall = call;
 
             Call.Details details = call.getDetails();
             String number = number(details == null ? null : details.getHandle());
             String contactName = ContactHelper.findName(this, number);
-
-            activeNumber = number;
-            activeContactName = contactName;
-
-            launchInCallUi();
 
             boolean incoming;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && details != null) {
@@ -71,26 +67,60 @@ public class OnTrackInCallService extends InCallService {
                 incoming = call.getState() == Call.STATE_RINGING;
             }
 
-            if (incoming || call.getState() == Call.STATE_RINGING) {
-                postCallNotification(true);
-                registerInbound(call, number, contactName);
+            boolean bridgeLeg = !incoming
+                    && mediaBridge != null
+                    && mediaBridge.isExpectedBridgeNumber(number);
+
+            if (bridgeLeg) {
+                mediaBridge.onBridgeCallAdded(call, number);
+
+                Call customer = mediaBridge.customerCall();
+                if (customer != null) {
+                    activeCall = customer;
+                    activeNumber = number(
+                            customer.getDetails() == null
+                                    ? null
+                                    : customer.getDetails().getHandle());
+                    String customerName = ContactHelper.findName(this, activeNumber);
+                    if (!customerName.isEmpty()) activeContactName = customerName;
+                }
+
             } else {
-                postCallNotification(false);
-                int id = pendingOutbound(number);
-                if (id > 0) {
-                    outboundIds.put(call, id);
-                    BridgeService.updateCallAsync(
-                            this,
-                            id,
-                            stateToApi(call.getState()),
-                            null);
+                activeCall = call;
+                activeNumber = number;
+                activeContactName = contactName;
+
+                launchInCallUi();
+
+                if (incoming || call.getState() == Call.STATE_RINGING) {
+                    postCallNotification(true);
+                    registerInbound(call, number, contactName);
+                } else {
+                    postCallNotification(false);
+                    int id = pendingOutbound(number);
+                    if (id > 0) {
+                        outboundIds.put(call, id);
+                        BridgeService.updateCallAsync(
+                                this,
+                                id,
+                                stateToApi(call.getState()),
+                                null);
+                    }
                 }
             }
 
             call.registerCallback(new Call.Callback() {
                 @Override public void onStateChanged(Call changedCall, int state) {
                     try {
-                        activeCall = choosePrimaryCall(changedCall);
+                        if (mediaBridge != null) {
+                            mediaBridge.onCallStateChanged(changedCall, state);
+                        }
+
+                        Call preferred = mediaBridge != null && mediaBridge.isBridgeCall(changedCall)
+                                ? mediaBridge.customerCall()
+                                : changedCall;
+
+                        activeCall = choosePrimaryCall(preferred);
 
                         if (activeCall != null) {
                             activeNumber = number(activeCall.getDetails() == null
@@ -149,6 +179,9 @@ public class OnTrackInCallService extends InCallService {
                 @Override public void onConferenceableCallsChanged(
                         Call changedCall,
                         List<Call> conferenceableCalls) {
+                    if (mediaBridge != null) {
+                        mediaBridge.onConferenceableChanged(changedCall);
+                    }
                     reportCapabilitiesAsync();
                 }
             });
@@ -174,6 +207,11 @@ public class OnTrackInCallService extends InCallService {
     @Override public void onCallRemoved(Call call) {
         try {
             cancelAutoAnswer(call);
+
+            if (mediaBridge != null) {
+                mediaBridge.onCallRemoved(call);
+            }
+
             trackedCalls.remove(call);
 
             Integer out = outboundIds.remove(call);
@@ -227,6 +265,8 @@ public class OnTrackInCallService extends InCallService {
 
         Call best = null;
         for (Call call : trackedCalls.keySet()) {
+            if (mediaBridge != null && mediaBridge.isBridgeCall(call)) continue;
+
             int state = call.getState();
             if (state == Call.STATE_ACTIVE) return call;
             if (state == Call.STATE_RINGING) best = call;
@@ -478,6 +518,11 @@ public class OnTrackInCallService extends InCallService {
                 int delaySeconds = Math.max(
                         0,
                         instruction.optInt("delay_seconds", 0));
+
+                JSONObject mediaPlan = instruction.optJSONObject("media_bridge");
+                if (mediaBridge != null && mediaPlan != null) {
+                    mediaBridge.configureInbound(call, id, mediaPlan);
+                }
 
                 if ("answer_and_bridge_ai".equals(action)) {
                     scheduleAutoAnswer(call, 0L);
