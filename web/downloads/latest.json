@@ -2,9 +2,9 @@
   "version_code": 19,
   "version_name": "0.5.2",
   "filename": "OnTrack-AI-Phone-v0.5.2.apk",
-  "sha256": "4cb2caa82ada8d27b60ad2700406b22b200e84dc97db399fd085a7cf328535ba",
-  "size_bytes": 13757325,
-  "published_at": "2026-10-06T04:57:57Z",
-  "release_notes": "OnTrack AI Phone v0.5.1: adds a generic on-device audio capability report covering shell permissions, TELEPHONY RX/TX devices, Audio Policy, AudioFlinger/HAL, vendor policy files, and recent native audio errors.",
+  "sha256": "ff6302cf81dd379d40e0c640e82754fa1e80f1d059443293de834e6049a852fd",
+  "size_bytes": 13757324,
+  "published_at": "2026-10-06T04:59:25Z",
+  "release_notes": "OnTrack AI Phone v0.5.2: bounded on-device audio diagnostics for shell permissions, TELEPHONY RX/TX devices, Audio Policy, AudioFlinger/HAL, vendor routes and recent native audio errors.",
   "signing_certificate_sha256": "61:EE:0C:F7:0A:AE:92:39:E0:96:D4:42:2D:3D:4C:3B:2D:B4:D7:67:D6:FF:B6:1A:48:66:81:2C:08:EC:7B:02"
 }
