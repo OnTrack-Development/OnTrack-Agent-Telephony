@@ -2,7 +2,7 @@
 require __DIR__ . '/app/bootstrap.php';
 if (empty($_SESSION['admin_ok'])) { header('Location: login.php'); exit; }
 
-$allowedViews = ['overview','devices','contacts','campaigns','calls','architecture'];
+$allowedViews = ['overview','devices','contacts','campaigns','calls','architecture','updates'];
 $view = (string)($_GET['view'] ?? 'overview');
 if (!in_array($view, $allowedViews, true)) $view = 'overview';
 
@@ -13,6 +13,7 @@ $titles = [
     'campaigns' => ['Campaigns', 'Sequential outbound AI calling jobs'],
     'calls' => ['Call History', 'Caller identity, duration and recording history'],
     'architecture' => ['Bridge Status', 'Telephony bridge and incoming-call policy'],
+    'updates' => ['Updates', 'Website and Android release management'],
 ];
 
 [$pageTitle, $pageSubtitle] = $titles[$view];
@@ -23,7 +24,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?=htmlspecialchars($pageTitle)?> · OnTrack AI Telephony</title>
 <link rel="icon" type="image/svg+xml" href="assets/ontrack-icon.svg">
-<link rel="stylesheet" href="assets/app.css?v=20261006-5">
+<link rel="stylesheet" href="assets/app.css?v=20261006-6">
 </head>
 <body>
 <div class="shell">
@@ -36,6 +37,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
       <a class="nav<?=$active('campaigns')?>" href="?view=campaigns">Campaigns</a>
       <a class="nav<?=$active('calls')?>" href="?view=calls">Call History</a>
       <a class="nav<?=$active('architecture')?>" href="?view=architecture">Bridge Status</a>
+      <a class="nav<?=$active('updates')?>" href="?view=updates">Updates</a>
     </nav>
     <div class="sidebar-footer"><span class="dot"></span> POC Server Online<br><a href="logout.php">Sign out</a></div>
   </aside>
@@ -164,9 +166,65 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
         </div>
       </article>
     </section>
+
+    <section class="view<?=$active('updates')?>">
+      <div class="grid two">
+        <article class="card">
+          <div class="card-head">
+            <h2>Website Update</h2>
+            <span>Uses your existing admin login</span>
+          </div>
+
+          <div id="websiteUpdateStatus">
+            <div class="empty">Checking GitHub and deployed version…</div>
+          </div>
+
+          <div class="update-actions">
+            <button class="primary" id="runWebsiteUpdate">
+              Update website from GitHub
+            </button>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>Android Release</h2>
+            <span>Persistently signed update channel</span>
+          </div>
+
+          <div id="updatesAppRelease">
+            <div class="empty">Loading Android release information…</div>
+          </div>
+        </article>
+      </div>
+
+      <article class="card" style="margin-top:14px">
+        <div class="card-head">
+          <h2>Update Flow</h2>
+          <span>No separate updater password</span>
+        </div>
+
+        <div class="flow">
+          <b>Admin Login</b>
+          <i>→</i>
+          <b>Update Website</b>
+          <i>→</i>
+          <b>GitHub main</b>
+          <i>→</i>
+          <b>Preserve config + database</b>
+        </div>
+
+        <div class="conference-note">
+          Android app releases are signed with the persistent OnTrack certificate.
+          Future APK versions install over the existing app and preserve local pairing
+          and settings.
+        </div>
+      </article>
+    </section>
+
   </main>
 </div>
 
-<script src="assets/app.js?v=20261006-5"></script>
+<script src="assets/app.js?v=20261006-6"></script>
 </body>
 </html>
