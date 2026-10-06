@@ -2,9 +2,9 @@
   "version_code": 8,
   "version_name": "0.4.1",
   "filename": "OnTrack-AI-Phone-v0.4.1.apk",
-  "sha256": "3397524085a4b822bc88001b8a976bb9f84f6c242cc327a99a549df5379d1a3d",
-  "size_bytes": 1719237,
-  "published_at": "2026-10-06T02:04:55Z",
+  "sha256": "a72903ab696d7c7196e56d4b44a8e8d7b6bc1563dac315e27e79d0f4dcf214f0",
+  "size_bytes": 1719940,
+  "published_at": "2026-10-06T02:07:26Z",
   "release_notes": "OnTrack AI Phone v0.4.1 media bridge release with automatic PSTN leg, DTMF session identification, carrier merge and server recording.",
   "signing_certificate_sha256": "61:EE:0C:F7:0A:AE:92:39:E0:96:D4:42:2D:3D:4C:3B:2D:B4:D7:67:D6:FF:B6:1A:48:66:81:2C:08:EC:7B:02"
 }
