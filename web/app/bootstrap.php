@@ -227,3 +227,151 @@ function create_media_pin(PDO $pdo): string {
 
     throw new RuntimeException('Could not allocate media session PIN');
 }
+
+
+function local_secret_key(): string {
+    $path = __DIR__ . '/../storage/.app-secret-key';
+
+    if (is_file($path)) {
+        $raw = trim((string)file_get_contents($path));
+        $key = base64_decode($raw, true);
+        if (is_string($key) && strlen($key) === 32) {
+            return $key;
+        }
+    }
+
+    $key = random_bytes(32);
+    if (!is_dir(dirname($path))) {
+        mkdir(dirname($path), 0775, true);
+    }
+
+    file_put_contents($path, base64_encode($key), LOCK_EX);
+    @chmod($path, 0600);
+    return $key;
+}
+
+function encrypt_local_secret(string $plain): string {
+    if ($plain === '') return '';
+
+    $key = local_secret_key();
+
+    if (function_exists('sodium_crypto_secretbox')) {
+        $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+        $cipher = sodium_crypto_secretbox($plain, $nonce, $key);
+        return 'sodium:' . base64_encode($nonce . $cipher);
+    }
+
+    $iv = random_bytes(12);
+    $tag = '';
+    $cipher = openssl_encrypt(
+        $plain,
+        'aes-256-gcm',
+        $key,
+        OPENSSL_RAW_DATA,
+        $iv,
+        $tag
+    );
+
+    if (!is_string($cipher)) {
+        throw new RuntimeException('Could not encrypt local secret');
+    }
+
+    return 'aesgcm:' . base64_encode($iv . $tag . $cipher);
+}
+
+function decrypt_local_secret(string $value): string {
+    if ($value === '') return '';
+
+    $key = local_secret_key();
+
+    if (str_starts_with($value, 'sodium:')) {
+        $raw = base64_decode(substr($value, 7), true);
+        if (!is_string($raw) || strlen($raw) <= SODIUM_CRYPTO_SECRETBOX_NONCEBYTES) {
+            return '';
+        }
+
+        $nonce = substr($raw, 0, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+        $cipher = substr($raw, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+        $plain = sodium_crypto_secretbox_open($cipher, $nonce, $key);
+        return is_string($plain) ? $plain : '';
+    }
+
+    if (str_starts_with($value, 'aesgcm:')) {
+        $raw = base64_decode(substr($value, 7), true);
+        if (!is_string($raw) || strlen($raw) <= 28) return '';
+
+        $iv = substr($raw, 0, 12);
+        $tag = substr($raw, 12, 16);
+        $cipher = substr($raw, 28);
+
+        $plain = openssl_decrypt(
+            $cipher,
+            'aes-256-gcm',
+            $key,
+            OPENSSL_RAW_DATA,
+            $iv,
+            $tag
+        );
+
+        return is_string($plain) ? $plain : '';
+    }
+
+    return '';
+}
+
+function twilio_auth_token(): string {
+    return decrypt_local_secret(setting_value('twilio_auth_token_enc', ''));
+}
+
+function twilio_account_sid(): string {
+    return trim(setting_value('twilio_account_sid', ''));
+}
+
+function twilio_request_url(): string {
+    $base = rtrim((string)cfg('base_url', 'https://agent.ontrackegy.com'), '/');
+    $uri = (string)($_SERVER['REQUEST_URI'] ?? '/');
+    return $base . $uri;
+}
+
+function verify_twilio_signature(): void {
+    $token = twilio_auth_token();
+    if ($token === '') {
+        http_response_code(503);
+        exit('Twilio is not configured');
+    }
+
+    $provided = (string)($_SERVER['HTTP_X_TWILIO_SIGNATURE'] ?? '');
+    if ($provided === '') {
+        http_response_code(403);
+        exit('Missing Twilio signature');
+    }
+
+    $params = $_POST;
+    ksort($params, SORT_STRING);
+
+    $data = twilio_request_url();
+
+    foreach ($params as $key => $value) {
+        if (is_array($value)) continue;
+        $data .= (string)$key . (string)$value;
+    }
+
+    $expected = base64_encode(hash_hmac('sha1', $data, $token, true));
+
+    if (!hash_equals($expected, $provided)) {
+        http_response_code(403);
+        exit('Invalid Twilio signature');
+    }
+}
+
+function twiml_response(string $xml): never {
+    header('Content-Type: text/xml; charset=utf-8');
+    echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>"
+        . $xml
+        . '</Response>';
+    exit;
+}
+
+function xml_attr(string $value): string {
+    return htmlspecialchars($value, ENT_QUOTES | ENT_XML1, 'UTF-8');
+}
