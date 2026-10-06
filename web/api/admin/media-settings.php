@@ -32,6 +32,10 @@ json_response([
     'enabled' => setting_value('media_bridge_enabled', '0') === '1',
     'bridge_number' => setting_value('media_bridge_number', ''),
     'auto_merge' => setting_value('media_auto_merge', '1') === '1',
+    'callback_secret' => $secret,
+    'bridge_event_url' => rtrim((string)cfg('base_url', 'https://agent.ontrackegy.com'), '/') . '/api/media/gateway-event.php',
+    'recording_upload_url' => rtrim((string)cfg('base_url', 'https://agent.ontrackegy.com'), '/') . '/api/media/upload-recording.php',
+    // Backward-compatible aliases for already deployed dashboard JS.
     'gateway_secret' => $secret,
     'gateway_event_url' => rtrim((string)cfg('base_url', 'https://agent.ontrackegy.com'), '/') . '/api/media/gateway-event.php',
     'gateway_upload_url' => rtrim((string)cfg('base_url', 'https://agent.ontrackegy.com'), '/') . '/api/media/upload-recording.php',
