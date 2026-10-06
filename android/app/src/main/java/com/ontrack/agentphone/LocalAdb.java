@@ -258,6 +258,80 @@ final class LocalAdb {
                 "Injection probe started, but no local result was produced");
     }
 
+    static String runCapabilityReport(Context context) throws Exception {
+        Context app = context.getApplicationContext();
+
+        File externalDir = app.getExternalFilesDir(null);
+        if (externalDir == null) {
+            throw new IllegalStateException(
+                    "App external files directory is unavailable");
+        }
+
+        File result = new File(
+                externalDir,
+                "ontrack-audio-capability-report.txt");
+
+        if (result.exists() && !result.delete()) {
+            throw new IllegalStateException(
+                    "Could not clear the previous capability report");
+        }
+
+        final String resultPath = result.getAbsolutePath();
+        final String probeApk =
+                "/data/local/tmp/ontrack-audio-probe.apk";
+
+        String command =
+                "APK=$(pm path com.ontrack.agentphone | head -n 1 | cut -d: -f2); " +
+                "test -n \"$APK\" || { echo ONTRACK_CAP_APK_MISSING; exit; }; " +
+                "rm -f " + shellQuote(resultPath) + " " + probeApk + "; " +
+                "cp \"$APK\" " + probeApk + " || { echo ONTRACK_CAP_COPY_FAILED; exit; }; " +
+                "chmod 0644 " + probeApk + "; " +
+                "CLASSPATH=" + probeApk + " app_process /system/bin " +
+                "com.ontrack.agentphone.ShellAudioCapabilityProbe >" +
+                shellQuote(resultPath) + " 2>&1";
+
+        exec(app, command);
+
+        StringBuilder report = new StringBuilder();
+
+        if (result.isFile() && result.length() > 0) {
+            report.append(readText(result).trim());
+        } else {
+            report.append("ONTRACK_CAP|framework_report=missing");
+        }
+
+        report.append("\n\n=== AUDIO POLICY: TELEPHONY ===\n");
+        report.append(exec(app,
+                "dumpsys media.audio_policy 2>/dev/null | " +
+                "grep -i -E 'telephony|call_assistant|call assistant|audio patch|patch' | " +
+                "head -n 180"));
+
+        report.append("\n\n=== AUDIO FLINGER / HAL ===\n");
+        report.append(exec(app,
+                "dumpsys media.audio_flinger --hal 2>/dev/null | " +
+                "grep -i -E 'telephony|call|aidl|hidl|primary|stream' | " +
+                "head -n 180"));
+
+        report.append("\n\n=== AUDIO HAL SERVICES ===\n");
+        report.append(exec(app,
+                "dumpsys -l 2>/dev/null | " +
+                "grep -E 'android.hardware.audio.core.IModule|media.audio' | " +
+                "head -n 80"));
+
+        report.append("\n\n=== VENDOR POLICY FILES ===\n");
+        report.append(exec(app,
+                "find /vendor/etc /odm/etc /product/etc /system/etc " +
+                "-type f -iname '*audio*policy*.xml' 2>/dev/null | head -n 60"));
+
+        report.append("\n\n=== RECENT AUDIO ERRORS ===\n");
+        report.append(exec(app,
+                "logcat -d -v brief -t 500 2>/dev/null | " +
+                "grep -i -E 'AudioPolicy|AudioFlinger|audio_hw|telephony|call.assistant|dead.object|startOutput' | " +
+                "tail -n 160"));
+
+        return report.toString().trim();
+    }
+
     private static String shellQuote(String value) {
         return "'" + value.replace("'", "'\\''") + "'";
     }
