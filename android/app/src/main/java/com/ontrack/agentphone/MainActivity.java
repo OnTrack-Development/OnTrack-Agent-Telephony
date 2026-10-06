@@ -976,6 +976,14 @@ public class MainActivity extends Activity {
                 "Open",
                 v -> openSettings()));
 
+        appSection.addView(divider());
+
+        appSection.addView(settingAction(
+                "SIM Audio Probe",
+                "Non-root local ADB test for digital cellular call audio",
+                "Test",
+                v -> startActivity(new Intent(this, AudioProbeActivity.class))));
+
         page.addView(appSection);
         page.addView(space(14));
 
@@ -1010,9 +1018,9 @@ public class MainActivity extends Activity {
 
         LinearLayout about = sectionCard("About");
 
-        TextView version = text("OnTrack AI Phone v0.4.2", 14, true);
+        TextView version = text("OnTrack AI Phone v0.4.3", 14, true);
         TextView build = text(
-                "Production UI refresh · persistent signing · in-app updates",
+                "Experimental SIM audio probe · local ADB shell · no root/Accessibility/provider",
                 11,
                 false);
         build.setTextColor(MUTED);
@@ -1246,7 +1254,7 @@ public class MainActivity extends Activity {
                 payload.put("phone_number", number);
                 payload.put("manufacturer", Build.MANUFACTURER);
                 payload.put("model", Build.MODEL);
-                payload.put("app_version", "0.4.2-poc");
+                payload.put("app_version", "0.4.3");
 
                 JSONObject result = ApiClient.post(
                         base,
