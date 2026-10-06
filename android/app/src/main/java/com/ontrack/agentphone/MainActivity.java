@@ -1010,7 +1010,7 @@ public class MainActivity extends Activity {
 
         LinearLayout about = sectionCard("About");
 
-        TextView version = text("OnTrack AI Phone v0.4.1", 14, true);
+        TextView version = text("OnTrack AI Phone v0.4.2", 14, true);
         TextView build = text(
                 "Production UI refresh · persistent signing · in-app updates",
                 11,
@@ -1246,7 +1246,7 @@ public class MainActivity extends Activity {
                 payload.put("phone_number", number);
                 payload.put("manufacturer", Build.MANUFACTURER);
                 payload.put("model", Build.MODEL);
-                payload.put("app_version", "0.4.1-poc");
+                payload.put("app_version", "0.4.2-poc");
 
                 JSONObject result = ApiClient.post(
                         base,
