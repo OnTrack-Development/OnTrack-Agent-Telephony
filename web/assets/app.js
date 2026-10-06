@@ -79,6 +79,7 @@ function render(data){
   renderCalls();
   renderContacts(data.contacts||[]);
   renderCampaigns(data);
+  renderConference(data.devices||[]);
   renderMedia(data.media||{});
 }
 
@@ -245,6 +246,51 @@ function renderCampaigns(data){
       </div>
     `).join('')
     : empty('No campaigns created yet.'));
+}
+
+function renderConference(devices){
+  const el=$('#conferenceDevices');
+  if(!el) return;
+
+  if(!devices.length){
+    el.innerHTML=empty('No paired Android devices.');
+    return;
+  }
+
+  el.innerHTML='<div class="conference-grid">'+devices.map(device=>{
+    const status=device.conference_status||'unknown';
+    const checked=device.conference_checked_at||'Never';
+    const canAdd=device.conference_can_add_call===null || device.conference_can_add_call===undefined
+      ? 'UNKNOWN'
+      : (Number(device.conference_can_add_call)===1?'YES':'NO');
+    const mergeReady=Number(device.conferenceable_count||0)>0 && Number(device.active_call_count||0)>=2;
+    const label=status==='merge_ready'?'MERGE READY'
+      : status==='add_call_ready'?'ADD CALL READY'
+      : status==='unavailable'?'NOT AVAILABLE'
+      : 'WAITING FOR LIVE TEST';
+    const cls=status==='merge_ready'?'ready'
+      : status==='add_call_ready'?'partial'
+      : status==='unavailable'?'blocked'
+      : 'unknown';
+
+    return `
+      <div class="conference-device">
+        <div class="conference-device-head">
+          <div>
+            <strong>${esc(device.name)}</strong>
+            <span>${esc(device.phone_number||'No SIM number')}</span>
+          </div>
+          <span class="conference-badge ${cls}">${label}</span>
+        </div>
+        <div class="conference-facts">
+          <div><span>Add second call</span><b>${canAdd}</b></div>
+          <div><span>Active calls</span><b>${Number(device.active_call_count||0)}</b></div>
+          <div><span>Merge calls</span><b>${mergeReady?'YES':(status==='unknown'?'UNKNOWN':'NO')}</b></div>
+          <div><span>Last check</span><b>${esc(checked)}</b></div>
+        </div>
+      </div>
+    `;
+  }).join('')+'</div>';
 }
 
 function renderMedia(media){
