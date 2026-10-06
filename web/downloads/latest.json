@@ -1,10 +1,10 @@
 {
-  "version_code": 12,
-  "version_name": "0.4.5",
-  "filename": "OnTrack-AI-Phone-v0.4.5.apk",
-  "sha256": "d98d6727259c4fd916260eb7e358c0e5f1352ba2a3b4c73750fa217f95d2bc77",
-  "size_bytes": 13757324,
-  "published_at": "2026-10-06T03:30:05Z",
+  "version_code": 13,
+  "version_name": "0.4.6",
+  "filename": "OnTrack-AI-Phone-v0.4.6.apk",
+  "sha256": "81cb9a41e5d97ded33d1d08d35acbc4becb5818deedc03e971d3367fc3f7efb1",
+  "size_bytes": 13757321,
+  "published_at": "2026-10-06T03:36:11Z",
   "release_notes": "OnTrack AI Phone v0.4.5 Audio Probe: result is written by shell to app-local external storage, avoiding ADB Stream closed transport failures.",
   "signing_certificate_sha256": "61:EE:0C:F7:0A:AE:92:39:E0:96:D4:42:2D:3D:4C:3B:2D:B4:D7:67:D6:FF:B6:1A:48:66:81:2C:08:EC:7B:02"
 }
