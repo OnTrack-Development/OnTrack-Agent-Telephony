@@ -5,6 +5,7 @@ import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.os.Process;
+import android.os.Looper;
 
 import java.lang.reflect.Method;
 import java.util.Locale;
@@ -169,6 +170,13 @@ public final class ShellUplinkInjectionProbe {
     }
 
     private static Context createShellContext() throws Exception {
+        // app_process does not prepare a Java Looper for us. ActivityThread
+        // creates Handlers while attaching the system context, so prepare one
+        // explicitly before calling systemMain().
+        if (Looper.myLooper() == null) {
+            Looper.prepare();
+        }
+
         Class<?> activityThread =
                 Class.forName("android.app.ActivityThread");
 
