@@ -320,7 +320,9 @@ public final class ShellUplinkInjectionProbe {
                     runtime,
                     (Object) new String[]{
                             "Landroid/app/ActivityThread;",
-                            "Landroid/media/AudioManager;"
+                            "Landroid/media/AudioManager;",
+                            "Landroid/media/AudioTrack$Builder;",
+                            "Landroid/media/AudioAttributes$Builder;"
                     });
         } catch (Throwable ignored) {}
     }
