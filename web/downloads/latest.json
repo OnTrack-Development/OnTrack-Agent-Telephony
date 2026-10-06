@@ -2,9 +2,9 @@
   "version_code": 10,
   "version_name": "0.4.3",
   "filename": "OnTrack-AI-Phone-v0.4.3.apk",
-  "sha256": "386311ef42f41f97fc2733c734ff1680943ed984dc6d9faf24beeeb311745c60",
-  "size_bytes": 13757331,
-  "published_at": "2026-10-06T03:00:21Z",
-  "release_notes": "OnTrack AI Phone v0.4.2 single-call hosted-media release: one customer call per device, managed bridge ready, no VPS dependency.",
+  "sha256": "af002d572d3bbd694ece3a97c27dc66c461e51e2ded2ebf232257e0b7cd02832",
+  "size_bytes": 13757324,
+  "published_at": "2026-10-06T03:02:27Z",
+  "release_notes": "OnTrack AI Phone v0.4.3 Audio Probe: local Wireless Debugging shell test for digital SIM call audio, no root or Accessibility.",
   "signing_certificate_sha256": "61:EE:0C:F7:0A:AE:92:39:E0:96:D4:42:2D:3D:4C:3B:2D:B4:D7:67:D6:FF:B6:1A:48:66:81:2C:08:EC:7B:02"
 }
