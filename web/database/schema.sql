@@ -86,6 +86,14 @@ CREATE TABLE IF NOT EXISTS calls (
   action_result TEXT,
   recording_status TEXT NOT NULL DEFAULT 'not_recorded',
   recording_url TEXT,
+  recording_file TEXT,
+  media_status TEXT NOT NULL DEFAULT 'not_connected',
+  media_pin TEXT,
+  media_bridge_number TEXT,
+  media_requested_at TEXT,
+  media_connected_at TEXT,
+  media_disconnected_at TEXT,
+  media_error TEXT,
   lease_expires_at TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY(campaign_id) REFERENCES campaigns(id),
@@ -104,3 +112,12 @@ CREATE TABLE IF NOT EXISTS settings (
 
 INSERT OR IGNORE INTO settings(setting_key,setting_value,updated_at)
 VALUES('incoming_mode','ai',datetime('now'));
+
+INSERT OR IGNORE INTO settings(setting_key,setting_value,updated_at)
+VALUES('media_bridge_enabled','0',datetime('now'));
+
+INSERT OR IGNORE INTO settings(setting_key,setting_value,updated_at)
+VALUES('media_bridge_number','',datetime('now'));
+
+INSERT OR IGNORE INTO settings(setting_key,setting_value,updated_at)
+VALUES('media_auto_merge','1',datetime('now'));
