@@ -11,6 +11,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_SIGNING_PASSWORD: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -26,16 +29,44 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build APKs
+      - name: Build debug APK
         working-directory: android
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Restore persistent release signing key
+        if: env.ANDROID_SIGNING_PASSWORD != ''
+        working-directory: android
+        shell: bash
         run: |
-          gradle :app:assembleDebug --stacktrace
-          gradle :app:assembleRelease --stacktrace
+          openssl enc -d -aes-256-cbc -pbkdf2 -a -A             -in signing/ontrack-release.jks.enc.b64             -out signing/ontrack-release.jks             -pass env:ANDROID_SIGNING_PASSWORD
+          chmod 600 signing/ontrack-release.jks
+
+      - name: Verify signing key
+        if: env.ANDROID_SIGNING_PASSWORD != ''
+        working-directory: android
+        shell: bash
+        run: |
+          keytool -list             -keystore signing/ontrack-release.jks             -storepass "$ANDROID_SIGNING_PASSWORD"             -alias ontrack-telephony
+
+      - name: Build persistently signed release APK
+        if: env.ANDROID_SIGNING_PASSWORD != ''
+        working-directory: android
+        run: gradle :app:assembleRelease --stacktrace
+
+      - name: Signing status
+        shell: bash
+        run: |
+          if [ -n "$ANDROID_SIGNING_PASSWORD" ]; then
+            echo "Persistent release signing: ENABLED"
+          else
+            echo "Persistent release signing: WAITING FOR ANDROID_SIGNING_PASSWORD SECRET"
+            echo "Debug APK was still built for development testing."
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OnTrack-AI-Phone-Bridge-v0.3.1
+          name: OnTrack-AI-Phone-Bridge-v0.3.2
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: error
+          if-no-files-found: warn
