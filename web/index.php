@@ -23,7 +23,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?=htmlspecialchars($pageTitle)?> · OnTrack AI Telephony</title>
 <link rel="icon" type="image/svg+xml" href="assets/ontrack-icon.svg">
-<link rel="stylesheet" href="assets/app.css?v=20261006-4">
+<link rel="stylesheet" href="assets/app.css?v=20261006-5">
 </head>
 <body>
 <div class="shell">
@@ -138,6 +138,12 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
         </div>
       </article>
       <article class="card" style="margin-top:14px">
+        <div class="card-head"><h2>Android App Distribution</h2><span>Persistently signed release channel</span></div>
+        <div id="appRelease" class="app-release-panel">
+          <div class="empty">Loading Android release information…</div>
+        </div>
+      </article>
+      <article class="card" style="margin-top:14px">
         <div class="card-head"><h2>Carrier Conference Capability</h2><span>Measured live from each Android InCallService</span></div>
         <div id="conferenceDevices"></div>
         <div class="conference-note">
@@ -161,6 +167,6 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
   </main>
 </div>
 
-<script src="assets/app.js?v=20261006-4"></script>
+<script src="assets/app.js?v=20261006-5"></script>
 </body>
 </html>
