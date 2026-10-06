@@ -67,7 +67,10 @@ $devices = $devicesStmt->fetchAll();
 $calls = $pdo->query(
     "SELECT id,direction,phone_number,contact_name,status,outcome,
             started_at,answered_at,ended_at,duration_seconds,
-            recording_status,recording_url,created_at
+            recording_status,recording_url,
+            media_status,media_bridge_number,media_requested_at,
+            media_connected_at,media_disconnected_at,media_error,
+            created_at
      FROM calls
      ORDER BY id DESC
      LIMIT 250"
@@ -94,6 +97,38 @@ $contacts = $pdo->query(
      LIMIT 2000"
 )->fetchAll();
 
+$liveMedia = $pdo->query(
+    "SELECT COUNT(*) FROM calls
+     WHERE ended_at IS NULL
+       AND media_status IN ('connected','recording')"
+)->fetchColumn();
+
+$liveRecording = $pdo->query(
+    "SELECT COUNT(*) FROM calls
+     WHERE ended_at IS NULL
+       AND recording_status='recording'"
+)->fetchColumn();
+
+$bridgeEnabled = setting_value('media_bridge_enabled', '0') === '1';
+$bridgeNumber = setting_value('media_bridge_number', '');
+
+$audioOnServer = (int)$liveMedia > 0;
+$recordingOn = (int)$liveRecording > 0;
+
+if ($audioOnServer) {
+    $mediaStatus = 'connected';
+    $mediaLabel = 'Server media live';
+    $mediaDetail = 'Carrier conference audio is reaching the Media Gateway.';
+} elseif ($bridgeEnabled && $bridgeNumber !== '') {
+    $mediaStatus = 'ready';
+    $mediaLabel = 'Media bridge armed';
+    $mediaDetail = 'The PSTN media bridge is configured and waiting for an AI-handled call.';
+} else {
+    $mediaStatus = 'disconnected';
+    $mediaLabel = 'Phone audio only';
+    $mediaDetail = 'Configure a PSTN/SIP Media Bridge number before call audio can reach the server.';
+}
+
 json_response([
     'ok' => true,
     'metrics' => $metrics,
@@ -102,11 +137,13 @@ json_response([
     'campaigns' => $campaigns,
     'contacts' => $contacts,
     'media' => [
-        'status' => 'disconnected',
-        'audio_on_server' => false,
-        'recording_enabled' => false,
-        'label' => 'Phone audio only',
-        'detail' => 'Call audio is currently handled only by the Android handset. No live audio is reaching this server yet.'
+        'status' => $mediaStatus,
+        'audio_on_server' => $audioOnServer,
+        'recording_enabled' => $recordingOn,
+        'bridge_enabled' => $bridgeEnabled,
+        'bridge_number' => $bridgeNumber,
+        'label' => $mediaLabel,
+        'detail' => $mediaDetail,
     ],
     'timezone' => (string)cfg('timezone', 'Africa/Cairo')
 ]);
