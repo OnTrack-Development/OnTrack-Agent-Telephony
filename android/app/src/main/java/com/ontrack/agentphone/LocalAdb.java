@@ -13,6 +13,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.security.KeyFactory;
@@ -82,12 +83,43 @@ final class LocalAdb {
 
     static String runAudioProbe(Context context) throws Exception {
         Context app = context.getApplicationContext();
-        String command =
+
+        final String resultFile = "/data/local/tmp/ontrack-audio-probe-result.txt";
+        final String probeApk = "/data/local/tmp/ontrack-audio-probe.apk";
+
+        // ADB is bootstrap only. Do not keep the live probe attached to an ADB
+        // stream: some Wireless Debugging builds close shell streams while the
+        // spawned process is still running.
+        String bootstrap =
                 "APK=$(pm path com.ontrack.agentphone | head -n 1 | cut -d: -f2); " +
-                "test -n \"$APK\" || { echo 'ONTRACK_PROBE|fatal=apk_not_found'; exit 2; }; " +
-                "CLASSPATH=\"$APK\" app_process /system/bin " +
-                "com.ontrack.agentphone.ShellAudioProbe";
-        return connectAndExec(app, command).trim();
+                "test -n \"$APK\" || exit 41; " +
+                "rm -f " + resultFile + " " + probeApk + "; " +
+                "cp \"$APK\" " + probeApk + " || exit 42; " +
+                "chmod 0644 " + probeApk + "; " +
+                "(CLASSPATH=" + probeApk + " nohup app_process /system/bin " +
+                "com.ontrack.agentphone.ShellAudioProbe >" + resultFile +
+                " 2>&1 </dev/null &) ; echo ONTRACK_PROBE_STARTED";
+
+        String started = connectAndExec(app, bootstrap);
+
+        if (!started.contains("ONTRACK_PROBE_STARTED")) {
+            throw new IllegalStateException(
+                    "Probe bootstrap did not confirm start: " + started.trim());
+        }
+
+        // VOICE_CALL + DOWNLINK + UPLINK are sampled for ~1.4 s each.
+        Thread.sleep(6200L);
+
+        String output = connectAndExec(
+                app,
+                "cat " + resultFile + " 2>/dev/null || echo ONTRACK_PROBE_RESULT_MISSING");
+
+        if (output.contains("ONTRACK_PROBE_RESULT_MISSING") || output.trim().isEmpty()) {
+            throw new IllegalStateException(
+                    "Shell probe started but did not produce a result file");
+        }
+
+        return output.trim();
     }
 
     static void forget(Context context) {
@@ -119,11 +151,26 @@ final class LocalAdb {
             }
 
             AdbStream stream = mgr.openStream("shell:" + command);
-            try (InputStream in = stream.openInputStream();
-                 ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            try (InputStream in = stream.openInputStream()) {
                 byte[] buffer = new byte[8192];
-                int read;
-                while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
+                while (true) {
+                    try {
+                        int read = in.read(buffer);
+                        if (read == -1) break;
+                        out.write(buffer, 0, read);
+                    } catch (IOException io) {
+                        // Several Android 14/15 Wireless Debugging stacks close
+                        // the logical shell stream immediately after command exit.
+                        // If we already received output, treat that as normal EOF.
+                        if (out.size() > 0
+                                && String.valueOf(io.getMessage()).toLowerCase()
+                                .contains("stream closed")) {
+                            break;
+                        }
+                        throw io;
+                    }
+                }
                 return out.toString("UTF-8");
             } finally {
                 try { stream.close(); } catch (Throwable ignored) {}
