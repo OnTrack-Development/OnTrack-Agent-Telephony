@@ -1,17 +1,38 @@
 const $=(s,r=document)=>r.querySelector(s);
 
+let dashboardData={
+  metrics:{devices:0,paired_devices:0,contacts:0,calls_today:0,answered_today:0},
+  devices:[],
+  calls:[],
+  campaigns:[],
+  contacts:[],
+  media:{status:'disconnected',audio_on_server:false,recording_enabled:false,label:'Phone audio only'}
+};
+
 async function api(url,opts={}){
-  const r=await fetch(url,{headers:{'Content-Type':'application/json',...(opts.headers||{})},...opts});
-  const j=await r.json();
-  if(!r.ok) throw new Error(j.error||'Request failed');
-  return j;
+  const response=await fetch(url,{
+    headers:{'Content-Type':'application/json',...(opts.headers||{})},
+    ...opts
+  });
+  const payload=await response.json();
+  if(!response.ok) throw new Error(payload.error||'Request failed');
+  return payload;
 }
 
 function esc(v=''){
-  return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  return String(v).replace(/[&<>"']/g,m=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+  }[m]));
 }
-function badge(v){return `<span class="badge ${esc(v)}">${esc(v||'—')}</span>`;}
-function empty(t){return `<div class="empty">${esc(t)}</div>`;}
+
+function badge(v){
+  return `<span class="badge ${esc(v)}">${esc(v||'—')}</span>`;
+}
+
+function empty(t){
+  return `<div class="empty">${esc(t)}</div>`;
+}
+
 function duration(seconds){
   if(seconds===null || seconds===undefined || seconds==='') return '—';
   const s=Math.max(0,Number(seconds)||0);
@@ -22,6 +43,7 @@ function duration(seconds){
     ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
     : `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
 }
+
 function identity(call){
   const name=(call.contact_name||'').trim();
   const number=call.phone_number||'—';
@@ -29,81 +51,351 @@ function identity(call){
     ? `<div class="row-main"><strong>${esc(name)}</strong><span>${esc(number)}</span></div>`
     : `<div class="row-main"><strong>${esc(number)}</strong><span>Unknown contact</span></div>`;
 }
+
 function recording(call){
   if(call.recording_url){
-    return `<a class="recording-link" href="${esc(call.recording_url)}" target="_blank" rel="noopener">Play recording</a>`;
+    return `<audio class="call-audio" controls preload="none" src="${esc(call.recording_url)}"></audio>`;
   }
-  return '<span class="muted">Not recorded yet</span>';
+  return '<span class="muted">Not recorded — media bridge offline</span>';
+}
+
+function setHtml(selector,html){
+  const el=$(selector);
+  if(el) el.innerHTML=html;
 }
 
 async function load(){
   try{
-    const d=await api('api/admin/dashboard.php');
-    render(d);
-  }catch(e){
-    console.error('Dashboard load failed:',e);
+    dashboardData=await api('api/admin/dashboard.php');
+    render(dashboardData);
+  }catch(error){
+    console.error('Dashboard load failed:',error);
   }
 }
 
-function setHtml(id,html){
-  const el=$(id);
-  if(el) el.innerHTML=html;
+function render(data){
+  renderMetrics(data);
+  renderDevices(data.devices||[]);
+  renderCalls();
+  renderContacts(data.contacts||[]);
+  renderCampaigns(data);
+  renderMedia(data.media||{});
 }
 
-function render(d){
+function renderMetrics(data){
   setHtml('#metrics',[
-    ['Connected phones',d.metrics.devices],
-    ['Synced contacts',d.metrics.contacts||0],
-    ['Calls today',d.metrics.calls_today],
-    ['Answered',d.metrics.answered_today]
-  ].map(x=>`<div class="metric"><span>${x[0]}</span><strong>${x[1]}</strong><em>live POC data</em></div>`).join(''));
+    ['Connected phones',data.metrics.devices],
+    ['Synced contacts',data.metrics.contacts||0],
+    ['Calls today',data.metrics.calls_today],
+    ['Answered',data.metrics.answered_today]
+  ].map(x=>`
+    <div class="metric">
+      <span>${x[0]}</span>
+      <strong>${x[1]}</strong>
+      <em>live data</em>
+    </div>
+  `).join(''));
+}
 
-  setHtml('#overviewDevices',d.devices.length
-    ? d.devices.slice(0,5).map(x=>`<div class="row"><div class="row-main"><strong>${esc(x.name)}</strong><span>${esc(x.phone_number||'No phone yet')} · ${esc(x.model||'Android')}</span></div>${badge(x.status)}</div>`).join('')
-    : empty('No Android phones paired yet.'));
+function renderDevices(devices){
+  setHtml('#overviewDevices',devices.length
+    ? devices.slice(0,5).map(x=>`
+      <div class="row">
+        <div class="row-main">
+          <strong>${esc(x.name)}</strong>
+          <span>${esc(x.phone_number||'No phone yet')} · ${esc(x.model||'Android')}</span>
+        </div>
+        ${badge(x.status)}
+      </div>
+    `).join('')
+    : empty('No paired Android phones.'));
 
-  setHtml('#recentCalls',d.calls.length
-    ? d.calls.slice(0,5).map(x=>`<div class="row">${identity(x)}<div class="row-main" style="text-align:right"><strong>${duration(x.duration_seconds)}</strong><span>${esc(x.direction)} · ${esc(x.created_at)}</span></div></div>`).join('')
+  setHtml('#devicesTable',devices.length
+    ? `<table class="table">
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>SIM number</th>
+            <th>Model</th>
+            <th>Last seen</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${devices.map(x=>`
+            <tr>
+              <td><b>${esc(x.name)}</b><div class="tiny">Device #${x.id}</div></td>
+              <td>${esc(x.phone_number||'—')}</td>
+              <td>${esc([x.manufacturer,x.model].filter(Boolean).join(' ')||'Android')}</td>
+              <td>${esc(x.last_seen_at||'Never')}</td>
+              <td>${badge(x.status)}</td>
+              <td>
+                <div class="row-actions">
+                  <button class="mini-action" onclick="renameDevice(${x.id})">Rename</button>
+                  <button class="mini-action danger" onclick="removeDevice(${x.id})">Remove</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`
+    : empty('Pair the first Android phone to start.'));
+}
+
+function filteredCalls(){
+  const search=($('#callSearch')?.value||'').trim().toLowerCase();
+  const direction=$('#callDirection')?.value||'';
+
+  return (dashboardData.calls||[]).filter(call=>{
+    const haystack=`${call.contact_name||''} ${call.phone_number||''}`.toLowerCase();
+    if(search && !haystack.includes(search)) return false;
+    if(direction && call.direction!==direction) return false;
+    return true;
+  });
+}
+
+function renderCalls(){
+  const calls=filteredCalls();
+
+  setHtml('#recentCalls',(dashboardData.calls||[]).length
+    ? dashboardData.calls.slice(0,5).map(x=>`
+      <div class="row">
+        ${identity(x)}
+        <div class="row-main" style="text-align:right">
+          <strong>${duration(x.duration_seconds)}</strong>
+          <span>${esc(x.direction)} · ${esc(x.created_at)}</span>
+        </div>
+      </div>
+    `).join('')
     : empty('No calls yet.'));
 
-  setHtml('#devicesTable',d.devices.length
-    ? `<table class="table"><thead><tr><th>Device</th><th>SIM number</th><th>Model</th><th>Last seen</th><th>Status</th></tr></thead><tbody>${d.devices.map(x=>`<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.phone_number||'—')}</td><td>${esc([x.manufacturer,x.model].filter(Boolean).join(' ')||'Android')}</td><td>${esc(x.last_seen_at||'—')}</td><td>${badge(x.status)}</td></tr>`).join('')}</tbody></table>`
-    : empty('Pair the first Android phone to start.'));
+  setHtml('#callsTable',calls.length
+    ? `<table class="table">
+        <thead>
+          <tr>
+            <th>Caller / Customer</th>
+            <th>Direction</th>
+            <th>Status</th>
+            <th>Outcome</th>
+            <th>Duration</th>
+            <th>Server Media</th>
+            <th>Recording</th>
+            <th>Created</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${calls.map(x=>`
+            <tr>
+              <td>${identity(x)}</td>
+              <td>${esc(x.direction)}</td>
+              <td>${badge(x.status)}</td>
+              <td>${esc(x.outcome||'—')}</td>
+              <td><b>${duration(x.duration_seconds)}</b></td>
+              <td><span class="media-chip off">NOT CONNECTED</span></td>
+              <td>${recording(x)}</td>
+              <td>${esc(x.created_at)}</td>
+              <td><button class="mini-action danger" onclick="deleteCall(${x.id})">Delete</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`
+    : empty('No call history matches this filter.'));
+}
 
-  setHtml('#contactsTable',d.contacts && d.contacts.length
-    ? `<table class="table"><thead><tr><th>Name</th><th>Phone number</th><th>Device</th><th>Last sync</th></tr></thead><tbody>${d.contacts.map(x=>`<tr><td><b>${esc(x.contact_name)}</b></td><td>${esc(x.phone_number)}</td><td>${esc(x.device_name)}</td><td>${esc(x.synced_at)}</td></tr>`).join('')}</tbody></table>`
+function renderContacts(contacts){
+  setHtml('#contactsTable',contacts.length
+    ? `<table class="table">
+        <thead><tr><th>Name</th><th>Phone number</th><th>Device</th><th>Last sync</th></tr></thead>
+        <tbody>
+          ${contacts.map(x=>`
+            <tr>
+              <td><b>${esc(x.contact_name)}</b></td>
+              <td>${esc(x.phone_number)}</td>
+              <td>${esc(x.device_name)}</td>
+              <td>${esc(x.synced_at)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`
     : empty('No contacts synced from Android yet.'));
+}
 
-  const deviceSelect=$('#campaignDevice');
-  if(deviceSelect){
-    deviceSelect.innerHTML=d.devices.length
-      ? d.devices.map(x=>`<option value="${x.id}">${esc(x.name)} ${x.phone_number?'('+esc(x.phone_number)+')':''}</option>`).join('')
+function renderCampaigns(data){
+  const select=$('#campaignDevice');
+  if(select){
+    select.innerHTML=(data.devices||[]).length
+      ? data.devices.map(x=>`
+          <option value="${x.id}" ${x.status==='offline'?'disabled':''}>
+            ${esc(x.name)} ${x.phone_number?'('+esc(x.phone_number)+')':''} ${x.status==='offline'?'[offline]':''}
+          </option>
+        `).join('')
       : '<option value="">No paired devices</option>';
   }
 
-  setHtml('#campaignList',d.campaigns.length
-    ? d.campaigns.map(x=>`<div class="row"><div class="row-main"><strong>${esc(x.name)}</strong><span>${x.done_contacts}/${x.total_contacts} finished · ${esc(x.agent_name)}</span></div>${badge(x.status)}</div>`).join('')
+  setHtml('#campaignList',(data.campaigns||[]).length
+    ? data.campaigns.map(x=>`
+      <div class="row">
+        <div class="row-main">
+          <strong>${esc(x.name)}</strong>
+          <span>${x.done_contacts}/${x.total_contacts} finished · ${esc(x.agent_name)}</span>
+        </div>
+        ${badge(x.status)}
+      </div>
+    `).join('')
     : empty('No campaigns created yet.'));
+}
 
-  setHtml('#callsTable',d.calls.length
-    ? `<table class="table"><thead><tr><th>Caller / Customer</th><th>Direction</th><th>Status</th><th>Outcome</th><th>Duration</th><th>Recording</th><th>Created</th></tr></thead><tbody>${d.calls.map(x=>`<tr><td>${identity(x)}</td><td>${esc(x.direction)}</td><td>${badge(x.status)}</td><td>${esc(x.outcome||'—')}</td><td><b>${duration(x.duration_seconds)}</b></td><td>${recording(x)}</td><td>${esc(x.created_at)}</td></tr>`).join('')}</tbody></table>`
-    : empty('Call records will appear here.'));
+function renderMedia(media){
+  const connected=media.status==='connected' && media.audio_on_server===true;
+
+  const overview=$('#mediaOverview');
+  if(overview){
+    overview.innerHTML=connected
+      ? `<div class="media-status-card connected"><b>Server Media Connected</b><span>Live call audio is reaching the server.</span></div>`
+      : `<div class="media-status-card disconnected"><b>Server Media Disconnected</b><span>Audio is currently on the Android phone only. The website receives call events, not sound.</span></div>`;
+  }
+
+  const label=$('#mediaOverviewLabel');
+  if(label) label.textContent=connected?'Audio on server':'Phone audio only';
+
+  const status=$('#mediaStatus');
+  if(status){
+    status.textContent=connected?'CONNECTED':'DISCONNECTED';
+    status.className='big-status '+(connected?'ok':'media-off');
+  }
+
+  const detail=$('#mediaStatusDetail');
+  if(detail) detail.textContent=media.detail||'No live call audio is reaching this server.';
+
+  const serverAudio=$('#serverAudioState');
+  if(serverAudio){
+    serverAudio.textContent=connected?'YES':'NO';
+    serverAudio.className=connected?'state-ok':'state-off';
+  }
+
+  const recordingState=$('#recordingState');
+  if(recordingState){
+    recordingState.textContent=media.recording_enabled?'ON':'OFF';
+    recordingState.className=media.recording_enabled?'state-ok':'state-off';
+  }
+}
+
+window.renameDevice=async function(deviceId){
+  const device=(dashboardData.devices||[]).find(x=>Number(x.id)===Number(deviceId));
+  const name=prompt('New device name:',device?.name||'');
+  if(name===null) return;
+  if(!name.trim()) return alert('Device name cannot be empty.');
+
+  try{
+    await api('api/admin/device-manage.php',{
+      method:'POST',
+      body:JSON.stringify({action:'rename',device_id:deviceId,name:name.trim()})
+    });
+    await load();
+  }catch(error){
+    alert(error.message);
+  }
+};
+
+window.removeDevice=async function(deviceId){
+  const device=(dashboardData.devices||[]).find(x=>Number(x.id)===Number(deviceId));
+  const label=device?.name||('Device #'+deviceId);
+  if(!confirm(`Remove "${label}"?\n\nIts pairing token and synced contacts will be revoked. Existing call history will be preserved.`)) return;
+
+  try{
+    await api('api/admin/device-manage.php',{
+      method:'POST',
+      body:JSON.stringify({action:'remove',device_id:deviceId})
+    });
+    await load();
+  }catch(error){
+    alert(error.message);
+  }
+};
+
+window.deleteCall=async function(callId){
+  if(!confirm('Delete this call history entry?')) return;
+
+  try{
+    await api('api/admin/call-history-manage.php',{
+      method:'POST',
+      body:JSON.stringify({action:'delete_one',call_id:callId})
+    });
+    await load();
+  }catch(error){
+    alert(error.message);
+  }
+};
+
+const search=$('#callSearch');
+if(search) search.addEventListener('input',renderCalls);
+
+const direction=$('#callDirection');
+if(direction) direction.addEventListener('change',renderCalls);
+
+const deleteNumber=$('#deleteNumberBtn');
+if(deleteNumber){
+  deleteNumber.addEventListener('click',async()=>{
+    const phone=prompt('Phone number to remove from call history:');
+    if(phone===null || !phone.trim()) return;
+    if(!confirm(`Delete every history entry for ${phone.trim()}?`)) return;
+
+    try{
+      const result=await api('api/admin/call-history-manage.php',{
+        method:'POST',
+        body:JSON.stringify({action:'delete_number',phone_number:phone.trim()})
+      });
+      await load();
+      alert(result.deleted+' call entries deleted.');
+    }catch(error){
+      alert(error.message);
+    }
+  });
+}
+
+const clearHistory=$('#clearHistoryBtn');
+if(clearHistory){
+  clearHistory.addEventListener('click',async()=>{
+    if(!confirm('Clear ALL call history? This cannot be undone.')) return;
+    if(!confirm('Confirm again: delete every call history entry?')) return;
+
+    try{
+      const result=await api('api/admin/call-history-manage.php',{
+        method:'POST',
+        body:JSON.stringify({action:'clear_all'})
+      });
+      await load();
+      alert(result.deleted+' call entries deleted.');
+    }catch(error){
+      alert(error.message);
+    }
+  });
 }
 
 const campaignForm=$('#campaignForm');
 if(campaignForm){
-  campaignForm.addEventListener('submit',async e=>{
-    e.preventDefault();
-    const fd=new FormData(e.target);
-    const payload=Object.fromEntries(fd.entries());
-    payload.numbers=String(payload.numbers).split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean);
+  campaignForm.addEventListener('submit',async event=>{
+    event.preventDefault();
+
+    const form=new FormData(event.target);
+    const payload=Object.fromEntries(form.entries());
+    payload.numbers=String(payload.numbers)
+      .split(/\r?\n|,/)
+      .map(x=>x.trim())
+      .filter(Boolean);
+
     try{
-      await api('api/admin/campaign-create.php',{method:'POST',body:JSON.stringify(payload)});
-      e.target.reset();
+      await api('api/admin/campaign-create.php',{
+        method:'POST',
+        body:JSON.stringify(payload)
+      });
+      event.target.reset();
       await load();
       alert('Campaign created and started.');
-    }catch(err){
-      alert(err.message);
+    }catch(error){
+      alert(error.message);
     }
   });
 }
@@ -111,11 +403,12 @@ if(campaignForm){
 async function loadSettings(){
   const input=$('#incomingMode');
   if(!input) return;
+
   try{
-    const s=await api('api/admin/settings.php');
-    input.value=s.incoming_mode;
-  }catch(e){
-    console.error('Settings load failed:',e);
+    const settings=await api('api/admin/settings.php');
+    input.value=settings.incoming_mode;
+  }catch(error){
+    console.error('Settings load failed:',error);
   }
 }
 
@@ -128,8 +421,8 @@ if(saveIncoming){
         body:JSON.stringify({incoming_mode:$('#incomingMode').value})
       });
       alert('Incoming policy saved.');
-    }catch(e){
-      alert(e.message);
+    }catch(error){
+      alert(error.message);
     }
   });
 }
