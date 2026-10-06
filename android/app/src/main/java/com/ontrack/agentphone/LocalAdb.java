@@ -196,6 +196,68 @@ final class LocalAdb {
                 "Shell probe started, but no local result was produced");
     }
 
+    static String runUplinkInjectionProbe(Context context) throws Exception {
+        Context app = context.getApplicationContext();
+
+        File externalDir = app.getExternalFilesDir(null);
+        if (externalDir == null) {
+            throw new IllegalStateException(
+                    "App external files directory is unavailable");
+        }
+
+        File result = new File(
+                externalDir,
+                "ontrack-uplink-injection-result.txt");
+
+        if (result.exists() && !result.delete()) {
+            throw new IllegalStateException(
+                    "Could not clear the previous injection result");
+        }
+
+        final String resultPath = result.getAbsolutePath();
+        final String probeApk =
+                "/data/local/tmp/ontrack-audio-probe.apk";
+
+        String command =
+                "APK=$(pm path com.ontrack.agentphone | head -n 1 | cut -d: -f2); " +
+                "test -n \"$APK\" || { echo ONTRACK_INJECT_APK_MISSING; exit; }; " +
+                "rm -f " + shellQuote(resultPath) + " " + probeApk + "; " +
+                "cp \"$APK\" " + probeApk + " || { echo ONTRACK_INJECT_COPY_FAILED; exit; }; " +
+                "chmod 0644 " + probeApk + "; " +
+                "CLASSPATH=" + probeApk + " nohup app_process /system/bin " +
+                "com.ontrack.agentphone.ShellUplinkInjectionProbe >" +
+                shellQuote(resultPath) + " 2>&1 </dev/null & " +
+                "echo ONTRACK_INJECT_STARTED";
+
+        String started = exec(app, command);
+
+        if (!started.contains("ONTRACK_INJECT_STARTED")) {
+            throw new IllegalStateException(
+                    "Injection bootstrap failed: " + started.trim());
+        }
+
+        long deadline = System.currentTimeMillis() + 10_000L;
+
+        while (System.currentTimeMillis() < deadline) {
+            if (result.isFile() && result.length() > 0) {
+                String partial = readText(result);
+
+                if (partial.contains("ONTRACK_INJECT|done")) {
+                    return partial.trim();
+                }
+            }
+
+            Thread.sleep(250L);
+        }
+
+        if (result.isFile() && result.length() > 0) {
+            return readText(result).trim();
+        }
+
+        throw new IllegalStateException(
+                "Injection probe started, but no local result was produced");
+    }
+
     private static String shellQuote(String value) {
         return "'" + value.replace("'", "'\\''") + "'";
     }
