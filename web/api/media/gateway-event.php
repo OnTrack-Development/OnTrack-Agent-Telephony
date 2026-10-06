@@ -14,11 +14,13 @@ if (!preg_match('/^\d{8}$/', $pin)) {
 }
 
 $allowed = ['connected','recording','ended','failed'];
+
 if (!in_array($state, $allowed, true)) {
     json_response(['ok' => false, 'error' => 'Invalid gateway state'], 422);
 }
 
 $pdo = db();
+
 $stmt = $pdo->prepare(
     "SELECT * FROM calls
      WHERE media_pin=?
@@ -34,25 +36,40 @@ if (!$call) {
 
 $callId = (int)$call['id'];
 $now = now_utc();
+$mergeConfirmed = !empty($call['media_merge_confirmed_at']);
 
 if ($state === 'connected') {
+    $next = $mergeConfirmed ? 'connected' : 'gateway_connected';
+
     $pdo->prepare(
         "UPDATE calls
-         SET media_status='connected',
-             media_connected_at=COALESCE(media_connected_at,?),
+         SET media_status=?,
+             media_gateway_connected_at=COALESCE(media_gateway_connected_at,?),
+             media_connected_at=CASE
+               WHEN media_merge_confirmed_at IS NOT NULL
+               THEN COALESCE(media_connected_at,?)
+               ELSE media_connected_at
+             END,
              media_error=NULL
          WHERE id=?"
-    )->execute([$now, $callId]);
+    )->execute([$next, $now, $now, $callId]);
 
 } elseif ($state === 'recording') {
+    $next = $mergeConfirmed ? 'recording' : 'gateway_connected';
+
     $pdo->prepare(
         "UPDATE calls
-         SET media_status='recording',
-             media_connected_at=COALESCE(media_connected_at,?),
+         SET media_status=?,
+             media_gateway_connected_at=COALESCE(media_gateway_connected_at,?),
+             media_connected_at=CASE
+               WHEN media_merge_confirmed_at IS NOT NULL
+               THEN COALESCE(media_connected_at,?)
+               ELSE media_connected_at
+             END,
              recording_status='recording',
              media_error=NULL
          WHERE id=?"
-    )->execute([$now, $callId]);
+    )->execute([$next, $now, $now, $callId]);
 
 } elseif ($state === 'ended') {
     $pdo->prepare(
