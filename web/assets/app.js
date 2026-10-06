@@ -620,3 +620,38 @@ if(runWebsiteUpdate){
 
 loadAppRelease();
 loadWebsiteUpdateStatus();
+
+
+function setMobileNav(open){
+  document.body.classList.toggle('mobile-nav-open',open);
+
+  const button=$('#mobileMenuToggle');
+  if(button){
+    button.setAttribute('aria-expanded',open?'true':'false');
+    button.textContent=open?'×':'☰';
+  }
+}
+
+const mobileMenuToggle=$('#mobileMenuToggle');
+if(mobileMenuToggle){
+  mobileMenuToggle.addEventListener('click',()=>{
+    setMobileNav(!document.body.classList.contains('mobile-nav-open'));
+  });
+}
+
+const mobileNavOverlay=$('#mobileNavOverlay');
+if(mobileNavOverlay){
+  mobileNavOverlay.addEventListener('click',()=>setMobileNav(false));
+}
+
+document.querySelectorAll('.sidebar .nav').forEach(link=>{
+  link.addEventListener('click',()=>setMobileNav(false));
+});
+
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape') setMobileNav(false);
+});
+
+window.addEventListener('resize',()=>{
+  if(window.innerWidth>900) setMobileNav(false);
+});
