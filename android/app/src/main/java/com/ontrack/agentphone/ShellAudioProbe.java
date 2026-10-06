@@ -27,6 +27,7 @@ public final class ShellAudioProbe {
         test("voice_call", MediaRecorder.AudioSource.VOICE_CALL);
         test("downlink", MediaRecorder.AudioSource.VOICE_DOWNLINK);
         test("uplink", MediaRecorder.AudioSource.VOICE_UPLINK);
+        System.out.println("ONTRACK_PROBE|done");
     }
 
     private static void test(String name, int source) {
@@ -61,9 +62,10 @@ public final class ShellAudioProbe {
             int readErrors = 0;
 
             while (SystemClock.elapsedRealtime() < deadline) {
-                int n = record.read(samples, 0, samples.length, AudioRecord.READ_BLOCKING);
+                int n = record.read(samples, 0, samples.length, AudioRecord.READ_NON_BLOCKING);
                 if (n <= 0) {
                     readErrors++;
+                    SystemClock.sleep(10L);
                     continue;
                 }
                 reads++;
