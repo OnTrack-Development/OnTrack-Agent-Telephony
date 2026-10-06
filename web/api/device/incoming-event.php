@@ -29,22 +29,17 @@ if ($state === 'ringing') {
         ? 'ring_human'
         : ($mode === 'ai_if_unanswered' ? 'ring_then_ai' : 'answer_and_bridge_ai');
 
-    $mediaEnabled = setting_value('media_bridge_enabled', '0') === '1';
-    $bridgeNumber = normalize_phone(setting_value('media_bridge_number', ''));
-    $autoMerge = setting_value('media_auto_merge', '1') === '1';
-
     $needsAi = $action === 'answer_and_bridge_ai' || $action === 'ring_then_ai';
-    $mediaReady = $needsAi && $mediaEnabled && $bridgeNumber !== '';
 
+    // AI media now stays on the paired Android phone. The handset captures
+    // TELEPHONY_RX and injects the model audio into TELEPHONY_TX locally, while
+    // this shared-hosting application remains the control plane.
+    $mediaReady = false;
+    $bridgeNumber = '';
+    $autoMerge = false;
     $mediaPin = null;
     $mediaStatus = 'not_connected';
     $mediaRequestedAt = null;
-
-    if ($mediaReady) {
-        $mediaPin = create_media_pin($pdo);
-        $mediaStatus = 'requested';
-        $mediaRequestedAt = now_utc();
-    }
 
     $s = $pdo->prepare(
         "INSERT INTO calls(
@@ -79,11 +74,9 @@ if ($state === 'ringing') {
                 'phone_number' => $mediaReady ? $bridgeNumber : null,
                 'pin' => $mediaReady ? $mediaPin : null,
                 'auto_merge' => $mediaReady ? $autoMerge : false,
-                'reason' => $mediaReady
-                    ? 'ready'
-                    : ($needsAi
-                        ? ($mediaEnabled ? 'bridge_number_missing' : 'disabled')
-                        : 'human_mode')
+                'reason' => $needsAi
+                    ? 'local_android_media'
+                    : 'human_mode'
             ]
         ]
     ]);
