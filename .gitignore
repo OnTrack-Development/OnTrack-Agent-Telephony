@@ -7,3 +7,5 @@ android/app/build/
 web/config/local.php
 web/storage/*.sqlite
 web/storage/*.sqlite-*
+
+android/signing/*.jks
