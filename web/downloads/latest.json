@@ -1,10 +1,10 @@
 {
-  "version_code": 21,
-  "version_name": "0.5.4",
-  "filename": "OnTrack-AI-Phone-v0.5.4.apk",
-  "sha256": "d1a287a488a06ffddbc5ef06cc80d953e00d49a7df0b4be7914fe33eeffbb990",
-  "size_bytes": 13773708,
-  "published_at": "2026-10-06T05:24:15Z",
-  "release_notes": "OnTrack AI Phone v0.5.4: keeps the CALL_ASSISTANT PSTN test and adds Android's generic in-call-music uplink route using explicit TELEPHONY_TX device selection.",
+  "version_code": 22,
+  "version_name": "0.6.0",
+  "filename": "OnTrack-AI-Phone-v0.6.0.apk",
+  "sha256": "b61215d0cc34fcab960b471dd5669040d21decece70e8421fedb2df7585bcf15",
+  "size_bytes": 14192619,
+  "published_at": "2026-10-06T05:56:12Z",
+  "release_notes": "OnTrack AI Phone v0.6.0: platform-controlled Voice Agent sessions, direct SIM RX/TX media bridge on Android, short-lived Gemini Live sessions, transcripts and per-call AI session logging.",
   "signing_certificate_sha256": "61:EE:0C:F7:0A:AE:92:39:E0:96:D4:42:2D:3D:4C:3B:2D:B4:D7:67:D6:FF:B6:1A:48:66:81:2C:08:EC:7B:02"
 }
