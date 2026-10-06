@@ -1,10 +1,10 @@
 {
-  "version_code": 7,
-  "version_name": "0.4.0",
-  "filename": "OnTrack-AI-Phone-v0.4.0.apk",
-  "sha256": "2f64bb94ba45fc9d2b7efe6d71d5af877af9799fc23884a928b27329d9582cab",
-  "size_bytes": 1718690,
-  "published_at": "2026-10-06T01:57:22Z",
+  "version_code": 8,
+  "version_name": "0.4.1",
+  "filename": "OnTrack-AI-Phone-v0.4.1.apk",
+  "sha256": "b0a7a1f372f1557a94860afe8c233df4f4d6a46a84da53ce5326409f36b1ac1c",
+  "size_bytes": 1718696,
+  "published_at": "2026-10-06T02:01:23Z",
   "release_notes": "OnTrack AI Phone v0.4.0 production UI refresh with signed in-app updates and conference capability testing.",
   "signing_certificate_sha256": "61:EE:0C:F7:0A:AE:92:39:E0:96:D4:42:2D:3D:4C:3B:2D:B4:D7:67:D6:FF:B6:1A:48:66:81:2C:08:EC:7B:02"
 }
