@@ -30,16 +30,42 @@ if ($size <= 0 || $size > 150 * 1024 * 1024) {
 
 $pdo = db();
 $stmt = $pdo->prepare(
-    "SELECT id FROM calls
+    "SELECT id,media_gateway_connected_at,media_merge_confirmed_at
+     FROM calls
      WHERE media_pin=?
      ORDER BY id DESC
      LIMIT 1"
 );
 $stmt->execute([$pin]);
-$callId = (int)($stmt->fetchColumn() ?: 0);
+$call = $stmt->fetch();
 
-if ($callId <= 0) {
+if (!$call) {
     json_response(['ok' => false, 'error' => 'Media session not found'], 404);
+}
+
+$callId = (int)$call['id'];
+
+if (empty($call['media_gateway_connected_at'])
+    || empty($call['media_merge_confirmed_at'])) {
+
+    $pdo->prepare(
+        "UPDATE calls
+         SET recording_status='not_recorded',
+             media_status=CASE
+               WHEN media_status='disconnected' THEN media_status
+               ELSE 'failed'
+             END,
+             media_error=COALESCE(
+               media_error,
+               'Recording discarded because the carrier conference was not confirmed'
+             )
+         WHERE id=?"
+    )->execute([$callId]);
+
+    json_response([
+        'ok' => false,
+        'error' => 'Carrier conference was not confirmed; recording discarded'
+    ], 409);
 }
 
 $recordingDir = __DIR__ . '/../../storage/recordings';
