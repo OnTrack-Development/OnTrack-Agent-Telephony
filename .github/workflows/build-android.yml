@@ -80,7 +80,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OnTrack-AI-Phone-Bridge-v0.4.7
+          name: OnTrack-AI-Phone-Bridge-v0.4.8
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/release/app-release.apk
@@ -114,7 +114,7 @@ jobs:
             "sha256": "${SHA256}",
             "size_bytes": ${SIZE_BYTES},
             "published_at": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
-            "release_notes": "OnTrack AI Phone v0.4.7: confirms digital SIM capture and adds a shell-side PSTN uplink injection tone test for the remote caller.",
+            "release_notes": "OnTrack AI Phone v0.4.8: fixes app_process Looper bootstrap so the PSTN uplink injection probe can reach the Android audio interception APIs.",
             "signing_certificate_sha256": "${CERT_SHA256}"
           }
           EOF
