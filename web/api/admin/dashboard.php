@@ -4,30 +4,63 @@ require_admin_api();
 
 $pdo = db();
 
+$timezone = new DateTimeZone((string)cfg('timezone', 'Africa/Cairo'));
+$nowLocal = new DateTimeImmutable('now', $timezone);
+$startLocal = $nowLocal->setTime(0, 0, 0);
+$endLocal = $startLocal->modify('+1 day');
+$utc = new DateTimeZone('UTC');
+$startUtc = $startLocal->setTimezone($utc)->format('Y-m-d H:i:s');
+$endUtc = $endLocal->setTimezone($utc)->format('Y-m-d H:i:s');
+
+$onlineCutoff = gmdate('Y-m-d H:i:s', time() - 60);
+
+$countOnline = $pdo->prepare(
+    "SELECT COUNT(*) FROM devices
+     WHERE revoked_at IS NULL
+       AND last_seen_at IS NOT NULL
+       AND last_seen_at >= ?"
+);
+$countOnline->execute([$onlineCutoff]);
+
+$countCallsToday = $pdo->prepare(
+    "SELECT COUNT(*) FROM calls WHERE created_at >= ? AND created_at < ?"
+);
+$countCallsToday->execute([$startUtc, $endUtc]);
+
+$countAnsweredToday = $pdo->prepare(
+    "SELECT COUNT(*) FROM calls
+     WHERE created_at >= ? AND created_at < ?
+       AND answered_at IS NOT NULL"
+);
+$countAnsweredToday->execute([$startUtc, $endUtc]);
+
 $metrics = [
-    'devices' => (int)$pdo->query(
+    'devices' => (int)$countOnline->fetchColumn(),
+    'paired_devices' => (int)$pdo->query(
         "SELECT COUNT(*) FROM devices WHERE revoked_at IS NULL"
     )->fetchColumn(),
     'running_campaigns' => (int)$pdo->query(
         "SELECT COUNT(*) FROM campaigns WHERE status='running'"
     )->fetchColumn(),
-    'calls_today' => (int)$pdo->query(
-        "SELECT COUNT(*) FROM calls WHERE date(created_at)=date('now')"
-    )->fetchColumn(),
-    'answered_today' => (int)$pdo->query(
-        "SELECT COUNT(*) FROM calls WHERE date(created_at)=date('now') AND answered_at IS NOT NULL"
-    )->fetchColumn(),
+    'calls_today' => (int)$countCallsToday->fetchColumn(),
+    'answered_today' => (int)$countAnsweredToday->fetchColumn(),
     'contacts' => (int)$pdo->query(
         "SELECT COUNT(*) FROM phone_contacts"
     )->fetchColumn(),
 ];
 
-$devices = $pdo->query(
-    "SELECT id,name,phone_number,manufacturer,model,app_version,status,last_seen_at,created_at
+$devicesStmt = $pdo->prepare(
+    "SELECT id,name,phone_number,manufacturer,model,app_version,last_seen_at,created_at,
+            CASE
+              WHEN last_seen_at IS NOT NULL AND last_seen_at >= ? THEN 'online'
+              ELSE 'offline'
+            END AS status
      FROM devices
      WHERE revoked_at IS NULL
      ORDER BY id DESC"
-)->fetchAll();
+);
+$devicesStmt->execute([$onlineCutoff]);
+$devices = $devicesStmt->fetchAll();
 
 $calls = $pdo->query(
     "SELECT id,direction,phone_number,contact_name,status,outcome,
@@ -35,7 +68,7 @@ $calls = $pdo->query(
             recording_status,recording_url,created_at
      FROM calls
      ORDER BY id DESC
-     LIMIT 100"
+     LIMIT 250"
 )->fetchAll();
 
 $campaigns = $pdo->query(
@@ -54,8 +87,9 @@ $contacts = $pdo->query(
             d.name device_name
      FROM phone_contacts pc
      JOIN devices d ON d.id=pc.device_id
+     WHERE d.revoked_at IS NULL
      ORDER BY pc.contact_name COLLATE NOCASE ASC
-     LIMIT 1000"
+     LIMIT 2000"
 )->fetchAll();
 
 json_response([
@@ -64,5 +98,13 @@ json_response([
     'devices' => $devices,
     'calls' => $calls,
     'campaigns' => $campaigns,
-    'contacts' => $contacts
+    'contacts' => $contacts,
+    'media' => [
+        'status' => 'disconnected',
+        'audio_on_server' => false,
+        'recording_enabled' => false,
+        'label' => 'Phone audio only',
+        'detail' => 'Call audio is currently handled only by the Android handset. No live audio is reaching this server yet.'
+    ],
+    'timezone' => (string)cfg('timezone', 'Africa/Cairo')
 ]);
