@@ -38,6 +38,7 @@ public class BridgeService extends Service {
     private void loop() {
         long lastHeartbeat = 0;
         long lastContactsSyncCheck = 0;
+        long lastUpdateCheck = 0;
 
         while (running) {
             try {
@@ -51,6 +52,11 @@ public class BridgeService extends Service {
                 if (now - lastHeartbeat > 20000) {
                     heartbeat();
                     lastHeartbeat = now;
+                }
+
+                if (now - lastUpdateCheck > 60L * 60L * 1000L) {
+                    UpdateManager.checkInBackground(this, false, null);
+                    lastUpdateCheck = now;
                 }
 
                 if (ContactHelper.allowed(this)
@@ -90,7 +96,7 @@ public class BridgeService extends Service {
     private void heartbeat() throws Exception {
         JSONObject body = new JSONObject();
         body.put("phone_number", AppState.phone(this));
-        body.put("app_version", "0.3.0-poc");
+        body.put("app_version", "0.3.3-poc");
 
         ApiClient.post(
                 AppState.server(this),
