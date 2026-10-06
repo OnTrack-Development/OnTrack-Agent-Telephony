@@ -74,7 +74,13 @@ public class AudioProbeActivity extends Activity {
         card.addView(button("Verify shell", v -> verifyShell()));
         card.addView(space(12));
 
-        card.addView(text("3 · Run during a real SIM call", 16, true));
+        card.addView(text("3 · Inspect device audio capabilities", 16, true));
+        card.addView(note(
+                "Queries the phone itself: shell permissions, TELEPHONY RX/TX devices, Audio Policy, AudioFlinger/HAL, vendor policy files and recent native audio errors."));
+        card.addView(button("Inspect audio capabilities", v -> runCapabilityReport()));
+        card.addView(space(12));
+
+        card.addView(text("4 · Run during a real SIM call", 16, true));
         card.addView(note(
                 "Make a normal cellular call, keep the other phone talking, return here and press Run. " +
                 "The probe tests VOICE_CALL, DOWNLINK and UPLINK digitally, then the next step tests audio injection."));
@@ -83,7 +89,7 @@ public class AudioProbeActivity extends Activity {
         card.addView(run);
         card.addView(space(16));
 
-        card.addView(text("4 · Inject a test tone to the caller", 16, true));
+        card.addView(text("5 · Inject a test tone to the caller", 16, true));
         card.addView(note(
                 "Keep the real SIM call connected. Tap Inject and ask the remote party if they hear one short 700 Hz beep. " +
                 "This tests the Android PSTN uplink injection path; it does not use the phone speaker."));
@@ -137,6 +143,45 @@ public class AudioProbeActivity extends Activity {
                 ui("FAIL · " + message(error), RED);
             }
         }, "OnTrackAudioProbeVerify").start();
+    }
+
+    private void runCapabilityReport() {
+        status.setText(
+                "Inspecting Android audio framework, telephony devices, policy, HAL and recent native audio errors…");
+
+        new Thread(() -> {
+            try {
+                String output = LocalAdb.runCapabilityReport(this);
+
+                boolean shell =
+                        output.contains("ONTRACK_CAP|identity|uid=2000");
+                boolean tx =
+                        output.contains("tx_output=true");
+                boolean rx =
+                        output.contains("rx_input=true");
+                boolean interceptable =
+                        output.contains("ONTRACK_CAP|pstn_interceptable=true");
+
+                int color =
+                        shell && tx && rx
+                                ? GREEN
+                                : RED;
+
+                String headline =
+                        shell
+                                ? "DEVICE AUDIO CAPABILITY REPORT"
+                                : "CAPABILITY REPORT · shell identity not confirmed";
+
+                if (shell && tx && rx && interceptable) {
+                    headline += " · TELEPHONY RX/TX exposed";
+                }
+
+                ui(headline + "\n\n" + output, color);
+
+            } catch (Throwable error) {
+                ui("FAIL · " + message(error), RED);
+            }
+        }, "OnTrackAudioCapabilityReport").start();
     }
 
     private void runProbe() {
