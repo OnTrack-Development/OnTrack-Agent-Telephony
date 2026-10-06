@@ -121,54 +121,111 @@ final class LocalAdb {
     static String runAudioProbe(Context context) throws Exception {
         Context app = context.getApplicationContext();
 
-        final String resultFile =
-                "/data/local/tmp/ontrack-audio-probe-result.txt";
-        final String probeApk =
-                "/data/local/tmp/ontrack-audio-probe.apk";
-
-        String bootstrap =
-                "APK=$(pm path com.ontrack.agentphone | head -n 1 | cut -d: -f2); " +
-                "test -n \"$APK\" || { echo ONTRACK_PROBE_BOOTSTRAP_APK_MISSING; exit; }; " +
-                "rm -f " + resultFile + " " + probeApk + "; " +
-                "cp \"$APK\" " + probeApk + " || { echo ONTRACK_PROBE_COPY_FAILED; exit; }; " +
-                "chmod 0644 " + probeApk + "; " +
-                "CLASSPATH=" + probeApk + " nohup app_process /system/bin " +
-                "com.ontrack.agentphone.ShellAudioProbe >" + resultFile +
-                " 2>&1 </dev/null & " +
-                "echo ONTRACK_PROBE_STARTED";
-
-        String started = exec(app, bootstrap);
-
-        if (!started.contains("ONTRACK_PROBE_STARTED")) {
-            throw new IllegalStateException(
-                    "Probe bootstrap failed: " + started.trim());
+        File externalDir = app.getExternalFilesDir(null);
+        if (externalDir == null) {
+            throw new IllegalStateException("App external files directory is unavailable");
         }
 
-        // Three sources are sampled for ~1.4 seconds each.
-        Thread.sleep(6500L);
+        File result = new File(externalDir, "ontrack-audio-probe-result.txt");
+        if (result.exists() && !result.delete()) {
+            throw new IllegalStateException("Could not clear the previous probe result");
+        }
 
-        String output = "";
-        for (int attempt = 0; attempt < 4; attempt++) {
-            output = exec(
-                    app,
-                    "if [ -s " + resultFile + " ]; then cat " + resultFile +
-                    "; else echo ONTRACK_PROBE_PENDING; fi");
+        final String resultPath = result.getAbsolutePath();
+        final String probeApk = "/data/local/tmp/ontrack-audio-probe.apk";
 
-            if (!output.contains("ONTRACK_PROBE_PENDING")
-                    && !output.trim().isEmpty()) {
-                break;
+        ProbeConnectionManager mgr = manager(app);
+        AdbStream stream = null;
+
+        try {
+            if (!mgr.isConnected()) {
+                int connectPort = discoverPort(
+                        app,
+                        AdbMdns.SERVICE_TYPE_TLS_CONNECT,
+                        10_000L);
+
+                if (connectPort <= 0) {
+                    throw new IllegalStateException(
+                            "Wireless debugging connect service not found. Keep Wireless debugging ON.");
+                }
+
+                boolean ok = mgr.connect(LOOPBACK, connectPort);
+                if (!ok && !mgr.isConnected()) {
+                    throw new IllegalStateException("Could not connect to local adbd");
+                }
             }
 
-            Thread.sleep(1200L);
-        }
+            // Do not transport probe output over ADB. MIUI/HyperOS may close
+            // the logical ADB stream at command completion and libadb can expose
+            // that normal close as "Stream closed". The shell writes directly
+            // into this app's external-files directory instead.
+            String command =
+                    "APK=$(pm path com.ontrack.agentphone | head -n 1 | cut -d: -f2); " +
+                    "test -n \"$APK\" || exit 41; " +
+                    "rm -f " + shellQuote(resultPath) + " " + probeApk + "; " +
+                    "cp \"$APK\" " + probeApk + " || exit 42; " +
+                    "chmod 0644 " + probeApk + "; " +
+                    "CLASSPATH=" + probeApk + " app_process /system/bin " +
+                    "com.ontrack.agentphone.ShellAudioProbe >" +
+                    shellQuote(resultPath) + " 2>&1";
 
-        if (output.contains("ONTRACK_PROBE_PENDING")
-                || output.trim().isEmpty()) {
+            stream = mgr.openStream("shell:" + command);
+
+            long deadline = System.currentTimeMillis() + 12_000L;
+            long lastSize = -1L;
+            int stableReads = 0;
+
+            while (System.currentTimeMillis() < deadline) {
+                if (result.isFile() && result.length() > 0) {
+                    long size = result.length();
+
+                    if (size == lastSize) {
+                        stableReads++;
+                    } else {
+                        stableReads = 0;
+                        lastSize = size;
+                    }
+
+                    String partial = readText(result);
+
+                    if (partial.contains("ONTRACK_PROBE|uplink|")
+                            || stableReads >= 3) {
+                        return partial.trim();
+                    }
+                }
+
+                Thread.sleep(350L);
+            }
+
+            if (result.isFile() && result.length() > 0) {
+                return readText(result).trim();
+            }
+
             throw new IllegalStateException(
-                    "Shell probe started but did not produce results");
-        }
+                    "Shell started, but the audio probe produced no local result");
 
-        return output.trim();
+        } finally {
+            if (stream != null) {
+                try { stream.close(); } catch (Throwable ignored) {}
+            }
+            try { mgr.disconnect(); } catch (Throwable ignored) {}
+        }
+    }
+
+    private static String shellQuote(String value) {
+        return "'" + value.replace("'", "'\\''") + "'";
+    }
+
+    private static String readText(File file) throws Exception {
+        try (java.io.FileInputStream in = new java.io.FileInputStream(file);
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int n;
+            while ((n = in.read(buffer)) != -1) {
+                out.write(buffer, 0, n);
+            }
+            return out.toString("UTF-8");
+        }
     }
 
     static void forget(Context context) {
