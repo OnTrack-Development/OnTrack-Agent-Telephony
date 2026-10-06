@@ -174,3 +174,53 @@ function find_contact_name(PDO $pdo, int $deviceId, string $phone): ?string {
 
     return is_string($name) && trim($name) !== '' ? trim($name) : null;
 }
+
+
+function setting_value(string $key, string $default = ''): string {
+    $stmt = db()->prepare('SELECT setting_value FROM settings WHERE setting_key=? LIMIT 1');
+    $stmt->execute([$key]);
+    $value = $stmt->fetchColumn();
+    return is_string($value) ? $value : $default;
+}
+
+function save_setting(string $key, string $value): void {
+    $stmt = db()->prepare(
+        "INSERT INTO settings(setting_key,setting_value,updated_at)
+         VALUES(?,?,?)
+         ON CONFLICT(setting_key)
+         DO UPDATE SET setting_value=excluded.setting_value,updated_at=excluded.updated_at"
+    );
+    $stmt->execute([$key, $value, now_utc()]);
+}
+
+function require_media_gateway(): void {
+    $auth = (string)($_SERVER['HTTP_AUTHORIZATION'] ?? '');
+    if (!preg_match('/^Bearer\s+(.+)$/i', $auth, $m)) {
+        json_response(['ok' => false, 'error' => 'Missing media gateway token'], 401);
+    }
+
+    $expected = setting_value('media_gateway_secret', '');
+    $actual = trim((string)$m[1]);
+
+    if ($expected === '' || !hash_equals($expected, $actual)) {
+        json_response(['ok' => false, 'error' => 'Invalid media gateway token'], 401);
+    }
+}
+
+function create_media_pin(PDO $pdo): string {
+    for ($attempt = 0; $attempt < 20; $attempt++) {
+        $pin = (string)random_int(10000000, 99999999);
+        $stmt = $pdo->prepare(
+            "SELECT 1 FROM calls
+             WHERE media_pin=? AND media_status NOT IN ('disconnected','failed')
+             LIMIT 1"
+        );
+        $stmt->execute([$pin]);
+
+        if (!$stmt->fetchColumn()) {
+            return $pin;
+        }
+    }
+
+    throw new RuntimeException('Could not allocate media session PIN');
+}
