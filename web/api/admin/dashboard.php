@@ -69,7 +69,9 @@ $calls = $pdo->query(
             started_at,answered_at,ended_at,duration_seconds,
             recording_status,recording_url,
             media_status,media_bridge_number,media_requested_at,
-            media_connected_at,media_disconnected_at,media_error,
+            media_connected_at,media_gateway_connected_at,
+            media_merge_requested_at,media_merge_confirmed_at,
+            media_disconnected_at,media_error,
             created_at
      FROM calls
      ORDER BY id DESC
@@ -100,7 +102,9 @@ $contacts = $pdo->query(
 $liveMedia = $pdo->query(
     "SELECT COUNT(*) FROM calls
      WHERE ended_at IS NULL
-       AND media_status IN ('connected','recording')"
+       AND media_status IN ('connected','recording')
+       AND media_gateway_connected_at IS NOT NULL
+       AND media_merge_confirmed_at IS NOT NULL"
 )->fetchColumn();
 
 $liveRecording = $pdo->query(
