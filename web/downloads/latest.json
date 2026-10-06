@@ -2,9 +2,9 @@
   "version_code": 11,
   "version_name": "0.4.4",
   "filename": "OnTrack-AI-Phone-v0.4.4.apk",
-  "sha256": "fcfc2053c0a8794e15f0af10cedb894ce92f25b09574fc5f2aa297a2bd0b199a",
-  "size_bytes": 13757324,
-  "published_at": "2026-10-06T03:21:21Z",
+  "sha256": "0f2232e7a6bc44455104571eb753c7086d6acd12874aca3135e1c3f4fb76a826",
+  "size_bytes": 13757325,
+  "published_at": "2026-10-06T03:28:00Z",
   "release_notes": "OnTrack AI Phone v0.4.4 Audio Probe transport fix: detached shell probe avoids Wireless Debugging Stream closed failures.",
   "signing_certificate_sha256": "61:EE:0C:F7:0A:AE:92:39:E0:96:D4:42:2D:3D:4C:3B:2D:B4:D7:67:D6:FF:B6:1A:48:66:81:2C:08:EC:7B:02"
 }
