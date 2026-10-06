@@ -28,6 +28,7 @@ public class BridgeService extends Service {
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (!running) {
             running = true;
+            AppState.setBridgeEnabled(this, true);
             worker = new Thread(this::loop, "OnTrackBridgeLoop");
             worker.start();
         }
@@ -37,11 +38,20 @@ public class BridgeService extends Service {
     private void loop() {
         long lastHeartbeat = 0;
         long lastContactsSyncCheck = 0;
+
         while (running) {
             try {
-                if (!AppState.paired(this)) { Thread.sleep(3000); continue; }
+                if (!AppState.paired(this)) {
+                    Thread.sleep(3000);
+                    continue;
+                }
+
                 long now = System.currentTimeMillis();
-                if (now - lastHeartbeat > 20000) { heartbeat(); lastHeartbeat = now; }
+
+                if (now - lastHeartbeat > 20000) {
+                    heartbeat();
+                    lastHeartbeat = now;
+                }
 
                 if (ContactHelper.allowed(this)
                         && now - lastContactsSyncCheck > 60L * 60L * 1000L
@@ -54,60 +64,151 @@ public class BridgeService extends Service {
                     lastContactsSyncCheck = now;
                 }
 
-                JSONObject poll = ApiClient.get(AppState.server(this), "/api/device/poll.php", AppState.token(this));
+                JSONObject poll = ApiClient.get(
+                        AppState.server(this),
+                        "/api/device/poll.php",
+                        AppState.token(this));
+
                 JSONObject job = poll.optJSONObject("job");
-                if (job != null && "place_ai_call".equals(job.optString("action"))) placeJob(job);
+
+                if (job != null && "place_ai_call".equals(job.optString("action"))) {
+                    placeJob(job);
+                }
+
                 int sec = poll.optInt("poll_after_seconds", 3);
                 Thread.sleep(Math.max(2, Math.min(15, sec)) * 1000L);
-            } catch (InterruptedException e) { return; }
-            catch (Exception e) { Log.w("OnTrackBridge", "loop", e); sleepQuiet(5000); }
+
+            } catch (InterruptedException e) {
+                return;
+            } catch (Exception e) {
+                Log.w("OnTrackBridge", "loop", e);
+                sleepQuiet(5000);
+            }
         }
     }
 
     private void heartbeat() throws Exception {
-        JSONObject b = new JSONObject(); b.put("phone_number", AppState.phone(this)); b.put("app_version", "0.2.0-poc");
-        ApiClient.post(AppState.server(this), "/api/device/heartbeat.php", b, AppState.token(this));
+        JSONObject body = new JSONObject();
+        body.put("phone_number", AppState.phone(this));
+        body.put("app_version", "0.3.0-poc");
+
+        ApiClient.post(
+                AppState.server(this),
+                "/api/device/heartbeat.php",
+                body,
+                AppState.token(this));
     }
 
     private void placeJob(JSONObject job) throws Exception {
-        int callId = job.getInt("call_id"); String number = job.getString("phone_number");
-        getSharedPreferences("ontrack_agent_phone", MODE_PRIVATE).edit()
-                .putInt("pending_call_id", callId).putString("pending_call_phone", normalize(number)).apply();
+        int callId = job.getInt("call_id");
+        String number = job.getString("phone_number");
+
+        getSharedPreferences("ontrack_agent_phone", MODE_PRIVATE)
+                .edit()
+                .putInt("pending_call_id", callId)
+                .putString("pending_call_phone", normalize(number))
+                .apply();
+
         updateCall(callId, "dialing", null);
-        TelecomManager telecom = (TelecomManager) getSystemService(TELECOM_SERVICE);
-        if (telecom == null) throw new IllegalStateException("Telecom service unavailable");
+
+        TelecomManager telecom = (TelecomManager)getSystemService(TELECOM_SERVICE);
+        if (telecom == null) {
+            throw new IllegalStateException("Telecom service unavailable");
+        }
+
         telecom.placeCall(Uri.parse("tel:" + number), new android.os.Bundle());
     }
 
-    static void updateCallAsync(android.content.Context c, int callId, String state, String error) {
-        if (callId <= 0 || !AppState.paired(c)) return;
+    static void updateCallAsync(
+            android.content.Context context,
+            int callId,
+            String state,
+            String error) {
+
+        if (callId <= 0 || !AppState.paired(context)) return;
+
         new Thread(() -> {
             try {
-                JSONObject b = new JSONObject(); b.put("call_id", callId); b.put("status", state); if (error != null) b.put("error", error);
-                ApiClient.post(AppState.server(c), "/api/device/call-update.php", b, AppState.token(c));
-            } catch (Exception e) { Log.w("OnTrackBridge", "call update", e); }
+                JSONObject body = new JSONObject();
+                body.put("call_id", callId);
+                body.put("status", state);
+
+                if (error != null) {
+                    body.put("error", error);
+                }
+
+                ApiClient.post(
+                        AppState.server(context),
+                        "/api/device/call-update.php",
+                        body,
+                        AppState.token(context));
+
+            } catch (Exception e) {
+                Log.w("OnTrackBridge", "call update", e);
+            }
         }, "OnTrackCallUpdate").start();
     }
 
     private void updateCall(int callId, String state, String error) throws Exception {
-        JSONObject b = new JSONObject(); b.put("call_id", callId); b.put("status", state); if (error != null) b.put("error", error);
-        ApiClient.post(AppState.server(this), "/api/device/call-update.php", b, AppState.token(this));
+        JSONObject body = new JSONObject();
+        body.put("call_id", callId);
+        body.put("status", state);
+
+        if (error != null) {
+            body.put("error", error);
+        }
+
+        ApiClient.post(
+                AppState.server(this),
+                "/api/device/call-update.php",
+                body,
+                AppState.token(this));
     }
 
-    private String normalize(String s) { return s == null ? "" : s.replaceAll("[^0-9+]", ""); }
-    private void sleepQuiet(long ms) { try { Thread.sleep(ms); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); } }
+    private String normalize(String value) {
+        return value == null ? "" : value.replaceAll("[^0-9+]", "");
+    }
+
+    private void sleepQuiet(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
+    }
 
     private Notification notification(String text) {
         Intent open = new Intent(this, MainActivity.class);
-        PendingIntent pi = PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
-        return b.setContentTitle("OnTrack AI Phone Bridge").setContentText(text).setSmallIcon(android.R.drawable.sym_call_incoming).setOngoing(true).setContentIntent(pi).build();
+
+        PendingIntent pending = PendingIntent.getActivity(
+                this,
+                0,
+                open,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+        Notification.Builder builder = Build.VERSION.SDK_INT >= 26
+                ? new Notification.Builder(this, CHANNEL)
+                : new Notification.Builder(this);
+
+        return builder
+                .setContentTitle("OnTrack AI Phone Bridge")
+                .setContentText(text)
+                .setSmallIcon(android.R.drawable.sym_call_incoming)
+                .setOngoing(true)
+                .setContentIntent(pending)
+                .build();
     }
 
     private void createChannel() {
         if (Build.VERSION.SDK_INT >= 26) {
-            NotificationManager nm = getSystemService(NotificationManager.class);
-            if (nm != null) nm.createNotificationChannel(new NotificationChannel(CHANNEL, "OnTrack Phone Bridge", NotificationManager.IMPORTANCE_LOW));
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(
+                        new NotificationChannel(
+                                CHANNEL,
+                                "OnTrack Phone Bridge",
+                                NotificationManager.IMPORTANCE_LOW));
+            }
         }
     }
 
@@ -117,5 +218,8 @@ public class BridgeService extends Service {
         if (worker != null) worker.interrupt();
         super.onDestroy();
     }
-    @Override public IBinder onBind(Intent intent) { return null; }
+
+    @Override public IBinder onBind(Intent intent) {
+        return null;
+    }
 }
