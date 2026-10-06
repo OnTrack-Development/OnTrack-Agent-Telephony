@@ -24,27 +24,48 @@ if ($state === 'ringing') {
         $contactName = find_contact_name($pdo, (int)$device['id'], $phone) ?? '';
     }
 
+    $mode = setting_value('incoming_mode', 'ai');
+    $action = $mode === 'human'
+        ? 'ring_human'
+        : ($mode === 'ai_if_unanswered' ? 'ring_then_ai' : 'answer_and_bridge_ai');
+
+    $mediaEnabled = setting_value('media_bridge_enabled', '0') === '1';
+    $bridgeNumber = normalize_phone(setting_value('media_bridge_number', ''));
+    $autoMerge = setting_value('media_auto_merge', '1') === '1';
+
+    $needsAi = $action === 'answer_and_bridge_ai' || $action === 'ring_then_ai';
+    $mediaReady = $needsAi && $mediaEnabled && $bridgeNumber !== '';
+
+    $mediaPin = null;
+    $mediaStatus = 'not_connected';
+    $mediaRequestedAt = null;
+
+    if ($mediaReady) {
+        $mediaPin = create_media_pin($pdo);
+        $mediaStatus = 'requested';
+        $mediaRequestedAt = now_utc();
+    }
+
     $s = $pdo->prepare(
-        "INSERT INTO calls(device_id,direction,phone_number,contact_name,status,created_at)
-         VALUES(?,'inbound',?,?, 'ringing',?)"
+        "INSERT INTO calls(
+            device_id,direction,phone_number,contact_name,status,
+            media_status,media_pin,media_bridge_number,media_requested_at,created_at
+         )
+         VALUES(?,'inbound',?,?, 'ringing',?,?,?,?,?)"
     );
+
     $s->execute([
         $device['id'],
         $phone,
         $contactName !== '' ? mb_substr($contactName, 0, 200) : null,
+        $mediaStatus,
+        $mediaPin,
+        $mediaReady ? $bridgeNumber : null,
+        $mediaRequestedAt,
         now_utc()
     ]);
 
     $callId = (int)$pdo->lastInsertId();
-
-    $mode = (string)(
-        $pdo->query("SELECT setting_value FROM settings WHERE setting_key='incoming_mode'")->fetchColumn()
-        ?: 'ai'
-    );
-
-    $action = $mode === 'human'
-        ? 'ring_human'
-        : ($mode === 'ai_if_unanswered' ? 'ring_then_ai' : 'answer_and_bridge_ai');
 
     json_response([
         'ok' => true,
@@ -52,7 +73,18 @@ if ($state === 'ringing') {
         'contact_name' => $contactName !== '' ? $contactName : null,
         'instruction' => [
             'action' => $action,
-            'delay_seconds' => $mode === 'ai_if_unanswered' ? 10 : 0
+            'delay_seconds' => $mode === 'ai_if_unanswered' ? 10 : 0,
+            'media_bridge' => [
+                'enabled' => $mediaReady,
+                'phone_number' => $mediaReady ? $bridgeNumber : null,
+                'pin' => $mediaReady ? $mediaPin : null,
+                'auto_merge' => $mediaReady ? $autoMerge : false,
+                'reason' => $mediaReady
+                    ? 'ready'
+                    : ($needsAi
+                        ? ($mediaEnabled ? 'bridge_number_missing' : 'disabled')
+                        : 'human_mode')
+            ]
         ]
     ]);
 }
@@ -61,7 +93,10 @@ if (!$callId) {
     json_response(['ok' => false, 'error' => 'call_id required'], 422);
 }
 
-$q = $pdo->prepare("SELECT * FROM calls WHERE id=? AND device_id=? AND direction='inbound'");
+$q = $pdo->prepare(
+    "SELECT * FROM calls
+     WHERE id=? AND device_id=? AND direction='inbound'"
+);
 $q->execute([$callId, $device['id']]);
 $call = $q->fetch();
 
@@ -76,24 +111,40 @@ if ($state === 'answered') {
              answered_at=COALESCE(answered_at,?)
          WHERE id=?"
     )->execute([now_utc(), $callId]);
+
 } else {
     $end = now_utc();
     $duration = $call['answered_at']
         ? max(0, strtotime($end) - strtotime((string)$call['answered_at']))
         : null;
 
+    $mediaStatus = (string)($call['media_status'] ?? 'not_connected');
+
+    if ($state === 'ended'
+        && !in_array($mediaStatus, ['connected','recording','disconnected','failed'], true)
+        && $mediaStatus !== 'not_connected') {
+        $mediaStatus = 'failed';
+    }
+
     $pdo->prepare(
         "UPDATE calls
          SET status=?,
              outcome=?,
              ended_at=?,
-             duration_seconds=?
+             duration_seconds=?,
+             media_status=?,
+             media_disconnected_at=CASE
+               WHEN media_connected_at IS NOT NULL THEN COALESCE(media_disconnected_at,?)
+               ELSE media_disconnected_at
+             END
          WHERE id=?"
     )->execute([
         $state === 'ended' ? 'completed' : 'rejected',
         $state,
         $end,
         $duration,
+        $mediaStatus,
+        $end,
         $callId
     ]);
 }
