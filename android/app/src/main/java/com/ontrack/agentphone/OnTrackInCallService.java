@@ -36,8 +36,12 @@ public class OnTrackInCallService extends InCallService {
     private final Map<Call, Runnable> pendingAutoAnswers = new ConcurrentHashMap<>();
     private final Map<Call, Boolean> trackedCalls = new ConcurrentHashMap<>();
     private final Map<Call, Boolean> customerCalls = new ConcurrentHashMap<>();
+    private final Map<Call, Integer> aiCallIds = new ConcurrentHashMap<>();
+    private final Map<Call, Boolean> aiStarted = new ConcurrentHashMap<>();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private MediaBridgeCoordinator mediaBridge;
+    private volatile TelephonyAiCoordinator aiCoordinator;
+    private volatile Call aiCall;
 
     @Override public void onCreate() {
         super.onCreate();
@@ -47,6 +51,14 @@ public class OnTrackInCallService extends InCallService {
     }
 
     @Override public void onDestroy() {
+        try {
+            TelephonyAiCoordinator current = aiCoordinator;
+            if (current != null) current.stop();
+        } catch (Throwable ignored) {}
+
+        aiCoordinator = null;
+        aiCall = null;
+
         if (instance == this) instance = null;
         super.onDestroy();
     }
@@ -117,6 +129,7 @@ public class OnTrackInCallService extends InCallService {
                     int id = pendingOutbound(number);
                     if (id > 0) {
                         outboundIds.put(call, id);
+                        aiCallIds.put(call, id);
                         BridgeService.updateCallAsync(
                                 this,
                                 id,
@@ -163,6 +176,27 @@ public class OnTrackInCallService extends InCallService {
                         Integer in = inboundIds.get(changedCall);
                         if (in != null) {
                             updateInbound(in, state);
+                        }
+
+                        if (state == Call.STATE_ACTIVE) {
+                            Integer aiId = aiCallIds.get(changedCall);
+
+                            if (aiId == null && out != null) {
+                                aiId = out;
+                            }
+
+                            if (aiId != null && aiId > 0) {
+                                final int resolvedAiId = aiId;
+                                final String aiDirection =
+                                        in != null ? "inbound" : "outbound";
+
+                                mainHandler.postDelayed(
+                                        () -> startAiIfNeeded(
+                                                changedCall,
+                                                resolvedAiId,
+                                                aiDirection),
+                                        450L);
+                            }
                         }
 
                         if (state != Call.STATE_RINGING) {
@@ -245,6 +279,18 @@ public class OnTrackInCallService extends InCallService {
                 mediaBridge.onCallRemoved(call);
             }
 
+            if (aiCall == call) {
+                TelephonyAiCoordinator current = aiCoordinator;
+                aiCoordinator = null;
+                aiCall = null;
+
+                if (current != null) {
+                    try { current.stop(); } catch (Throwable ignored) {}
+                }
+            }
+
+            aiStarted.remove(call);
+            aiCallIds.remove(call);
             trackedCalls.remove(call);
             customerCalls.remove(call);
 
@@ -288,6 +334,53 @@ public class OnTrackInCallService extends InCallService {
     @Override public void onCanAddCallChanged(boolean canAddCall) {
         super.onCanAddCallChanged(canAddCall);
         reportCapabilitiesAsync();
+    }
+
+    private void startAiIfNeeded(
+            Call call,
+            int callId,
+            String direction) {
+
+        if (call == null
+                || callId <= 0
+                || call.getState() != Call.STATE_ACTIVE) {
+            return;
+        }
+
+        if (aiStarted.putIfAbsent(call, Boolean.TRUE) != null) {
+            return;
+        }
+
+        try {
+            TelephonyAiCoordinator previous = aiCoordinator;
+
+            if (previous != null && aiCall != call) {
+                try { previous.stop(); } catch (Throwable ignored) {}
+            }
+
+            TelephonyAiCoordinator coordinator =
+                    new TelephonyAiCoordinator(
+                            this,
+                            callId,
+                            direction);
+
+            aiCoordinator = coordinator;
+            aiCall = call;
+
+            Log.i(
+                    TAG,
+                    "Starting platform AI voice session for call #"
+                            + callId
+                            + " ("
+                            + direction
+                            + ")");
+
+            coordinator.start();
+
+        } catch (Throwable error) {
+            aiStarted.remove(call);
+            Log.e(TAG, "Could not start platform AI session", error);
+        }
     }
 
     private boolean hasBusyCustomerCall(Call except) {
@@ -573,11 +666,19 @@ public class OnTrackInCallService extends InCallService {
                         0,
                         instruction.optInt("delay_seconds", 0));
 
-                JSONObject mediaPlan = instruction.optJSONObject("media_bridge");
-                if (mediaBridge != null && mediaPlan != null) {
-                    mediaBridge.configureInbound(call, id, mediaPlan);
+                boolean aiAction =
+                        "answer_and_bridge_ai".equals(action)
+                                || "ring_then_ai".equals(action);
+
+                if (aiAction) {
+                    aiCallIds.put(call, id);
+                } else {
+                    aiCallIds.remove(call);
                 }
 
+                // The old carrier-conference media bridge is deliberately not
+                // activated here. AI media now stays on this Android handset:
+                // TELEPHONY_RX/TX <-> OnTrack platform-provisioned AI session.
                 if ("answer_and_bridge_ai".equals(action)) {
                     scheduleAutoAnswer(call, 0L);
                 } else if ("ring_then_ai".equals(action)) {
@@ -601,10 +702,6 @@ public class OnTrackInCallService extends InCallService {
 
                 try {
                     if (call.getState() != Call.STATE_RINGING) return;
-
-                    if (mediaBridge != null) {
-                        mediaBridge.activateForAi(call);
-                    }
 
                     call.answer(VideoProfile.STATE_AUDIO_ONLY);
                 } catch (Throwable error) {
