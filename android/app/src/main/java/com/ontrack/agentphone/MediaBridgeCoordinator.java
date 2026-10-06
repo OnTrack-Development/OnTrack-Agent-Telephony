@@ -38,6 +38,7 @@ final class MediaBridgeCoordinator {
     private boolean autoMerge;
 
     private boolean configured;
+    private boolean activated;
     private boolean dialStarted;
     private boolean pinSent;
     private boolean mergeRequested;
@@ -74,6 +75,12 @@ final class MediaBridgeCoordinator {
         this.configured = true;
 
         reportAsync(callId, "requested", null);
+    }
+
+    synchronized void activateForAi(Call call) {
+        if (!configured || finished || call == null || call != customerCall) return;
+
+        activated = true;
 
         if (isUsableCustomerState(call.getState())) {
             handler.postDelayed(() -> maybeStartBridge(0), 700L);
@@ -117,7 +124,7 @@ final class MediaBridgeCoordinator {
 
         if (call == customerCall) {
             if (state == Call.STATE_ACTIVE || state == Call.STATE_HOLDING) {
-                if (!dialStarted) {
+                if (activated && !dialStarted) {
                     handler.postDelayed(() -> maybeStartBridge(0), 700L);
                 }
             } else if (state == Call.STATE_DISCONNECTED) {
@@ -157,7 +164,7 @@ final class MediaBridgeCoordinator {
 
     private void maybeStartBridge(int attempt) {
         synchronized (this) {
-            if (!configured || finished || dialStarted || customerCall == null) return;
+            if (!configured || !activated || finished || dialStarted || customerCall == null) return;
 
             int state = customerCall.getState();
             if (!isUsableCustomerState(state)) {
@@ -383,6 +390,7 @@ final class MediaBridgeCoordinator {
         pin = "";
         autoMerge = false;
         configured = false;
+        activated = false;
         dialStarted = false;
         pinSent = false;
         mergeRequested = false;
