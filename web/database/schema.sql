@@ -124,3 +124,57 @@ VALUES('media_bridge_number','',datetime('now'));
 
 INSERT OR IGNORE INTO settings(setting_key,setting_value,updated_at)
 VALUES('media_auto_merge','1',datetime('now'));
+
+
+CREATE TABLE IF NOT EXISTS tenants (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS voice_agents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  provider TEXT NOT NULL DEFAULT 'gemini_live',
+  model TEXT NOT NULL DEFAULT 'gemini-3.8-live',
+  voice_name TEXT NOT NULL DEFAULT 'Puck',
+  system_prompt TEXT NOT NULL,
+  is_default INTEGER NOT NULL DEFAULT 0,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_voice_agents_tenant
+ON voice_agents(tenant_id,is_active);
+
+CREATE TABLE IF NOT EXISTS ai_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id INTEGER NOT NULL,
+  agent_id INTEGER NOT NULL,
+  device_id INTEGER NOT NULL,
+  call_id INTEGER NOT NULL,
+  direction TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'prepared',
+  client_token_hash TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  voice_name TEXT NOT NULL,
+  input_transcript TEXT,
+  output_transcript TEXT,
+  last_error TEXT,
+  started_at TEXT,
+  ended_at TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY(agent_id) REFERENCES voice_agents(id),
+  FOREIGN KEY(device_id) REFERENCES devices(id),
+  FOREIGN KEY(call_id) REFERENCES calls(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_sessions_call
+ON ai_sessions(call_id,status);
