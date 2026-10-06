@@ -22,7 +22,8 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?=htmlspecialchars($pageTitle)?> · OnTrack AI Telephony</title>
-<link rel="stylesheet" href="assets/app.css?v=20261006-3">
+<link rel="icon" type="image/svg+xml" href="assets/ontrack-icon.svg">
+<link rel="stylesheet" href="assets/app.css?v=20261006-4">
 </head>
 <body>
 <div class="shell">
@@ -137,6 +138,13 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
         </div>
       </article>
       <article class="card" style="margin-top:14px">
+        <div class="card-head"><h2>Carrier Conference Capability</h2><span>Measured live from each Android InCallService</span></div>
+        <div id="conferenceDevices"></div>
+        <div class="conference-note">
+          During a real call, the app reports whether Android/your carrier allows a second call. After a second call exists, it also checks whether Telecom exposes the calls as mergeable.
+        </div>
+      </article>
+      <article class="card" style="margin-top:14px">
         <div class="card-head"><h2>Incoming Call Policy</h2><span>Server instruction returned to the Android bridge</span></div>
         <div class="form-grid">
           <label>Default behavior
@@ -153,6 +161,6 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
   </main>
 </div>
 
-<script src="assets/app.js?v=20261006-3"></script>
+<script src="assets/app.js?v=20261006-4"></script>
 </body>
 </html>
