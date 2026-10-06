@@ -268,8 +268,22 @@ public final class ShellUplinkInjectionProbe {
             }
 
             System.out.println(
-                    "ONTRACK_INJECT|result=all_advertised_formats_failed"
+                    "ONTRACK_INJECT|call_assistant_failed"
                             + "|attempts=" + attempts
+                            + "|last_error=" + lastError);
+
+            boolean incallMusicWorked = runInCallMusicFallback(
+                    context,
+                    telephonyTx,
+                    orderedRates,
+                    channelCounts);
+
+            if (incallMusicWorked) {
+                return;
+            }
+
+            System.out.println(
+                    "ONTRACK_INJECT|result=all_framework_routes_failed"
                             + "|last_error=" + lastError);
 
         } catch (Throwable error) {
@@ -282,6 +296,183 @@ public final class ShellUplinkInjectionProbe {
         } finally {
             System.out.println("ONTRACK_INJECT|done");
         }
+    }
+
+    private static boolean runInCallMusicFallback(
+            Context context,
+            AudioDeviceInfo telephonyTx,
+            int[] orderedRates,
+            int[] channelCounts) {
+
+        System.out.println("ONTRACK_INJECT|incall_music|begin=true");
+
+        for (int rate : orderedRates) {
+            if (rate < 8000 || rate > 48000) continue;
+
+            for (int channels : channelCounts) {
+                if (channels != 1 && channels != 2) continue;
+
+                AudioTrack track = null;
+
+                try {
+                    int channelMask = channels == 2
+                            ? AudioFormat.CHANNEL_OUT_STEREO
+                            : AudioFormat.CHANNEL_OUT_MONO;
+
+                    AudioFormat format = new AudioFormat.Builder()
+                            .setSampleRate(rate)
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setChannelMask(channelMask)
+                            .build();
+
+                    AudioAttributes attributes =
+                            new AudioAttributes.Builder()
+                                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                                    .build();
+
+                    track = new AudioTrack.Builder()
+                            .setContext(context)
+                            .setAudioAttributes(attributes)
+                            .setAudioFormat(format)
+                            .build();
+
+                    if (track.getState() != AudioTrack.STATE_INITIALIZED) {
+                        System.out.println(
+                                "ONTRACK_INJECT|incall_music_attempt"
+                                        + "|rate=" + rate
+                                        + "|channels=" + channels
+                                        + "|initialized=false");
+                        continue;
+                    }
+
+                    boolean preferred =
+                            track.setPreferredDevice(telephonyTx);
+
+                    System.out.println(
+                            "ONTRACK_INJECT|incall_music_attempt"
+                                    + "|rate=" + rate
+                                    + "|channels=" + channels
+                                    + "|preferred_device_set=" + preferred
+                                    + "|buffer_frames=" + track.getBufferSizeInFrames());
+
+                    if (!preferred) {
+                        continue;
+                    }
+
+                    short[] tone = makeTone(rate, channels);
+
+                    int primeTargetSamples = Math.min(
+                            tone.length,
+                            Math.max(
+                                    160 * channels,
+                                    (track.getBufferSizeInFrames() * channels) / 2));
+
+                    int primed = track.write(
+                            tone,
+                            0,
+                            primeTargetSamples,
+                            AudioTrack.WRITE_NON_BLOCKING);
+
+                    System.out.println(
+                            "ONTRACK_INJECT|incall_music_attempt"
+                                    + "|rate=" + rate
+                                    + "|channels=" + channels
+                                    + "|prime_written=" + primed);
+
+                    if (primed < 0) {
+                        continue;
+                    }
+
+                    track.play();
+
+                    try {
+                        Thread.sleep(80L);
+                    } catch (InterruptedException ignored) {
+                        Thread.currentThread().interrupt();
+                    }
+
+                    AudioDeviceInfo routed = null;
+                    try { routed = track.getRoutedDevice(); } catch (Throwable ignored) {}
+
+                    System.out.println(
+                            "ONTRACK_INJECT|incall_music_attempt"
+                                    + "|rate=" + rate
+                                    + "|channels=" + channels
+                                    + "|routed_id=" + (routed == null ? -1 : routed.getId())
+                                    + "|routed_type=" + (routed == null ? -1 : routed.getType()));
+
+                    int offset = Math.max(0, primed);
+                    int totalWritten = primed;
+                    int error = 0;
+                    long deadline = System.currentTimeMillis() + 2200L;
+
+                    while (offset < tone.length
+                            && System.currentTimeMillis() < deadline) {
+
+                        int written = track.write(
+                                tone,
+                                offset,
+                                tone.length - offset,
+                                AudioTrack.WRITE_NON_BLOCKING);
+
+                        if (written > 0) {
+                            offset += written;
+                            totalWritten += written;
+                            continue;
+                        }
+
+                        if (written == 0) {
+                            try {
+                                Thread.sleep(10L);
+                            } catch (InterruptedException ignored) {
+                                Thread.currentThread().interrupt();
+                                break;
+                            }
+                            continue;
+                        }
+
+                        error = written;
+                        break;
+                    }
+
+                    System.out.println(
+                            "ONTRACK_INJECT|incall_music_attempt"
+                                    + "|rate=" + rate
+                                    + "|channels=" + channels
+                                    + "|total_written=" + totalWritten
+                                    + "|error=" + error
+                                    + "|play_state=" + track.getPlayState());
+
+                    if (offset >= tone.length && error >= 0) {
+                        System.out.println(
+                                "ONTRACK_INJECT|result=incall_music_written"
+                                        + "|rate=" + rate
+                                        + "|channels=" + channels
+                                        + "|remote_confirmation_required=true");
+                        return true;
+                    }
+
+                } catch (Throwable failure) {
+                    Throwable root = root(failure);
+                    System.out.println(
+                            "ONTRACK_INJECT|incall_music_attempt"
+                                    + "|rate=" + rate
+                                    + "|channels=" + channels
+                                    + "|error=" + root.getClass().getName()
+                                    + ":" + safeMessage(root));
+                } finally {
+                    if (track != null) {
+                        try { track.stop(); } catch (Throwable ignored) {}
+                        try { track.flush(); } catch (Throwable ignored) {}
+                        try { track.release(); } catch (Throwable ignored) {}
+                    }
+                }
+            }
+        }
+
+        System.out.println("ONTRACK_INJECT|incall_music|result=failed");
+        return false;
     }
 
     private static AudioDeviceInfo findTelephonyTx(AudioManager audio) {
