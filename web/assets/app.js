@@ -78,7 +78,7 @@ function recording(call){
     return `<span class="muted">No recording — ${esc(call.media_error||'media bridge failed')}</span>`;
   }
 
-  if(['requested','waiting_for_add_call','bridge_leg_dialing','bridge_leg_answered','dtmf_sent','merge_waiting','merge_requested'].includes(call.media_status)){
+  if(['requested','waiting_for_add_call','bridge_leg_dialing','bridge_leg_answered','dtmf_sent','merge_waiting','merge_requested','merge_confirmed','gateway_connected'].includes(call.media_status)){
     return '<span class="muted">Waiting for media gateway…</span>';
   }
 
@@ -94,6 +94,14 @@ function mediaChip(call){
 
   if(state==='merge_requested'){
     return '<span class="media-chip pending">MERGING</span>';
+  }
+
+  if(state==='merge_confirmed'){
+    return '<span class="media-chip pending">MERGED / WAITING GATEWAY</span>';
+  }
+
+  if(state==='gateway_connected'){
+    return '<span class="media-chip pending">GATEWAY CONNECTED</span>';
   }
 
   if(['requested','waiting_for_add_call','bridge_leg_dialing','bridge_leg_answered','dtmf_sent','merge_waiting'].includes(state)){
