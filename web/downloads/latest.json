@@ -1,10 +1,10 @@
 {
-  "version_code": 14,
-  "version_name": "0.4.7",
-  "filename": "OnTrack-AI-Phone-v0.4.7.apk",
-  "sha256": "fe21d125476a87af34a76045818a90e4e202b4dd7d04149443a6737140475471",
-  "size_bytes": 13757324,
-  "published_at": "2026-10-06T03:50:50Z",
-  "release_notes": "OnTrack AI Phone v0.4.7: confirms digital SIM capture and adds a shell-side PSTN uplink injection tone test for the remote caller.",
+  "version_code": 15,
+  "version_name": "0.4.8",
+  "filename": "OnTrack-AI-Phone-v0.4.8.apk",
+  "sha256": "97f47dcadbb197ccb4ff9d92ab20bb39d3aeeac3501b54d323ab14e4c4153042",
+  "size_bytes": 13757318,
+  "published_at": "2026-10-06T03:52:08Z",
+  "release_notes": "OnTrack AI Phone v0.4.8: fixes app_process Looper bootstrap so the PSTN uplink injection probe can reach the Android audio interception APIs.",
   "signing_certificate_sha256": "61:EE:0C:F7:0A:AE:92:39:E0:96:D4:42:2D:3D:4C:3B:2D:B4:D7:67:D6:FF:B6:1A:48:66:81:2C:08:EC:7B:02"
 }
