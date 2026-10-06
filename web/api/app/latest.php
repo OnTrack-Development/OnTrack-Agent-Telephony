@@ -19,7 +19,7 @@ if ($filename === '') {
     json_response(['ok' => false, 'error' => 'Missing Android release filename'], 500);
 }
 
-$base = rtrim((string)cfg('site_url', ''), '/');
+$base = rtrim((string)cfg('base_url', cfg('site_url', '')), '/');
 if ($base === '') {
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host = (string)($_SERVER['HTTP_HOST'] ?? 'agent.ontrackegy.com');
