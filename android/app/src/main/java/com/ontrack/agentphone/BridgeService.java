@@ -193,7 +193,7 @@ public class BridgeService extends Service {
         return builder
                 .setContentTitle("OnTrack AI Phone Bridge")
                 .setContentText(text)
-                .setSmallIcon(android.R.drawable.sym_call_incoming)
+                .setSmallIcon(com.ontrack.agentphone.R.drawable.ic_stat_ontrack)
                 .setOngoing(true)
                 .setContentIntent(pending)
                 .build();
