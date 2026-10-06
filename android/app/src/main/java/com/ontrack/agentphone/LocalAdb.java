@@ -290,9 +290,17 @@ final class LocalAdb {
                 "com.ontrack.agentphone.ShellAudioCapabilityProbe >" +
                 shellQuote(resultPath) + " 2>&1";
 
-        exec(app, command);
-
         StringBuilder report = new StringBuilder();
+
+        try {
+            exec(app, "toybox timeout 5 sh -c " + shellQuote(command));
+        } catch (Throwable error) {
+            report.append("ONTRACK_CAP|framework_bootstrap_error=")
+                    .append(error.getClass().getSimpleName())
+                    .append(":")
+                    .append(error.getMessage() == null ? "" : error.getMessage())
+                    .append("\n");
+        }
 
         if (result.isFile() && result.length() > 0) {
             report.append(readText(result).trim());
@@ -300,36 +308,89 @@ final class LocalAdb {
             report.append("ONTRACK_CAP|framework_report=missing");
         }
 
-        report.append("\n\n=== AUDIO POLICY: TELEPHONY ===\n");
-        report.append(exec(app,
-                "dumpsys media.audio_policy 2>/dev/null | " +
-                "grep -i -E 'telephony|call_assistant|call assistant|audio patch|patch' | " +
-                "head -n 180"));
+        appendCapabilitySection(
+                report,
+                app,
+                "AUDIO POLICY · TELEPHONY PORTS / ROUTES",
+                "toybox timeout 5 dumpsys media.audio_policy 2>/dev/null | " +
+                "grep -i -E 'Config source|Telephony Tx|Telephony Rx|AUDIO_DEVICE_OUT_TELEPHONY_TX|AUDIO_DEVICE_IN_TELEPHONY_RX|call_assistant|call assistant|Supported devices|sampling rates|maxOpenCount|maxActiveCount|Audio patch|patch' | " +
+                "head -n 260");
 
-        report.append("\n\n=== AUDIO FLINGER / HAL ===\n");
-        report.append(exec(app,
-                "dumpsys media.audio_flinger --hal 2>/dev/null | " +
-                "grep -i -E 'telephony|call|aidl|hidl|primary|stream' | " +
-                "head -n 180"));
+        appendCapabilitySection(
+                report,
+                app,
+                "AUDIO FLINGER · LIVE THREADS",
+                "toybox timeout 5 dumpsys media.audio_flinger 2>/dev/null | " +
+                "grep -i -E 'telephony|voice call|call_assistant|output thread|input thread|sample rate|device|primary|status|error|dead' | " +
+                "head -n 260");
 
-        report.append("\n\n=== AUDIO HAL SERVICES ===\n");
-        report.append(exec(app,
-                "dumpsys -l 2>/dev/null | " +
-                "grep -E 'android.hardware.audio.core.IModule|media.audio' | " +
-                "head -n 80"));
+        appendCapabilitySection(
+                report,
+                app,
+                "AUDIO SERVICE · CURRENT CALL STATE",
+                "toybox timeout 4 dumpsys audio 2>/dev/null | " +
+                "grep -i -E 'mode|phone state|communication|call|route|device' | " +
+                "head -n 180");
 
-        report.append("\n\n=== VENDOR POLICY FILES ===\n");
-        report.append(exec(app,
-                "find /vendor/etc /odm/etc /product/etc /system/etc " +
-                "-type f -iname '*audio*policy*.xml' 2>/dev/null | head -n 60"));
+        appendCapabilitySection(
+                report,
+                app,
+                "AUDIO HAL SERVICES",
+                "toybox timeout 3 dumpsys -l 2>/dev/null | " +
+                "grep -E 'android.hardware.audio|media.audio' | head -n 120");
 
-        report.append("\n\n=== RECENT AUDIO ERRORS ===\n");
-        report.append(exec(app,
-                "logcat -d -v brief -t 500 2>/dev/null | " +
-                "grep -i -E 'AudioPolicy|AudioFlinger|audio_hw|telephony|call.assistant|dead.object|startOutput' | " +
-                "tail -n 160"));
+        appendCapabilitySection(
+                report,
+                app,
+                "VENDOR AUDIO POLICY FILES",
+                "toybox timeout 4 find /vendor/etc /odm/etc /product/etc /system/etc " +
+                "-type f -iname '*audio*policy*.xml' 2>/dev/null | head -n 80");
+
+        appendCapabilitySection(
+                report,
+                app,
+                "VENDOR TELEPHONY ROUTES",
+                "toybox timeout 5 sh -c " +
+                shellQuote(
+                        "grep -R -n -i -E 'AUDIO_DEVICE_OUT_TELEPHONY_TX|AUDIO_DEVICE_IN_TELEPHONY_RX|Telephony Tx|Telephony Rx' " +
+                        "/vendor/etc /odm/etc /product/etc /system/etc 2>/dev/null | head -n 180"));
+
+        appendCapabilitySection(
+                report,
+                app,
+                "RECENT NATIVE AUDIO ERRORS",
+                "toybox timeout 5 logcat -d -v brief -t 700 2>/dev/null | " +
+                "grep -i -E 'AudioPolicy|AudioFlinger|audio_hw|telephony|call.assistant|call_assistant|dead.object|dead object|startOutput|start output|createTrack|create track' | " +
+                "tail -n 220");
 
         return report.toString().trim();
+    }
+
+    private static void appendCapabilitySection(
+            StringBuilder report,
+            Context app,
+            String title,
+            String command) {
+
+        report.append("\n\n=== ")
+                .append(title)
+                .append(" ===\n");
+
+        try {
+            String value = exec(app, command);
+
+            if (value == null || value.trim().isEmpty()) {
+                report.append("(no matching lines)");
+            } else {
+                report.append(value.trim());
+            }
+        } catch (Throwable error) {
+            report.append("(query failed: ")
+                    .append(error.getClass().getSimpleName())
+                    .append(": ")
+                    .append(error.getMessage() == null ? "" : error.getMessage())
+                    .append(")");
+        }
     }
 
     private static String shellQuote(String value) {
