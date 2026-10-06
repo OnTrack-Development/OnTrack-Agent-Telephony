@@ -476,3 +476,32 @@ if(saveIncoming){
 load();
 loadSettings();
 setInterval(load,8000);
+
+
+async function loadAppRelease(){
+  const el=$('#appRelease');
+  if(!el) return;
+
+  try{
+    const release=await api('api/app/latest.php');
+    const size=release.size_bytes
+      ? (release.size_bytes/1024/1024).toFixed(2)+' MB'
+      : '—';
+
+    el.innerHTML=`
+      <div class="app-release-grid">
+        <div><span>Version</span><strong>v${esc(release.version_name)}</strong></div>
+        <div><span>Version code</span><strong>${Number(release.version_code||0)}</strong></div>
+        <div><span>Signing</span><strong class="state-ok">PERSISTENT</strong></div>
+        <div><span>Size</span><strong>${size}</strong></div>
+      </div>
+      <div class="app-release-actions">
+        <a class="primary" href="${esc(release.download_url)}">Download latest APK</a>
+        <span>SHA-256: ${esc(release.sha256)}</span>
+      </div>
+    `;
+  }catch(error){
+    el.innerHTML=empty('No signed Android release has been published to this server yet.');
+  }
+}
+loadAppRelease();
