@@ -50,7 +50,9 @@ $metrics = [
 ];
 
 $devicesStmt = $pdo->prepare(
-    "SELECT id,name,phone_number,manufacturer,model,app_version,last_seen_at,created_at,
+    "SELECT id,name,phone_number,manufacturer,model,app_version,last_seen_at,
+            conference_can_add_call,conferenceable_count,active_call_count,
+            conference_status,conference_checked_at,created_at,
             CASE
               WHEN last_seen_at IS NOT NULL AND last_seen_at >= ? THEN 'online'
               ELSE 'offline'
