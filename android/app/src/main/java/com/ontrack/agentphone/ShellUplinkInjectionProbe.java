@@ -62,12 +62,6 @@ public final class ShellUplinkInjectionProbe {
                 return;
             }
 
-            Method injectionMethod =
-                    AudioManager.class.getDeclaredMethod(
-                            "getCallUplinkInjectionAudioTrack",
-                            AudioFormat.class);
-            injectionMethod.setAccessible(true);
-
             int lastError = 0;
 
             for (int rate : RATES) {
@@ -80,8 +74,8 @@ public final class ShellUplinkInjectionProbe {
                             .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                             .build();
 
-                    track = (AudioTrack) injectionMethod.invoke(
-                            audioManager,
+                    track = createShellAttributedTrack(
+                            context,
                             format);
 
                     if (track == null
@@ -220,6 +214,40 @@ public final class ShellUplinkInjectionProbe {
         } finally {
             System.out.println("ONTRACK_INJECT|done");
         }
+    }
+
+    private static AudioTrack createShellAttributedTrack(
+            Context context,
+            AudioFormat format) throws Exception {
+
+        AudioAttributes.Builder attributes =
+                new AudioAttributes.Builder();
+
+        Method setSystemUsage =
+                AudioAttributes.Builder.class.getDeclaredMethod(
+                        "setSystemUsage",
+                        int.class);
+        setSystemUsage.setAccessible(true);
+        setSystemUsage.invoke(attributes, 17);
+
+        AudioTrack.Builder builder =
+                new AudioTrack.Builder()
+                        .setContext(context)
+                        .setAudioAttributes(
+                                attributes
+                                        .setContentType(
+                                                AudioAttributes.CONTENT_TYPE_SPEECH)
+                                        .build())
+                        .setAudioFormat(format);
+
+        Method setCallMode =
+                AudioTrack.Builder.class.getDeclaredMethod(
+                        "setCallRedirectionMode",
+                        int.class);
+        setCallMode.setAccessible(true);
+        setCallMode.invoke(builder, 1);
+
+        return builder.build();
     }
 
     private static short[] makeTone(int rate) {
