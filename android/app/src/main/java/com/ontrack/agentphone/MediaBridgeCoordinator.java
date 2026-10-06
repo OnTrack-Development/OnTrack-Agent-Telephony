@@ -42,6 +42,7 @@ final class MediaBridgeCoordinator {
     private boolean dialStarted;
     private boolean pinSent;
     private boolean mergeRequested;
+    private boolean mergeConfirmed;
     private boolean finished;
 
     MediaBridgeCoordinator(OnTrackInCallService service) {
@@ -145,11 +146,20 @@ final class MediaBridgeCoordinator {
     }
 
     synchronized void onConferenceableChanged(Call call) {
-        if (!configured || finished || !pinSent || mergeRequested || !autoMerge) {
+        if (!configured || finished) return;
+
+        if (mergeRequested && !mergeConfirmed) {
+            handler.post(() -> verifyMerge(0));
             return;
         }
 
+        if (!pinSent || mergeRequested || !autoMerge) return;
         handler.post(() -> attemptMerge(0));
+    }
+
+    synchronized void onConferenceStructureChanged(Call call) {
+        if (!configured || finished || !mergeRequested || mergeConfirmed) return;
+        handler.post(() -> verifyMerge(0));
     }
 
     synchronized void onCallRemoved(Call call) {
@@ -322,6 +332,7 @@ final class MediaBridgeCoordinator {
 
                 reportAsync(id, "merge_requested", null);
                 Log.i(TAG, "Carrier merge requested");
+                handler.postDelayed(() -> verifyMerge(0), 450L);
                 return;
 
             } catch (Throwable error) {
@@ -339,6 +350,72 @@ final class MediaBridgeCoordinator {
                     id,
                     "merge_unavailable",
                     "Two calls existed but carrier did not expose them as conferenceable");
+        }
+    }
+
+    private void verifyMerge(int attempt) {
+        final Call customer;
+        final Call bridge;
+        final int id;
+
+        synchronized (this) {
+            if (!configured || finished || mergeConfirmed || !mergeRequested) return;
+            customer = customerCall;
+            bridge = bridgeCall;
+            id = callId;
+        }
+
+        if (customer == null || bridge == null) return;
+
+        if (isConferenceEstablished(customer, bridge)) {
+            synchronized (this) {
+                if (mergeConfirmed) return;
+                mergeConfirmed = true;
+            }
+
+            reportAsync(id, "merge_confirmed", null);
+            Log.i(TAG, "Carrier conference confirmed by Telecom structure");
+            return;
+        }
+
+        if (attempt < 20) {
+            int next = attempt + 1;
+            handler.postDelayed(() -> verifyMerge(next), 500L);
+        } else {
+            reportAsync(
+                    id,
+                    "merge_unavailable",
+                    "Merge was requested but Telecom did not expose a confirmed conference");
+        }
+    }
+
+    private boolean isConferenceEstablished(Call customer, Call bridge) {
+        try {
+            Call customerParent = customer.getParent();
+            Call bridgeParent = bridge.getParent();
+
+            if (customerParent != null && bridgeParent != null
+                    && customerParent == bridgeParent) {
+                return true;
+            }
+
+            if (customerParent != null || bridgeParent != null) {
+                return true;
+            }
+        } catch (Throwable ignored) { }
+
+        try {
+            List<Call> customerChildren = customer.getChildren();
+            if (customerChildren != null && customerChildren.contains(bridge)) {
+                return true;
+            }
+        } catch (Throwable ignored) { }
+
+        try {
+            List<Call> bridgeChildren = bridge.getChildren();
+            return bridgeChildren != null && bridgeChildren.contains(customer);
+        } catch (Throwable ignored) {
+            return false;
         }
     }
 
@@ -394,6 +471,7 @@ final class MediaBridgeCoordinator {
         dialStarted = false;
         pinSent = false;
         mergeRequested = false;
+        mergeConfirmed = false;
         finished = false;
     }
 
