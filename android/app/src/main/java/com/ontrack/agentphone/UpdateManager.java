@@ -149,6 +149,10 @@ final class UpdateManager {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 && !context.getPackageManager().canRequestPackageInstalls()) {
 
+            AppState.prefs(context).edit()
+                    .putString("pending_update_install", apk.getAbsolutePath())
+                    .apply();
+
             Intent settings = new Intent(
                     Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                     Uri.parse("package:" + context.getPackageName()));
@@ -168,6 +172,21 @@ final class UpdateManager {
                 Intent.FLAG_ACTIVITY_NEW_TASK |
                 Intent.FLAG_GRANT_READ_URI_PERMISSION);
         context.startActivity(install);
+    }
+
+    static void resumePendingInstall(Context context) {
+        String path = AppState.prefs(context).getString("pending_update_install", "");
+        if (path == null || path.isEmpty()) return;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                && !context.getPackageManager().canRequestPackageInstalls()) {
+            return;
+        }
+
+        AppState.prefs(context).edit().remove("pending_update_install").apply();
+
+        File apk = new File(path);
+        if (apk.exists()) install(context, apk);
     }
 
     static File newestDownloadedApk(Context context) {
