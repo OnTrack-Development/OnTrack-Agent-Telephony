@@ -87,6 +87,9 @@ function migrate(PDO $pdo): void {
     ensure_column($pdo, 'calls', 'media_bridge_number', 'TEXT');
     ensure_column($pdo, 'calls', 'media_requested_at', 'TEXT');
     ensure_column($pdo, 'calls', 'media_connected_at', 'TEXT');
+    ensure_column($pdo, 'calls', 'media_gateway_connected_at', 'TEXT');
+    ensure_column($pdo, 'calls', 'media_merge_requested_at', 'TEXT');
+    ensure_column($pdo, 'calls', 'media_merge_confirmed_at', 'TEXT');
     ensure_column($pdo, 'calls', 'media_disconnected_at', 'TEXT');
     ensure_column($pdo, 'calls', 'media_error', 'TEXT');
     ensure_column($pdo, 'devices', 'conference_can_add_call', 'INTEGER');
