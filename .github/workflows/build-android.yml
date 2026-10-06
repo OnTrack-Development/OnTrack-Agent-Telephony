@@ -80,7 +80,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OnTrack-AI-Phone-Bridge-v0.4.2
+          name: OnTrack-AI-Phone-Bridge-v0.4.3
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/release/app-release.apk
@@ -114,7 +114,7 @@ jobs:
             "sha256": "${SHA256}",
             "size_bytes": ${SIZE_BYTES},
             "published_at": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
-            "release_notes": "OnTrack AI Phone v0.4.2 single-call hosted-media release: one customer call per device, managed bridge ready, no VPS dependency.",
+            "release_notes": "OnTrack AI Phone v0.4.3 Audio Probe: local Wireless Debugging shell test for digital SIM call audio, no root or Accessibility.",
             "signing_certificate_sha256": "${CERT_SHA256}"
           }
           EOF
