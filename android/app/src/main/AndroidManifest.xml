@@ -45,6 +45,14 @@
             android:exported="false" />
 
         <activity
+            android:name=".AudioProbeActivity"
+            android:exported="false" />
+
+        <receiver
+            android:name=".AudioProbePairReceiver"
+            android:exported="false" />
+
+        <activity
             android:name=".InCallActivity"
             android:exported="false"
             android:excludeFromRecents="true"
