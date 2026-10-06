@@ -81,11 +81,31 @@ function migrate(PDO $pdo): void {
     ensure_column($pdo, 'calls', 'contact_name', 'TEXT');
     ensure_column($pdo, 'calls', 'recording_status', "TEXT NOT NULL DEFAULT 'not_recorded'");
     ensure_column($pdo, 'calls', 'recording_url', 'TEXT');
+    ensure_column($pdo, 'calls', 'recording_file', 'TEXT');
+    ensure_column($pdo, 'calls', 'media_status', "TEXT NOT NULL DEFAULT 'not_connected'");
+    ensure_column($pdo, 'calls', 'media_pin', 'TEXT');
+    ensure_column($pdo, 'calls', 'media_bridge_number', 'TEXT');
+    ensure_column($pdo, 'calls', 'media_requested_at', 'TEXT');
+    ensure_column($pdo, 'calls', 'media_connected_at', 'TEXT');
+    ensure_column($pdo, 'calls', 'media_disconnected_at', 'TEXT');
+    ensure_column($pdo, 'calls', 'media_error', 'TEXT');
     ensure_column($pdo, 'devices', 'conference_can_add_call', 'INTEGER');
     ensure_column($pdo, 'devices', 'conferenceable_count', 'INTEGER');
     ensure_column($pdo, 'devices', 'active_call_count', 'INTEGER');
     ensure_column($pdo, 'devices', 'conference_status', "TEXT NOT NULL DEFAULT 'unknown'");
     ensure_column($pdo, 'devices', 'conference_checked_at', 'TEXT');
+
+    $secret = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key='media_gateway_secret'");
+    $secret->execute();
+    if (!$secret->fetchColumn()) {
+        $value = bin2hex(random_bytes(32));
+        $stmt = $pdo->prepare(
+            "INSERT INTO settings(setting_key,setting_value,updated_at)
+             VALUES('media_gateway_secret',?,?)
+             ON CONFLICT(setting_key) DO NOTHING"
+        );
+        $stmt->execute([$value, gmdate('Y-m-d H:i:s')]);
+    }
 }
 
 function json_input(): array {
