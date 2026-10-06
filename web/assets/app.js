@@ -546,9 +546,9 @@ async function loadMediaSettings(){
     enabled.value=settings.enabled?'1':'0';
     $('#mediaBridgeNumber').value=settings.bridge_number||'';
     $('#mediaAutoMerge').value=settings.auto_merge?'1':'0';
-    $('#mediaGatewaySecret').value=settings.gateway_secret||'';
-    $('#mediaGatewayEventUrl').value=settings.gateway_event_url||'';
-    $('#mediaGatewayUploadUrl').value=settings.gateway_upload_url||'';
+    $('#mediaGatewaySecret').value=settings.callback_secret||settings.gateway_secret||'';
+    $('#mediaGatewayEventUrl').value=settings.bridge_event_url||settings.gateway_event_url||'';
+    $('#mediaGatewayUploadUrl').value=settings.recording_upload_url||settings.gateway_upload_url||'';
   }catch(error){
     console.error('Media settings load failed:',error);
   }
