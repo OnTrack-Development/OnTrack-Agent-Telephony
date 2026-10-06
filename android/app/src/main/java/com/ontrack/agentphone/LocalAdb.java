@@ -123,93 +123,77 @@ final class LocalAdb {
 
         File externalDir = app.getExternalFilesDir(null);
         if (externalDir == null) {
-            throw new IllegalStateException("App external files directory is unavailable");
+            throw new IllegalStateException(
+                    "App external files directory is unavailable");
         }
 
-        File result = new File(externalDir, "ontrack-audio-probe-result.txt");
+        File result = new File(
+                externalDir,
+                "ontrack-audio-probe-result.txt");
+
         if (result.exists() && !result.delete()) {
-            throw new IllegalStateException("Could not clear the previous probe result");
+            throw new IllegalStateException(
+                    "Could not clear the previous probe result");
         }
 
         final String resultPath = result.getAbsolutePath();
-        final String probeApk = "/data/local/tmp/ontrack-audio-probe.apk";
+        final String probeApk =
+                "/data/local/tmp/ontrack-audio-probe.apk";
 
-        ProbeConnectionManager mgr = manager(app);
-        AdbStream stream = null;
+        // Use the persistent exec:sh session only as a bootstrap.
+        // The probe itself is detached and writes directly to a path that both
+        // uid=2000(shell) and this app can access. No probe audio/result bytes
+        // travel through ADB, so a logical ADB stream close cannot truncate it.
+        String command =
+                "APK=$(pm path com.ontrack.agentphone | head -n 1 | cut -d: -f2); " +
+                "test -n \"$APK\" || { echo ONTRACK_PROBE_APK_MISSING; exit; }; " +
+                "rm -f " + shellQuote(resultPath) + " " + probeApk + "; " +
+                "cp \"$APK\" " + probeApk + " || { echo ONTRACK_PROBE_COPY_FAILED; exit; }; " +
+                "chmod 0644 " + probeApk + "; " +
+                "CLASSPATH=" + probeApk + " nohup app_process /system/bin " +
+                "com.ontrack.agentphone.ShellAudioProbe >" +
+                shellQuote(resultPath) + " 2>&1 </dev/null & " +
+                "echo ONTRACK_PROBE_STARTED";
 
-        try {
-            if (!mgr.isConnected()) {
-                int connectPort = discoverPort(
-                        app,
-                        AdbMdns.SERVICE_TYPE_TLS_CONNECT,
-                        10_000L);
+        String started = exec(app, command);
 
-                if (connectPort <= 0) {
-                    throw new IllegalStateException(
-                            "Wireless debugging connect service not found. Keep Wireless debugging ON.");
-                }
-
-                boolean ok = mgr.connect(LOOPBACK, connectPort);
-                if (!ok && !mgr.isConnected()) {
-                    throw new IllegalStateException("Could not connect to local adbd");
-                }
-            }
-
-            // Do not transport probe output over ADB. MIUI/HyperOS may close
-            // the logical ADB stream at command completion and libadb can expose
-            // that normal close as "Stream closed". The shell writes directly
-            // into this app's external-files directory instead.
-            String command =
-                    "APK=$(pm path com.ontrack.agentphone | head -n 1 | cut -d: -f2); " +
-                    "test -n \"$APK\" || exit 41; " +
-                    "rm -f " + shellQuote(resultPath) + " " + probeApk + "; " +
-                    "cp \"$APK\" " + probeApk + " || exit 42; " +
-                    "chmod 0644 " + probeApk + "; " +
-                    "CLASSPATH=" + probeApk + " app_process /system/bin " +
-                    "com.ontrack.agentphone.ShellAudioProbe >" +
-                    shellQuote(resultPath) + " 2>&1";
-
-            stream = mgr.openStream("shell:" + command);
-
-            long deadline = System.currentTimeMillis() + 12_000L;
-            long lastSize = -1L;
-            int stableReads = 0;
-
-            while (System.currentTimeMillis() < deadline) {
-                if (result.isFile() && result.length() > 0) {
-                    long size = result.length();
-
-                    if (size == lastSize) {
-                        stableReads++;
-                    } else {
-                        stableReads = 0;
-                        lastSize = size;
-                    }
-
-                    String partial = readText(result);
-
-                    if (partial.contains("ONTRACK_PROBE|uplink|")
-                            || stableReads >= 3) {
-                        return partial.trim();
-                    }
-                }
-
-                Thread.sleep(350L);
-            }
-
-            if (result.isFile() && result.length() > 0) {
-                return readText(result).trim();
-            }
-
+        if (!started.contains("ONTRACK_PROBE_STARTED")) {
             throw new IllegalStateException(
-                    "Shell started, but the audio probe produced no local result");
-
-        } finally {
-            if (stream != null) {
-                try { stream.close(); } catch (Throwable ignored) {}
-            }
-            try { mgr.disconnect(); } catch (Throwable ignored) {}
+                    "Probe bootstrap failed: " + started.trim());
         }
+
+        long deadline = System.currentTimeMillis() + 14_000L;
+        long lastSize = -1L;
+        int stableReads = 0;
+
+        while (System.currentTimeMillis() < deadline) {
+            if (result.isFile() && result.length() > 0) {
+                long size = result.length();
+
+                if (size == lastSize) {
+                    stableReads++;
+                } else {
+                    stableReads = 0;
+                    lastSize = size;
+                }
+
+                String partial = readText(result);
+
+                if (partial.contains("ONTRACK_PROBE|uplink|")
+                        || stableReads >= 4) {
+                    return partial.trim();
+                }
+            }
+
+            Thread.sleep(300L);
+        }
+
+        if (result.isFile() && result.length() > 0) {
+            return readText(result).trim();
+        }
+
+        throw new IllegalStateException(
+                "Shell probe started, but no local result was produced");
     }
 
     private static String shellQuote(String value) {
