@@ -14,8 +14,10 @@ When that secret is present, the workflow decrypts the keystore at build time an
 
 Signing certificate SHA-256:
 
-`B0:41:6E:4B:92:66:7A:10:DD:06:E4:CF:C5:A7:CC:5B:2A:E9:D4:42:20:69:24:01:1F:19:92:15:49:74:C2:AC`
+`61:EE:0C:F7:0A:AE:92:39:E0:96:D4:42:2D:3D:4C:3B:2D:B4:D7:67:D6:FF:B6:1A:48:66:81:2C:08:EC:7B:02`
 
 Never commit the decrypted `.jks` file or the password.
 
 Release signing is enabled through the repository secret configured for GitHub Actions.
+
+Certificate validity: 2026-10-06 through 2126-09-12.
