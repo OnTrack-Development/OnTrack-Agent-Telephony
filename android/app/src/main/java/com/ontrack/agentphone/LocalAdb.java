@@ -409,6 +409,42 @@ final class LocalAdb {
         }
     }
 
+    static String startCallMediaBridge(
+            Context context,
+            int port,
+            String secret) throws Exception {
+
+        Context app = context.getApplicationContext();
+
+        if (port < 1024 || port > 65535) {
+            throw new IllegalArgumentException("Invalid local media port");
+        }
+
+        if (secret == null || secret.length() < 24) {
+            throw new IllegalArgumentException("Invalid local media secret");
+        }
+
+        final String bridgeApk =
+                "/data/local/tmp/ontrack-call-media.apk";
+        final String logFile =
+                "/data/local/tmp/ontrack-call-media.log";
+
+        String command =
+                "APK=$(pm path com.ontrack.agentphone | head -n 1 | cut -d: -f2); " +
+                "test -n \"$APK\" || { echo ONTRACK_MEDIA_APK_MISSING; exit; }; " +
+                "pkill -f 'com.ontrack.agentphone.ShellCallMediaBridge' 2>/dev/null || true; " +
+                "rm -f " + bridgeApk + " " + logFile + "; " +
+                "cp \"$APK\" " + bridgeApk + " || { echo ONTRACK_MEDIA_COPY_FAILED; exit; }; " +
+                "chmod 0644 " + bridgeApk + "; " +
+                "CLASSPATH=" + bridgeApk + " nohup app_process /system/bin " +
+                "com.ontrack.agentphone.ShellCallMediaBridge " +
+                port + " " + shellQuote(secret) +
+                " >" + logFile + " 2>&1 </dev/null & " +
+                "echo ONTRACK_MEDIA_STARTED";
+
+        return exec(app, command);
+    }
+
     static void forget(Context context) {
         synchronized (LOCK) {
             resetTransportLocked(true);
