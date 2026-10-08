@@ -34,9 +34,11 @@ jobs:
         run: |
           set -euo pipefail
           echo "ANDROID_HOME=${ANDROID_HOME:-unset}"
-          command -v sdkmanager
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+          SDKMANAGER="$(find "${ANDROID_HOME}/cmdline-tools" -name sdkmanager -type f -print -quit)"
+          if [[ -z "$SDKMANAGER" ]]; then echo "Android SDK command-line tools missing" >&2; exit 1; fi
+          echo "Using $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
           test -f "${ANDROID_HOME}/platforms/android-35/android.jar"
           test -x "${ANDROID_HOME}/build-tools/35.0.0/aapt2"
       - uses: gradle/actions/setup-gradle@v4
