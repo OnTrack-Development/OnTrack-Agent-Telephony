@@ -672,6 +672,18 @@ public class OnTrackInCallService extends InCallService {
 
                 if (aiAction) {
                     aiCallIds.put(call, id);
+
+                    // The call may already be ACTIVE if the user answered while
+                    // the platform registration request was still in flight.
+                    // Do not wait for another Telecom state transition that may
+                    // never come.
+                    if (call.getState() == Call.STATE_ACTIVE) {
+                        mainHandler.post(
+                                () -> startAiIfNeeded(
+                                        call,
+                                        id,
+                                        "inbound"));
+                    }
                 } else {
                     aiCallIds.remove(call);
                 }
