@@ -75,11 +75,11 @@ function recording(call){
   }
 
   if(call.media_status==='failed'){
-    return `<span class="muted">No recording — ${esc(call.media_error||'media bridge failed')}</span>`;
+    return `<span class="muted">No recording — ${esc(call.media_error||'platform audio session failed')}</span>`;
   }
 
   if(['requested','waiting_for_add_call','bridge_leg_dialing','bridge_leg_answered','dtmf_sent','merge_waiting','merge_requested','merge_confirmed','gateway_connected'].includes(call.media_status)){
-    return '<span class="muted">Waiting for media gateway…</span>';
+    return '<span class="muted">Waiting for platform audio session…</span>';
   }
 
   return '<span class="muted">Not recorded</span>';
@@ -97,11 +97,11 @@ function mediaChip(call){
   }
 
   if(state==='merge_confirmed'){
-    return '<span class="media-chip pending">MERGED / WAITING GATEWAY</span>';
+    return '<span class="media-chip pending">PLATFORM SESSION PENDING</span>';
   }
 
   if(state==='gateway_connected'){
-    return '<span class="media-chip pending">GATEWAY CONNECTED</span>';
+    return '<span class="media-chip pending">PLATFORM CONNECTED</span>';
   }
 
   if(['requested','waiting_for_add_call','bridge_leg_dialing','bridge_leg_answered','dtmf_sent','merge_waiting'].includes(state)){
@@ -135,7 +135,7 @@ function render(data){
   renderCalls();
   renderContacts(data.contacts||[]);
   renderCampaigns(data);
-  renderConference(data.devices||[]);
+  renderPlatformAssignments(data.devices||[]);
   renderMedia(data.media||{});
 }
 
@@ -304,8 +304,8 @@ function renderCampaigns(data){
     : empty('No campaigns created yet.'));
 }
 
-function renderConference(devices){
-  const el=$('#conferenceDevices');
+function renderPlatformAssignments(devices){
+  const el=$('#platformAssignments');
   if(!el) return;
 
   if(!devices.length){
@@ -314,20 +314,10 @@ function renderConference(devices){
   }
 
   el.innerHTML='<div class="conference-grid">'+devices.map(device=>{
-    const status=device.conference_status||'unknown';
-    const checked=device.conference_checked_at||'Never';
-    const canAdd=device.conference_can_add_call===null || device.conference_can_add_call===undefined
-      ? 'UNKNOWN'
-      : (Number(device.conference_can_add_call)===1?'YES':'NO');
-    const mergeReady=Number(device.conferenceable_count||0)>0 && Number(device.active_call_count||0)>=2;
-    const label=status==='merge_ready'?'MERGE READY'
-      : status==='add_call_ready'?'ADD CALL READY'
-      : status==='unavailable'?'NOT AVAILABLE'
-      : 'WAITING FOR LIVE TEST';
-    const cls=status==='merge_ready'?'ready'
-      : status==='add_call_ready'?'partial'
-      : status==='unavailable'?'blocked'
-      : 'unknown';
+    const tenant=device.tenant_name||'Default Workspace';
+    const agent=device.voice_agent_name||'Default Voice Agent';
+    const agentActive=Number(device.voice_agent_active??1)===1;
+    const online=device.status==='online';
 
     return `
       <div class="conference-device">
@@ -336,52 +326,51 @@ function renderConference(devices){
             <strong>${esc(device.name)}</strong>
             <span>${esc(device.phone_number||'No SIM number')}</span>
           </div>
-          <span class="conference-badge ${cls}">${label}</span>
+          <span class="conference-badge ${online?'ready':'unknown'}">${online?'ONLINE':'OFFLINE'}</span>
         </div>
         <div class="conference-facts">
-          <div><span>Add second call</span><b>${canAdd}</b></div>
-          <div><span>Active calls</span><b>${Number(device.active_call_count||0)}</b></div>
-          <div><span>Merge calls</span><b>${mergeReady?'YES':(status==='unknown'?'UNKNOWN':'NO')}</b></div>
-          <div><span>Last check</span><b>${esc(checked)}</b></div>
+          <div><span>Tenant</span><b>${esc(tenant)}</b></div>
+          <div><span>Voice Agent</span><b>${esc(agent)}</b></div>
+          <div><span>Agent state</span><b>${agentActive?'ACTIVE':'DISABLED'}</b></div>
+          <div><span>App version</span><b>${esc(device.app_version||'—')}</b></div>
         </div>
       </div>
     `;
   }).join('')+'</div>';
 }
 
+
 function renderMedia(media){
-  const connected=media.status==='connected' && media.audio_on_server===true;
-  const ready=media.status==='ready' && media.bridge_enabled===true;
+  const live=media.status==='connected' && media.audio_on_server===true;
+  const validated=media.phone_audio_validated!==false;
 
   const overview=$('#mediaOverview');
   if(overview){
-    overview.innerHTML=connected
-      ? `<div class="media-status-card connected"><b>Server Media Connected</b><span>Live carrier audio is reaching the Media Gateway.</span></div>`
-      : ready
-        ? `<div class="media-status-card ready"><b>Media Bridge Armed</b><span>${esc(media.bridge_number||'Bridge number configured')} · waiting for an AI-handled call.</span></div>`
-        : `<div class="media-status-card disconnected"><b>Server Media Disconnected</b><span>Configure the PSTN/SIP bridge before call audio can reach the server.</span></div>`;
+    overview.innerHTML=live
+      ? `<div class="media-status-card connected"><b>Platform Voice Session Live</b><span>Phone audio is flowing through the OnTrack platform to the assigned Voice Agent.</span></div>`
+      : `<div class="media-status-card ready"><b>Direct SIM Audio Path Validated</b><span>Digital RX/TX is proven on the current test handset. Production platform streaming is not active on this call yet.</span></div>`;
   }
 
   const label=$('#mediaOverviewLabel');
-  if(label) label.textContent=connected
-    ? 'Audio on server'
-    : ready
-      ? 'Media bridge armed'
-      : 'Phone audio only';
+  if(label) label.textContent=live
+    ? 'Voice Agent session live'
+    : 'Direct SIM audio validated';
 
   const status=$('#mediaStatus');
   if(status){
-    status.textContent=connected?'CONNECTED':ready?'READY':'DISCONNECTED';
-    status.className='big-status '+(connected?'ok':ready?'pending':'media-off');
+    status.textContent=live?'LIVE':'POC VALIDATED';
+    status.className='big-status '+(live?'ok':'pending');
   }
 
   const detail=$('#mediaStatusDetail');
-  if(detail) detail.textContent=media.detail||'No live call audio is reaching this server.';
+  if(detail) detail.textContent=live
+    ? 'The current call audio is attached to an OnTrack platform Voice Agent session.'
+    : 'Digital SIM receive and return-audio injection are validated. The remaining step is production phone ↔ platform media streaming.';
 
   const serverAudio=$('#serverAudioState');
   if(serverAudio){
-    serverAudio.textContent=connected?'YES':'NO';
-    serverAudio.className=connected?'state-ok':'state-off';
+    serverAudio.textContent=live?'ACTIVE':'NOT ACTIVE';
+    serverAudio.className=live?'state-ok':'state-off';
   }
 
   const recordingState=$('#recordingState');
@@ -390,6 +379,7 @@ function renderMedia(media){
     recordingState.className=media.recording_enabled?'state-ok':'state-off';
   }
 }
+
 
 window.renameDevice=async function(deviceId){
   const device=(dashboardData.devices||[]).find(x=>Number(x.id)===Number(deviceId));
