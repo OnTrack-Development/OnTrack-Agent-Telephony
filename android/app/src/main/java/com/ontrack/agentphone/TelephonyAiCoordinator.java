@@ -13,8 +13,10 @@ import org.json.JSONObject;
  *   OnTrack provisions a short-lived Live token and call-specific context.
  *
  * Media plane:
- *   SIM downlink -> local shell bridge -> Gemini Live
- *   Gemini audio -> local shell bridge -> SIM TELEPHONY_TX
+ *   SIM downlink -> local shell bridge -> OnTrack Platform -> assigned Voice Agent
+ *   Voice Agent audio -> OnTrack Platform -> local shell bridge -> SIM TELEPHONY_TX
+ *
+ * The handset never connects directly to the AI provider.
  */
 final class TelephonyAiCoordinator {
     private static final String TAG = "OnTrackTelephonyAI";
@@ -27,7 +29,7 @@ final class TelephonyAiCoordinator {
     private volatile boolean started;
 
     private LocalCallMediaBridge media;
-    private GeminiLiveSession live;
+    private PlatformVoiceSession live;
 
     private int platformSessionId;
     private String platformSessionToken = "";
@@ -81,7 +83,7 @@ final class TelephonyAiCoordinator {
                                     byte[] pcm16le,
                                     int sampleRate,
                                     int channels) {
-                                GeminiLiveSession current = live;
+                                PlatformVoiceSession current = live;
                                 if (current != null) {
                                     current.sendCallerAudio(
                                             pcm16le,
@@ -106,7 +108,7 @@ final class TelephonyAiCoordinator {
                                 // before TELEPHONY_TX is ready, otherwise the
                                 // first model audio can be silently dropped.
                                 try {
-                                    GeminiLiveSession current = live;
+                                    PlatformVoiceSession current = live;
                                     if (current == null) {
                                         throw new IllegalStateException(
                                                 "Live session object unavailable");
@@ -130,9 +132,10 @@ final class TelephonyAiCoordinator {
                             }
                         });
 
-                live = new GeminiLiveSession(
+                live = new PlatformVoiceSession(
+                        context,
                         session,
-                        new GeminiLiveSession.Listener() {
+                        new PlatformVoiceSession.Listener() {
                             @Override public void onReady() {
                                 callMediaState("connected", null);
                                 event(
@@ -201,9 +204,9 @@ final class TelephonyAiCoordinator {
 
                 // Strict ordering:
                 // 1) establish RX + TX on the handset,
-                // 2) only then connect Gemini Live.
-                // This guarantees the model's first audio cannot arrive before
-                // TELEPHONY_TX is writable.
+                // 2) only then connect the handset to the OnTrack platform relay.
+                // The platform owns provider credentials, tenant/agent identity,
+                // future tools/business-data access and the provider WebSocket.
                 callMediaState("requested", null);
                 media.start();
 
