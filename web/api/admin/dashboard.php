@@ -128,7 +128,7 @@ if ($audioOnServer) {
 } else {
     $mediaStatus = 'validated';
     $mediaLabel = 'Direct SIM audio validated';
-    $mediaDetail = 'Digital SIM RX and return-audio injection are validated on the current test handset. Production phone-to-platform media streaming is the remaining integration step.';
+    $mediaDetail = 'Digital SIM RX/TX is validated. The platform media session starts per call when the assigned Voice Agent and provider are ready.';
 }
 
 json_response([
