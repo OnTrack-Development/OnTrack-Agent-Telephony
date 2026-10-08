@@ -53,4 +53,45 @@ $pdo->prepare(
     $sessionId,
 ]);
 
+$callId = (int)($session['call_id'] ?? 0);
+
+if ($callId > 0) {
+    if ($state === 'connected' || $state === 'active') {
+        $pdo->prepare(
+            "UPDATE calls
+             SET media_status='connected',
+                 media_connected_at=COALESCE(media_connected_at,?),
+                 media_error=NULL
+             WHERE id=? AND device_id=?"
+        )->execute([now_utc(), $callId, $device['id']]);
+
+    } elseif ($state === 'failed') {
+        $pdo->prepare(
+            "UPDATE calls
+             SET media_status='failed',
+                 media_error=?
+             WHERE id=? AND device_id=?"
+        )->execute([
+            $error !== '' ? mb_substr($error, 0, 500) : 'AI session failed',
+            $callId,
+            $device['id']
+        ]);
+
+    } elseif ($state === 'ended') {
+        $pdo->prepare(
+            "UPDATE calls
+             SET media_status=CASE
+                   WHEN media_status IN ('connected','recording') THEN 'disconnected'
+                   ELSE media_status
+                 END,
+                 media_disconnected_at=CASE
+                   WHEN media_connected_at IS NOT NULL
+                   THEN COALESCE(media_disconnected_at,?)
+                   ELSE media_disconnected_at
+                 END
+             WHERE id=? AND device_id=?"
+        )->execute([now_utc(), $callId, $device['id']]);
+    }
+}
+
 json_response(['ok' => true]);
