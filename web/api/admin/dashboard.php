@@ -108,7 +108,7 @@ $contacts = $pdo->query(
 
 $liveMedia = $pdo->query(
     "SELECT COUNT(*) FROM ai_sessions
-     WHERE status IN ('connecting','connected','live')
+     WHERE status IN ('connecting','connected','active','live')
        AND ended_at IS NULL"
 )->fetchColumn();
 
