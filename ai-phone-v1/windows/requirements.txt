@@ -1,0 +1,3 @@
+google-genai>=1.48,<3
+sounddevice>=0.5,<1
+numpy>=2.0,<3

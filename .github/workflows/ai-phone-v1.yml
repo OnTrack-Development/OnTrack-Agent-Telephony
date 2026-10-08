@@ -1,0 +1,67 @@
+name: AI Phone v1 — POC builds
+on:
+  push:
+    branches: ['feature/ai-phone-v1-from-scratch']
+    paths: ['ai-phone-v1/**', '.github/workflows/ai-phone-v1.yml']
+  pull_request:
+    paths: ['ai-phone-v1/**', '.github/workflows/ai-phone-v1.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  logic-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - name: Test Android call policy without Android SDK
+        run: |
+          mkdir -p /tmp/aiphone-classes
+          javac -d /tmp/aiphone-classes ai-phone-v1/android/app/src/main/java/com/ontrack/aiphone/{CallPolicy,AnswerDecision}.java ai-phone-v1/android/tests/com/ontrack/aiphone/PolicyTest.java
+          java -cp /tmp/aiphone-classes com.ontrack.aiphone.PolicyTest
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Test local readiness gate
+        run: python -m unittest discover -s ai-phone-v1/windows/tests -v
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: android-actions/setup-android@v3
+      - name: Install Android API 35
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.9'}
+      - name: Assemble debug APK (unsigned production / test-only)
+        run: gradle --no-daemon -p ai-phone-v1/android :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OnTrackAIPhone-Android-debug-POC
+          path: ai-phone-v1/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+  windows-setup:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Install Python runtime and packager
+        run: pip install -r ai-phone-v1/windows/requirements.txt pyinstaller==6.16.0
+      - name: Check Python syntax
+        run: python -m compileall -q ai-phone-v1/windows
+      - name: Package Windows app
+        working-directory: ai-phone-v1/windows
+        run: pyinstaller --noconfirm --onefile --windowed --name OnTrackAIPhone gui.py --hidden-import google.genai
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+      - name: Compile Windows installer
+        working-directory: ai-phone-v1/windows
+        shell: pwsh
+        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" .\OnTrackAIPhone.iss'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OnTrackAIPhone-Windows-POC-Setup
+          path: ai-phone-v1/windows/installer/*.exe
+          if-no-files-found: error

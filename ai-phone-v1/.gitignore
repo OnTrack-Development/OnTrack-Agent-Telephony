@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.class
+*.apk
+*.aab
+*.exe
+android/.gradle/
+android/app/build/
+windows/build/
+windows/dist/
+windows/installer/
+.env
+local.properties
