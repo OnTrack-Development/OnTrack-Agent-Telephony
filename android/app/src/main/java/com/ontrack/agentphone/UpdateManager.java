@@ -32,6 +32,10 @@ final class UpdateManager {
     private static final String CHANNEL = "ontrack_updates";
     private static final int NOTIFICATION_ID = 3301;
     private static final long CHECK_INTERVAL_MS = 6L * 60L * 60L * 1000L;
+    private static final String GITHUB_RAW_BASE =
+            "https://raw.githubusercontent.com/OnTrack-Development/OnTrack-Agent-Telephony/main/web/downloads/";
+    private static final String GITHUB_LATEST_URL =
+            GITHUB_RAW_BASE + "latest.json";
 
     interface Callback {
         void done(Result result);
@@ -94,12 +98,55 @@ final class UpdateManager {
 
     private static Result checkAndDownload(Context context) throws Exception {
         String base = AppState.server(context);
-        JSONObject latest = ApiClient.get(base, "/api/app/latest.php", null);
+
+        JSONObject platformLatest = null;
+        Exception platformError = null;
+
+        try {
+            platformLatest = ApiClient.get(
+                    base,
+                    "/api/app/latest.php",
+                    null);
+        } catch (Exception error) {
+            platformError = error;
+            Log.w(TAG, "Platform update metadata unavailable", error);
+        }
+
+        JSONObject githubLatest = null;
+        Exception githubError = null;
+
+        try {
+            githubLatest = getJson(GITHUB_LATEST_URL);
+        } catch (Exception error) {
+            githubError = error;
+            Log.w(TAG, "GitHub update metadata unavailable", error);
+        }
+
+        JSONObject latest = chooseNewest(
+                platformLatest,
+                githubLatest);
+
+        if (latest == null) {
+            if (platformError != null) throw platformError;
+            if (githubError != null) throw githubError;
+            throw new IllegalStateException(
+                    "No update metadata source is available");
+        }
 
         int latestCode = latest.optInt("version_code", 0);
         String latestName = latest.optString("version_name", "");
         String downloadUrl = latest.optString("download_url", "");
-        String expectedSha = latest.optString("sha256", "").toLowerCase(Locale.ROOT);
+
+        if (downloadUrl.isEmpty()) {
+            String filename = latest.optString("filename", "");
+            if (!filename.isEmpty()) {
+                downloadUrl = GITHUB_RAW_BASE + filename;
+            }
+        }
+
+        String expectedSha =
+                latest.optString("sha256", "")
+                        .toLowerCase(Locale.ROOT);
 
         int currentCode = currentVersionCode(context);
 
@@ -141,6 +188,59 @@ final class UpdateManager {
         return new Result(
                 true, true, true, latestName,
                 "Update v" + latestName + " is ready to install", apk);
+    }
+
+    private static JSONObject chooseNewest(
+            JSONObject first,
+            JSONObject second) {
+
+        if (first == null) return second;
+        if (second == null) return first;
+
+        int firstCode = first.optInt("version_code", 0);
+        int secondCode = second.optInt("version_code", 0);
+
+        return secondCode > firstCode ? second : first;
+    }
+
+    private static JSONObject getJson(String urlValue)
+            throws Exception {
+
+        HttpURLConnection connection =
+                (HttpURLConnection)new URL(urlValue).openConnection();
+
+        connection.setConnectTimeout(15000);
+        connection.setReadTimeout(20000);
+        connection.setRequestProperty(
+                "Accept",
+                "application/json");
+        connection.setUseCaches(false);
+
+        int code = connection.getResponseCode();
+
+        if (code < 200 || code >= 300) {
+            throw new IllegalStateException(
+                    "Update metadata HTTP " + code);
+        }
+
+        try (InputStream input = connection.getInputStream()) {
+            java.io.ByteArrayOutputStream out =
+                    new java.io.ByteArrayOutputStream();
+
+            byte[] buffer = new byte[8192];
+            int count;
+
+            while ((count = input.read(buffer)) >= 0) {
+                if (count > 0) {
+                    out.write(buffer, 0, count);
+                }
+            }
+
+            return new JSONObject(
+                    out.toString("UTF-8"));
+        } finally {
+            connection.disconnect();
+        }
     }
 
     static void install(Context context, File apk) {
