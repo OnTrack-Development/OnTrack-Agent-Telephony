@@ -101,6 +101,20 @@ final class TelephonyAiCoordinator {
                                                 + rxRate + "/" + rxChannels
                                                 + " TX "
                                                 + txRate + "/" + txChannels);
+
+                                // Gemini must not produce the opening greeting
+                                // before TELEPHONY_TX is ready, otherwise the
+                                // first model audio can be silently dropped.
+                                try {
+                                    GeminiLiveSession current = live;
+                                    if (current == null) {
+                                        throw new IllegalStateException(
+                                                "Live session object unavailable");
+                                    }
+                                    current.connect();
+                                } catch (Throwable error) {
+                                    fail(error);
+                                }
                             }
 
                             @Override public void onError(Throwable error) {
@@ -120,6 +134,7 @@ final class TelephonyAiCoordinator {
                         session,
                         new GeminiLiveSession.Listener() {
                             @Override public void onReady() {
+                                callMediaState("connected", null);
                                 event(
                                         "connected",
                                         null,
@@ -184,11 +199,13 @@ final class TelephonyAiCoordinator {
                             }
                         });
 
-                // Start local SIM media first. Captured frames are ignored until
-                // the Live setup completes, while TX is ready before the first
-                // model audio arrives.
+                // Strict ordering:
+                // 1) establish RX + TX on the handset,
+                // 2) only then connect Gemini Live.
+                // This guarantees the model's first audio cannot arrive before
+                // TELEPHONY_TX is writable.
+                callMediaState("requested", null);
                 media.start();
-                live.connect();
 
             } catch (Throwable error) {
                 fail(error);
@@ -207,6 +224,8 @@ final class TelephonyAiCoordinator {
         try {
             if (media != null) media.stop();
         } catch (Throwable ignored) {}
+
+        callMediaState("ended", null);
 
         event(
                 "ended",
@@ -229,6 +248,8 @@ final class TelephonyAiCoordinator {
 
         Log.e(TAG, "AI call failed: " + message, error);
 
+        callMediaState("failed", message);
+
         event(
                 "failed",
                 null,
@@ -242,6 +263,39 @@ final class TelephonyAiCoordinator {
         try {
             if (media != null) media.stop();
         } catch (Throwable ignored) {}
+    }
+
+    private void callMediaState(
+            String state,
+            String error) {
+
+        if (callId <= 0 || !AppState.paired(context)) {
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                JSONObject body = new JSONObject()
+                        .put("call_id", callId)
+                        .put("state", state);
+
+                if (error != null && !error.trim().isEmpty()) {
+                    body.put("error", error.trim());
+                }
+
+                ApiClient.post(
+                        AppState.server(context),
+                        "/api/device/media-state.php",
+                        body,
+                        AppState.token(context));
+
+            } catch (Throwable reportError) {
+                Log.w(
+                        TAG,
+                        "Could not report call media state",
+                        reportError);
+            }
+        }, "OnTrackCallMediaState").start();
     }
 
     private void event(
