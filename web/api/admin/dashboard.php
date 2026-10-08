@@ -72,16 +72,26 @@ $devicesStmt->execute([$onlineCutoff]);
 $devices = $devicesStmt->fetchAll();
 
 $calls = $pdo->query(
-    "SELECT id,direction,phone_number,contact_name,status,outcome,
-            started_at,answered_at,ended_at,duration_seconds,
-            recording_status,recording_url,
-            media_status,media_bridge_number,media_requested_at,
-            media_connected_at,media_gateway_connected_at,
-            media_merge_requested_at,media_merge_confirmed_at,
-            media_disconnected_at,media_error,
-            created_at
-     FROM calls
-     ORDER BY id DESC
+    "SELECT c.id,c.direction,c.phone_number,c.contact_name,c.status,c.outcome,
+            c.started_at,c.answered_at,c.ended_at,c.duration_seconds,
+            c.recording_status,c.recording_url,
+            c.media_status,c.media_bridge_number,c.media_requested_at,
+            c.media_connected_at,c.media_gateway_connected_at,
+            c.media_merge_requested_at,c.media_merge_confirmed_at,
+            c.media_disconnected_at,c.media_error,
+            c.created_at,
+            (SELECT s.status
+             FROM ai_sessions s
+             WHERE s.call_id=c.id
+             ORDER BY s.id DESC
+             LIMIT 1) AS ai_session_status,
+            (SELECT s.last_error
+             FROM ai_sessions s
+             WHERE s.call_id=c.id
+             ORDER BY s.id DESC
+             LIMIT 1) AS ai_session_error
+     FROM calls c
+     ORDER BY c.id DESC
      LIMIT 250"
 )->fetchAll();
 
