@@ -178,3 +178,31 @@ CREATE TABLE IF NOT EXISTS ai_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_ai_sessions_call
 ON ai_sessions(call_id,status);
+
+
+CREATE TABLE IF NOT EXISTS ai_media_in (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL,
+  sample_rate INTEGER NOT NULL,
+  channels INTEGER NOT NULL,
+  pcm BLOB NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(session_id) REFERENCES ai_sessions(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_media_in_session
+ON ai_media_in(session_id,id);
+
+CREATE TABLE IF NOT EXISTS ai_media_out (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'audio',
+  sample_rate INTEGER,
+  channels INTEGER,
+  pcm BLOB,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(session_id) REFERENCES ai_sessions(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_media_out_session
+ON ai_media_out(session_id,id);
