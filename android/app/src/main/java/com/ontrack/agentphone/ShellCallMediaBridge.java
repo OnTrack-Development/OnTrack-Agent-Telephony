@@ -106,13 +106,31 @@ public final class ShellCallMediaBridge {
                     silence,
                     0,
                     silence.length,
-                    AudioTrack.WRITE_BLOCKING);
+                    AudioTrack.WRITE_NON_BLOCKING);
 
             if (primed < 0) {
                 throw new IllegalStateException("TX prime failed: " + primed);
             }
 
             track.play();
+
+            try {
+                Thread.sleep(80L);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+
+            AudioDeviceInfo routed = null;
+            try {
+                routed = track.getRoutedDevice();
+            } catch (Throwable ignored) { }
+
+            if (routed == null
+                    || routed.getType() != AudioDeviceInfo.TYPE_TELEPHONY) {
+                throw new IllegalStateException(
+                        "TX route did not attach to TELEPHONY_TX");
+            }
+
             record.startRecording();
 
             server = new ServerSocket();
