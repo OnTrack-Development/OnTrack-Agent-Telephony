@@ -2,9 +2,9 @@
   "version_code": 24,
   "version_name": "0.7.0",
   "filename": "OnTrack-AI-Phone-v0.7.0.apk",
-  "sha256": "8764b49b914ffd35ef8128008c28364032dfa7c160df6e5881a33dc1d93225e7",
-  "size_bytes": 14192618,
-  "published_at": "2026-10-08T21:38:19Z",
+  "sha256": "bc9d59d926793b8759a68e04335d4fb29dec29f1ea342dedfe9304b1f2d0adb6",
+  "size_bytes": 14192611,
+  "published_at": "2026-10-08T21:51:54Z",
   "release_notes": "OnTrack AI Phone v0.7.0: PHONE ↔ ONTRACK PLATFORM ↔ VOICE AGENT media relay. Provider credentials and Live WebSocket remain server-side; validated SIM RX/TX stays on the handset.",
   "signing_certificate_sha256": "61:EE:0C:F7:0A:AE:92:39:E0:96:D4:42:2D:3D:4C:3B:2D:B4:D7:67:D6:FF:B6:1A:48:66:81:2C:08:EC:7B:02"
 }
