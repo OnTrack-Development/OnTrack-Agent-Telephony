@@ -20,6 +20,8 @@ $allowed = [
     'merge_confirmed',
     'add_call_unavailable',
     'merge_unavailable',
+    'connected',
+    'active',
     'failed',
     'ended',
 ];
@@ -34,7 +36,7 @@ $stmt = $pdo->prepare(
     "SELECT id,media_status,media_gateway_connected_at,
             media_merge_confirmed_at,recording_status
      FROM calls
-     WHERE id=? AND device_id=? AND direction='inbound'
+     WHERE id=? AND device_id=?
      LIMIT 1"
 );
 $stmt->execute([$callId, $device['id']]);
@@ -47,7 +49,36 @@ if (!$call) {
 $now = now_utc();
 $next = $state === 'ended' ? 'disconnected' : $state;
 
-if ($state === 'merge_requested') {
+if ($state === 'connected' || $state === 'active') {
+    $pdo->prepare(
+        "UPDATE calls
+         SET media_status='connected',
+             media_connected_at=COALESCE(media_connected_at,?),
+             media_error=NULL
+         WHERE id=?"
+    )->execute([$now, $callId]);
+
+    $next = 'connected';
+
+} elseif ($state === 'ended') {
+    $previous = (string)($call['media_status'] ?? 'not_connected');
+
+    if (in_array($previous, ['connected','recording'], true)) {
+        $next = 'disconnected';
+
+        $pdo->prepare(
+            "UPDATE calls
+             SET media_status='disconnected',
+                 media_disconnected_at=COALESCE(media_disconnected_at,?)
+             WHERE id=?"
+        )->execute([$now, $callId]);
+    } elseif ($previous === 'failed') {
+        $next = 'failed';
+    } else {
+        $next = $previous;
+    }
+
+} elseif ($state === 'merge_requested') {
     $pdo->prepare(
         "UPDATE calls
          SET media_status='merge_requested',
