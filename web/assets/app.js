@@ -250,7 +250,14 @@ function renderCalls(){
               <td>${badge(x.status)}</td>
               <td>${esc(x.outcome||'—')}</td>
               <td><b>${duration(x.duration_seconds)}</b></td>
-              <td>${mediaChip(x)}${x.media_error?`<div class="tiny">${esc(x.media_error)}</div>`:''}</td>
+              <td>
+              ${mediaChip(x)}
+              ${(x.media_error||x.ai_session_error)
+                ? `<div class="media-error-detail">${esc(x.media_error||x.ai_session_error)}</div>`
+                : (x.ai_session_status
+                    ? `<div class="tiny">AI session: ${esc(x.ai_session_status)}</div>`
+                    : '')}
+            </td>
               <td>${recording(x)}</td>
               <td>${esc(x.created_at)}</td>
               <td><button class="mini-action danger" onclick="deleteCall(${x.id})">Delete</button></td>
