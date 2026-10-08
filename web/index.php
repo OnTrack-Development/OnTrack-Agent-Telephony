@@ -24,7 +24,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?=htmlspecialchars($pageTitle)?> · OnTrack AI Telephony</title>
 <link rel="icon" type="image/svg+xml" href="assets/ontrack-icon.svg">
-<link rel="stylesheet" href="assets/app.css?v=20261008-1">
+<link rel="stylesheet" href="assets/app.css?v=20261009-1">
 </head>
 <body>
 <div class="shell">
@@ -133,7 +133,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
         <article class="card status-card">
           <h2>Direct SIM Audio Path</h2>
           <div class="big-status pending" id="mediaStatus">POC VALIDATED</div>
-          <p id="mediaStatusDetail">Digital SIM RX and return-audio injection were validated on the current test handset. Production platform streaming is the next integration step.</p>
+          <p id="mediaStatusDetail">Digital SIM RX/TX is validated. Platform streaming starts automatically for each AI-managed call.</p>
         </article>
       </div>
 
@@ -264,6 +264,6 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
   </main>
 </div>
 
-<script src="assets/app.js?v=20261008-1"></script>
+<script src="assets/app.js?v=20261009-1"></script>
 </body>
 </html>
