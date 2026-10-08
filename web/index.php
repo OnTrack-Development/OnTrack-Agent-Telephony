@@ -12,7 +12,7 @@ $titles = [
     'contacts' => ['Contacts', 'Synced contact names and phone numbers from paired devices'],
     'campaigns' => ['Campaigns', 'Sequential outbound AI calling jobs'],
     'calls' => ['Call History', 'Caller identity, duration and recording history'],
-    'architecture' => ['Bridge Status', 'Telephony bridge and incoming-call policy'],
+    'architecture' => ['Platform & Audio', 'Multi-tenant voice platform, phone audio path and call policy'],
     'updates' => ['Updates', 'Website and Android release management'],
 ];
 
@@ -24,7 +24,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?=htmlspecialchars($pageTitle)?> · OnTrack AI Telephony</title>
 <link rel="icon" type="image/svg+xml" href="assets/ontrack-icon.svg">
-<link rel="stylesheet" href="assets/app.css?v=20261006-12">
+<link rel="stylesheet" href="assets/app.css?v=20261008-1">
 </head>
 <body>
 <div class="shell">
@@ -36,7 +36,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
       <a class="nav<?=$active('contacts')?>" href="?view=contacts">Contacts</a>
       <a class="nav<?=$active('campaigns')?>" href="?view=campaigns">Campaigns</a>
       <a class="nav<?=$active('calls')?>" href="?view=calls">Call History</a>
-      <a class="nav<?=$active('architecture')?>" href="?view=architecture">Bridge Status</a>
+      <a class="nav<?=$active('architecture')?>" href="?view=architecture">Platform & Audio</a>
       <a class="nav<?=$active('updates')?>" href="?view=updates">Updates</a>
     </nav>
     <div class="sidebar-footer"><span class="dot"></span> POC Server Online<br><a href="logout.php">Sign out</a></div>
@@ -62,8 +62,8 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
         <article class="card"><div class="card-head"><h2>Recent Calls</h2><span>Name + number + duration</span></div><div id="recentCalls" class="list"></div></article>
       </div>
       <article class="card flow-card">
-        <div class="card-head"><h2>Current Telephony Flow</h2><span id="mediaOverviewLabel">Checking media path…</span></div>
-        <div class="flow"><b>OnTrack Cloud</b><i>→</i><b>Android Bridge</b><i>→</i><b>SIM / Carrier</b><i>→</i><b>Customer</b></div>
+        <div class="card-head"><h2>Current Telephony Flow</h2><span id="mediaOverviewLabel">Checking platform session…</span></div>
+        <div class="flow"><b>Customer</b><i>↔</i><b>SIM / Carrier</b><i>↔</i><b>Android Audio Bridge</b><i>↔</i><b>OnTrack Platform</b><i>↔</i><b>Assigned Voice Agent</b></div>
         <div id="mediaOverview" class="media-strip"></div>
       </article>
     </section>
@@ -107,7 +107,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
       <article class="card">
         <div class="card-head">
           <h2>Call History</h2>
-          <span>Duration is answer → hangup. Server recording starts only after Media Bridge is connected.</span>
+          <span>Duration is answer → hangup. Recording starts only when the platform audio session is active.</span>
         </div>
         <div class="history-toolbar">
           <input id="callSearch" placeholder="Search name or number">
@@ -126,24 +126,24 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
     <section class="view<?=$active('architecture')?>">
       <div class="grid two">
         <article class="card status-card">
-          <h2>Android Bridge API</h2>
+          <h2>Platform Control Plane</h2>
           <div class="big-status ok">READY</div>
-          <p>Pairing, contacts, heartbeat, incoming-call instructions, job polling and result reporting are active.</p>
+          <p>Pairing, tenant assignment, Voice Agent selection, contacts, heartbeat, call policy, campaigns and call events are active.</p>
         </article>
         <article class="card status-card">
-          <h2>Server Media Path</h2>
-          <div class="big-status media-off" id="mediaStatus">DISCONNECTED</div>
-          <p id="mediaStatusDetail">The phone is carrying the audio locally. This server currently receives call events only.</p>
+          <h2>Direct SIM Audio Path</h2>
+          <div class="big-status pending" id="mediaStatus">POC VALIDATED</div>
+          <p id="mediaStatusDetail">Digital SIM RX and return-audio injection were validated on the current test handset. Production platform streaming is the next integration step.</p>
         </article>
       </div>
 
       <article class="card" style="margin-top:14px">
-        <div class="card-head"><h2>Media & Recording State</h2><span>Never infer audio from call events</span></div>
+        <div class="card-head"><h2>Platform Media State</h2><span>No PSTN/SIP conference bridge is required</span></div>
         <div class="media-state-grid">
-          <div><span>Android call audio</span><strong class="state-ok">LOCAL / ACTIVE WHEN CALLING</strong></div>
-          <div><span>Live audio on server</span><strong id="serverAudioState" class="state-off">NO</strong></div>
-          <div><span>Server recording</span><strong id="recordingState" class="state-off">OFF</strong></div>
-          <div><span>Recording storage</span><strong>Prepared; activates with media bridge</strong></div>
+          <div><span>Phone digital call audio</span><strong class="state-ok">RX + TX VALIDATED</strong></div>
+          <div><span>Platform live session</span><strong id="serverAudioState" class="state-off">NOT ACTIVE</strong></div>
+          <div><span>Platform recording</span><strong id="recordingState" class="state-off">OFF</strong></div>
+          <div><span>Media architecture</span><strong>PHONE ↔ PLATFORM ↔ VOICE AGENT</strong></div>
         </div>
       </article>
       <article class="card" style="margin-top:14px">
@@ -185,10 +185,10 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
         </div>
       </article>
       <article class="card" style="margin-top:14px">
-        <div class="card-head"><h2>Carrier Conference Capability</h2><span>Measured live from each Android InCallService</span></div>
-        <div id="conferenceDevices"></div>
+        <div class="card-head"><h2>Phone → Tenant → Voice Agent</h2><span>Every SIM endpoint is isolated and assigned by the platform</span></div>
+        <div id="platformAssignments"></div>
         <div class="conference-note">
-          During a real call, the app reports whether Android/your carrier allows a second call. After a second call exists, it also checks whether Telecom exposes the calls as mergeable.
+          Each paired Android phone belongs to one tenant and one assigned Voice Agent. The platform owns identity, policy, tools and business-data access; the handset is only the telephony/audio endpoint.
         </div>
       </article>
       <article class="card" style="margin-top:14px">
@@ -264,6 +264,6 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
   </main>
 </div>
 
-<script src="assets/app.js?v=20261006-12"></script>
+<script src="assets/app.js?v=20261008-1"></script>
 </body>
 </html>
