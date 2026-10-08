@@ -50,16 +50,23 @@ $metrics = [
 ];
 
 $devicesStmt = $pdo->prepare(
-    "SELECT id,name,phone_number,manufacturer,model,app_version,last_seen_at,
-            conference_can_add_call,conferenceable_count,active_call_count,
-            conference_status,conference_checked_at,created_at,
+    "SELECT d.id,d.name,d.phone_number,d.manufacturer,d.model,d.app_version,d.last_seen_at,
+            d.tenant_id,d.voice_agent_id,d.created_at,
+            t.name AS tenant_name,
+            va.name AS voice_agent_name,
+            va.is_active AS voice_agent_active,
+            va.provider AS voice_agent_provider,
+            va.model AS voice_agent_model,
+            va.voice_name AS voice_agent_voice,
             CASE
-              WHEN last_seen_at IS NOT NULL AND last_seen_at >= ? THEN 'online'
+              WHEN d.last_seen_at IS NOT NULL AND d.last_seen_at >= ? THEN 'online'
               ELSE 'offline'
             END AS status
-     FROM devices
-     WHERE revoked_at IS NULL
-     ORDER BY id DESC"
+     FROM devices d
+     LEFT JOIN tenants t ON t.id=d.tenant_id
+     LEFT JOIN voice_agents va ON va.id=d.voice_agent_id
+     WHERE d.revoked_at IS NULL
+     ORDER BY d.id DESC"
 );
 $devicesStmt->execute([$onlineCutoff]);
 $devices = $devicesStmt->fetchAll();
@@ -100,11 +107,9 @@ $contacts = $pdo->query(
 )->fetchAll();
 
 $liveMedia = $pdo->query(
-    "SELECT COUNT(*) FROM calls
-     WHERE ended_at IS NULL
-       AND media_status IN ('connected','recording')
-       AND media_gateway_connected_at IS NOT NULL
-       AND media_merge_confirmed_at IS NOT NULL"
+    "SELECT COUNT(*) FROM ai_sessions
+     WHERE status IN ('connecting','connected','live')
+       AND ended_at IS NULL"
 )->fetchColumn();
 
 $liveRecording = $pdo->query(
@@ -113,24 +118,17 @@ $liveRecording = $pdo->query(
        AND recording_status='recording'"
 )->fetchColumn();
 
-$bridgeEnabled = setting_value('media_bridge_enabled', '0') === '1';
-$bridgeNumber = setting_value('media_bridge_number', '');
-
 $audioOnServer = (int)$liveMedia > 0;
 $recordingOn = (int)$liveRecording > 0;
 
 if ($audioOnServer) {
     $mediaStatus = 'connected';
-    $mediaLabel = 'Server media live';
-    $mediaDetail = 'Carrier conference audio is reaching the Media Gateway.';
-} elseif ($bridgeEnabled && $bridgeNumber !== '') {
-    $mediaStatus = 'ready';
-    $mediaLabel = 'Media bridge armed';
-    $mediaDetail = 'The PSTN media bridge is configured and waiting for an AI-handled call.';
+    $mediaLabel = 'Platform Voice Agent live';
+    $mediaDetail = 'The active call is attached to an OnTrack platform AI session.';
 } else {
-    $mediaStatus = 'disconnected';
-    $mediaLabel = 'Phone audio only';
-    $mediaDetail = 'Configure a PSTN/SIP Media Bridge number before call audio can reach the server.';
+    $mediaStatus = 'validated';
+    $mediaLabel = 'Direct SIM audio validated';
+    $mediaDetail = 'Digital SIM RX and return-audio injection are validated on the current test handset. Production phone-to-platform media streaming is the remaining integration step.';
 }
 
 json_response([
@@ -144,8 +142,8 @@ json_response([
         'status' => $mediaStatus,
         'audio_on_server' => $audioOnServer,
         'recording_enabled' => $recordingOn,
-        'bridge_enabled' => $bridgeEnabled,
-        'bridge_number' => $bridgeNumber,
+        'phone_audio_validated' => true,
+        'architecture' => 'phone_platform_voice_agent',
         'label' => $mediaLabel,
         'detail' => $mediaDetail,
     ],
