@@ -38,8 +38,8 @@ if ($state === 'ringing') {
     $bridgeNumber = '';
     $autoMerge = false;
     $mediaPin = null;
-    $mediaStatus = 'not_connected';
-    $mediaRequestedAt = null;
+    $mediaStatus = $needsAi ? 'requested' : 'not_connected';
+    $mediaRequestedAt = $needsAi ? now_utc() : null;
 
     $s = $pdo->prepare(
         "INSERT INTO calls(
