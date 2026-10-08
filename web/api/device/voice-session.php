@@ -50,89 +50,18 @@ $agentStmt->execute([$agentId, $tenantId]);
 $agent = $agentStmt->fetch();
 
 if (!$agent) {
-    json_response(['ok' => false, 'error' => 'No active voice agent is assigned to this phone'], 409);
+    json_response([
+        'ok' => false,
+        'error' => 'No active voice agent is assigned to this phone'
+    ], 409);
 }
 
-$apiKey = setting_value('gemini_api_key', '');
-if ($apiKey === '') {
+if (setting_value('gemini_api_key', '') === '') {
     json_response([
         'ok' => false,
         'error' => 'gemini_not_configured',
-        'detail' => 'Add the Gemini API key from Bridge Status → AI Platform.'
+        'detail' => 'Add the Gemini API key from Platform & Audio → AI Platform.'
     ], 503);
-}
-
-$contact = trim((string)($call['contact_name'] ?? ''));
-$phone = trim((string)($call['phone_number'] ?? ''));
-
-$callContext = "
-
-معلومات المكالمة الحالية من منصة OnTrack:
-"
-    . "- اتجاه المكالمة: " . ($direction === 'inbound' ? 'واردة' : 'صادرة') . "
-"
-    . "- اسم جهة الاتصال: " . ($contact !== '' ? $contact : 'غير معروف') . "
-"
-    . "- رقم الهاتف: " . ($phone !== '' ? $phone : 'غير متاح') . "
-"
-    . "- رقم جلسة المكالمة داخل المنصة: " . $callId . "
-"
-    . "لا تكشف أي تفاصيل تقنية عن المنصة أو رقم الجلسة للعميل.";
-
-$systemInstruction = trim((string)$agent['system_prompt']) . $callContext;
-$model = trim((string)$agent['model']);
-$voice = trim((string)$agent['voice_name']);
-
-$now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-$expireTime = $now->modify('+30 minutes')->format('Y-m-d\TH:i:s\Z');
-$newSessionExpireTime = $now->modify('+2 minutes')->format('Y-m-d\TH:i:s\Z');
-
-$tokenBody = [
-    'uses' => 1,
-    'expireTime' => $expireTime,
-    'newSessionExpireTime' => $newSessionExpireTime,
-    'liveConnectConstraints' => [
-        'model' => 'models/' . ltrim($model, '/'),
-        'config' => [
-            'responseModalities' => ['AUDIO'],
-            'sessionResumption' => (object)[],
-        ],
-    ],
-];
-
-$ch = curl_init('https://generativelanguage.googleapis.com/v1beta/auth_tokens');
-curl_setopt_array($ch, [
-    CURLOPT_POST => true,
-    CURLOPT_POSTFIELDS => json_encode($tokenBody, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_CONNECTTIMEOUT => 8,
-    CURLOPT_TIMEOUT => 20,
-    CURLOPT_HTTPHEADER => [
-        'Content-Type: application/json',
-        'x-goog-api-key: ' . $apiKey,
-        'User-Agent: OnTrackAgentTelephony/0.6.0',
-    ],
-]);
-
-$raw = curl_exec($ch);
-$http = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-$error = curl_error($ch);
-curl_close($ch);
-
-$data = is_string($raw) ? (json_decode($raw, true) ?: []) : [];
-
-if ($raw === false || $http < 200 || $http >= 300) {
-    json_response([
-        'ok' => false,
-        'error' => 'live_session_failed',
-        'detail' => $error !== '' ? $error : ($data['error']['message'] ?? 'Unable to create Live session'),
-        'status' => $http,
-    ], 502);
-}
-
-$token = trim((string)($data['name'] ?? ''));
-if ($token === '') {
-    json_response(['ok' => false, 'error' => 'live_token_missing'], 502);
 }
 
 $sessionToken = random_token(24);
@@ -143,7 +72,7 @@ $insert = $pdo->prepare(
     "INSERT INTO ai_sessions(
         tenant_id,agent_id,device_id,call_id,direction,status,
         client_token_hash,provider,model,voice_name,started_at,created_at
-     ) VALUES(?,?,?,?,?,'prepared',?,'gemini',?,?,?,?)"
+     ) VALUES(?,?,?,?,?,'prepared',?,'platform_relay',?,?,?,?)"
 );
 $insert->execute([
     $tenantId,
@@ -152,24 +81,29 @@ $insert->execute([
     $callId,
     $direction,
     $sessionHash,
-    $model,
-    $voice,
+    trim((string)$agent['model']),
+    trim((string)$agent['voice_name']),
     $created,
     $created,
 ]);
 
 $sessionId = (int)$pdo->lastInsertId();
 
+$pdo->prepare(
+    "UPDATE calls
+     SET media_status='requested',
+         media_requested_at=COALESCE(media_requested_at,?),
+         media_error=NULL
+     WHERE id=? AND device_id=?"
+)->execute([$created, $callId, $device['id']]);
+
 json_response([
     'ok' => true,
     'platform_session_id' => $sessionId,
     'platform_session_token' => $sessionToken,
-    'provider' => 'gemini_live',
-    'token' => $token,
-    'model' => $model,
-    'voice_name' => $voice,
-    'expires_at' => $expireTime,
-    'system_instruction' => $systemInstruction,
+    'provider' => 'platform_relay',
+    'model' => trim((string)$agent['model']),
+    'voice_name' => trim((string)$agent['voice_name']),
     'input_audio' => [
         'encoding' => 'pcm_s16le',
         'sample_rate' => 16000,
@@ -181,8 +115,9 @@ json_response([
         'sample_rate' => 24000,
         'channels' => 1,
     ],
-    'websocket_url' => 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained',
-    'opening_text' => $direction === 'inbound'
-        ? 'ابدأ المكالمة الآن بتحية قصيرة وطبيعية حسب شخصيتك ودورك، ثم توقف واسمع العميل.'
-        : '',
+    'relay' => [
+        'run' => '/api/device/voice-relay.php',
+        'push' => '/api/device/voice-media-push.php',
+        'pull' => '/api/device/voice-media-pull.php',
+    ],
 ]);
