@@ -6,7 +6,7 @@ let dashboardData={
   calls:[],
   campaigns:[],
   contacts:[],
-  media:{status:'disconnected',audio_on_server:false,recording_enabled:false,label:'Phone audio only'}
+  media:{status:'disconnected',audio_on_server:false,recording_enabled:false,label:'Direct SIM audio ready'}
 };
 
 async function api(url,opts={}){
@@ -236,7 +236,7 @@ function renderCalls(){
             <th>Status</th>
             <th>Outcome</th>
             <th>Duration</th>
-            <th>Server Media</th>
+            <th>AI Media</th>
             <th>Recording</th>
             <th>Created</th>
             <th></th>
