@@ -133,7 +133,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
         <article class="card status-card">
           <h2>Direct SIM Audio Path</h2>
           <div class="big-status pending" id="mediaStatus">POC VALIDATED</div>
-          <p id="mediaStatusDetail">Digital SIM RX/TX is validated. Platform streaming starts automatically for each AI-managed call.</p>
+          <p id="mediaStatusDetail">Digital SIM RX/TX is validated. For each AI-managed call, PCM now flows PHONE ↔ ONTRACK PLATFORM ↔ ASSIGNED VOICE AGENT.</p>
         </article>
       </div>
 
@@ -181,7 +181,7 @@ $active = static fn(string $name): string => $view === $name ? ' active' : '';
           </label>
         </div>
         <div class="conference-note">
-          Each Android phone is assigned to a platform tenant and Voice Agent. The handset authenticates only to OnTrack; OnTrack selects the assigned agent and provisions a short-lived Live session. The permanent Gemini key never leaves the platform.
+          Each Android phone is assigned to a platform tenant and Voice Agent. The handset sends and receives call PCM only through OnTrack. The OnTrack platform owns the provider WebSocket, agent identity, policy, tools and business-data access; provider credentials never reach Android.
         </div>
       </article>
       <article class="card" style="margin-top:14px">
