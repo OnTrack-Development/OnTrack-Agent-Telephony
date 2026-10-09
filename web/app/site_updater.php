@@ -251,6 +251,7 @@ function otup_perform_update(string $root): array {
         // Publish manifest LAST, after APK and all site files are in place.
         otup_atomic_write($root . '/downloads/latest.json',
             (string)file_get_contents($webSource . '/downloads/latest.json'));
+        @chmod($root . '/downloads/latest.json', 0644);
         otup_mark_deployed($root, $latest);
 
         return [
