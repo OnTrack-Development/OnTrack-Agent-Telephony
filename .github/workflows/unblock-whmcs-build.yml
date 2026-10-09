@@ -1,0 +1,18 @@
+name: Unblock WHMCS Android Build Queue
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/unblock-whmcs-build.yml'
+  workflow_dispatch:
+permissions:
+  actions: write
+jobs:
+  cancel-stale:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel stale corrupt NDK build attempt only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run cancel 37947984311 -R "$GITHUB_REPOSITORY"
