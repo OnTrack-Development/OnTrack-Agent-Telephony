@@ -12,9 +12,31 @@ let epoch=0;
 export const adminSessionReady=(session:Session)=>!!states.get(session)?.ready;
 export const adminSessionStamp=(session:Session)=>(states.get(session)?.key||'')+'|'+(states.get(session)?.revision||0);
 export const adminDirectory=(session:Session)=>states.get(session)?.directory||'admin';
-export function validateAdminDirectory(value:string):string {
- const dir=value.trim().replace(/^\/+|\/+$/g,'');
- if(!/^[A-Za-z0-9_-]{2,64}$/.test(dir))throw Error('اكتب اسم مجلد الإدارة فقط، بدون رابط');
+/** Accept either the admin directory name or an admin URL copied from the browser.
+ * Never allow this field to change the configured WHMCS host or installation root.
+ */
+export function validateAdminDirectory(value:string,baseUrl?:string):string {
+ const original=value.trim();
+ if(!original)throw Error('اكتب اسم مجلد الإدارة أو الصق رابط لوحة WHMCS.');
+ let dir=original;
+ if(/^https?:\/\//i.test(original)){
+  if(!baseUrl)throw Error('رابط الإدارة لازم يكون من نفس سيرفر WHMCS.');
+  let u:URL;
+  try{u=new URL(original);}catch{throw Error('رابط لوحة الإدارة غير صالح.');}
+  const home=new URL(validateBaseUrl(baseUrl)+'/');
+  if(u.protocol!=='https:'||u.origin!==home.origin||u.username||u.password||u.hash)
+   throw Error('رابط الإدارة لازم يكون HTTPS ومن نفس سيرفر WHMCS.');
+  if(!u.pathname.startsWith(home.pathname))
+   throw Error('رابط الإدارة خارج مسار تثبيت WHMCS.');
+  dir=u.pathname.slice(home.pathname.length);
+  if(u.search&&!(dir.endsWith('/addonmodules.php')||dir.endsWith('/index.php')||dir.endsWith('/login.php')))
+   throw Error('الصق رابط مجلد الإدارة أو إحدى صفحاته الرئيسية فقط.');
+ }else if(/[?:#]/.test(original)){
+  throw Error('اكتب اسم مجلد الإدارة فقط، أو رابط HTTPS الكامل لنفس سيرفر WHMCS.');
+ }
+ dir=dir.replace(/^\/+|\/+$/g,'').replace(/\/(?:index|login|addonmodules)\.php$/i,'');
+ if(!/^[A-Za-z0-9_-]{2,64}$/.test(dir))
+  throw Error('مجلد الإدارة لازم يكون اسم مجلد واحد مثل admin أو رابط لوحة الإدارة الكامل، وليس مسار ملفات السيرفر.');
  return dir;
 }
 export async function savedAdminDirectory(session:Session):Promise<string>{
@@ -72,7 +94,7 @@ async function request(session:Session,state:AdminState,target:string,method:'GE
  return response;
 }
 export async function loginAdmin(session:Session,directory:string,username:string,password:string,otp=''):Promise<{ready:boolean;needsOtp:boolean}>{
- const dir=validateAdminDirectory(directory),name=username.trim();
+ const dir=validateAdminDirectory(directory,session.baseUrl),name=username.trim();
  if(!name||(!password&&!otp))throw Error('اكتب اسم الموظف وكلمة المرور');
  let state=states.get(session);
  if(!state||state.directory!==dir||state.username!==name){
@@ -82,13 +104,27 @@ export async function loginAdmin(session:Session,directory:string,username:strin
  state.ready=false;
  let form=state.challenge;
  if(!form||!otp){
-  const page=await request(session,state,dir+'/index.php','GET');
-  if(page.status===404)throw Error('مجلد الإدارة غير صحيح. اكتب اسم مجلد الإدارة الموجود عندك.');
-  if(page.status>=400)throw Error('WHMCS رفض فتح صفحة الدخول ('+page.status+').');
-  form=parseLoginForm(page.body,page.url,session.baseUrl,dir)||undefined;
-  if(!form&&/logout\.php/i.test(page.body)){state.ready=true;state.revision++;return {ready:true,needsOtp:false};}
+  // WHMCS installations differ in their admin landing path. Try only
+  // documented, same-origin admin entrypoints, not arbitrary endpoints.
+  const entries=[dir+'/',dir+'/index.php',dir+'/login.php'];
+  let seen404=0,loginPage:HttpResponse|null=null;
+  for(const candidate of entries){
+   const page=await request(session,state,candidate,'GET');
+   if(page.status===404){seen404++;continue;}
+   if(page.status===429)throw Error('WHMCS رفض كثرة المحاولات مؤقتًا (429). انتظر قبل إعادة تسجيل الدخول.');
+   if(page.status===403)throw Error('WHMCS رفض الوصول للإدارة (403). تحقق من صلاحيات الحساب أو حماية السيرفر.');
+   if(page.status>=400)throw Error('صفحة إدارة WHMCS رجّعت HTTP '+page.status+'.');
+   const parsed=parseLoginForm(page.body,page.url,session.baseUrl,dir);
+   if(parsed){form=parsed;loginPage=page;break;}
+   if(/logout\.php/i.test(page.body)){state.ready=true;state.revision++;return {ready:true,needsOtp:false};}
+   loginPage=page;
+  }
+  if(seen404===entries.length)
+   throw Error('المجلد غير موجود على هذا الرابط (404). افتح لوحة إدارة WHMCS من المتصفح وانسخ رابطها الكامل في الخانة.');
+  if(!form&&loginPage)
+   throw Error('صفحة الإدارة موجودة لكن نموذج تسجيل الدخول مختلف أو يطلب حماية إضافية. جرّب نفس رابط لوحة الإدارة المفتوحة في المتصفح.');
  }
- if(!form)throw Error('لم يتم التعرف على نموذج تسجيل دخول WHMCS.');
+ if(!form)throw Error('لم يتم التعرف على نموذج تسجيل دخول WHMCS؛ افتح الإدارة من المتصفح للتحقق من مسار الدخول.');
  const fields={...form.fields,...(form.otpField?{[form.otpField]:otp}:{username:name,password})};
  const response=await request(session,state,form.action,'POST',fields);
  const next=parseLoginForm(response.body,response.url,session.baseUrl,dir);
