@@ -165,7 +165,7 @@ function CommandApp(){
  const body=()=>{
   if(page==='home')return <Home data={data} demo={demo} navigate={navigate} capabilities={caps} totals={totals}/>;
   if(page==='tickets')return <Tickets session={session} tickets={data.tickets} reloadSignal={ticketReload} onReply={reply} demo={demo} onComposerFocus={revealComposer} onDetailChange={setTicketDetailOpen}/>;
-  if(page==='whatsapp')return <WhatsApp chats={data.chats} demo={demo} enabled={!!caps['whatsapp.read']} canSend={demo||!!caps['whatsapp.send']} onSend={sendWhatsApp}/>;
+  if(page==='whatsapp')return <WhatsApp session={session} chats={data.chats} demo={demo} enabled={!!caps['whatsapp.read']} canSend={demo||!!caps['whatsapp.send']} onSend={sendWhatsApp}/>;
   if(page==='ai')return <AiOps agents={data.agents} queue={data.queue} connected={!!caps['ai.read']} demo={demo}/>;
   if(page==='more')return <View><T size={26} weight="900">كل الأقسام</T><T color={C.muted} style={{marginBottom:20}}>إدارة WHMCS والموديولات من مكان واحد</T><View style={{flexDirection:'row-reverse',flexWrap:'wrap',gap:12}}>{menu.map(m=><Pressable key={m.page} onPress={()=>navigate(m.page)} style={{width:'47%',padding:17,backgroundColor:C.surface,borderWidth:1,borderColor:C.stroke,borderRadius:18,gap:10}}><Icon name={m.icon} size={25} color={C.red}/><T weight="800" size={15}>{m.label}</T><Icon name="arrow-left" size={17} color={C.muted}/></Pressable>)}</View></View>;
   if(page==='settings')return <Settings session={session} demo={demo} onLogout={logout} capabilities={caps} errors={errors}/>;
