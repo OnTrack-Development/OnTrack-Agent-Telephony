@@ -34,7 +34,7 @@ export function AdminAccess({session,onReady}:{session:Session;onReady:()=>void}
  if(ready&&adminSessionReady(session))return <Card style={{gap:8}}><T size={12} color={C.green}>جلسة الإدارة متصلة</T></Card>;
  return <Card style={{gap:12}}>
   <T size={16} weight="800">تسجيل دخول الإدارة</T>
-  <T size={12} color={C.muted}>سجّل دخول الموظف لعرض المحادثات وأدوات التذكرة داخل التطبيق.</T>
+  <T size={12} color={C.muted}>سجّل دخول الموظف لعرض المحادثات داخل التطبيق. جلسة المتصفح منفصلة عن جلسة التطبيق، حتى لو الرابط بيفتح عندك عادي.</T>
   {!needsOtp?<>
    <TextInput accessibilityLabel="مجلد إدارة WHMCS" placeholder="اسم المجلد أو رابط لوحة الإدارة" placeholderTextColor={C.muted} value={directory} onChangeText={setDirectory} autoCapitalize="none" autoCorrect={false} style={field}/>
    <T size={12} color={C.muted}>تقدر تكتب اسم المجلد فقط، أو تلصق رابط إدارة WHMCS الكامل من المتصفح. ده غير رابط ويبهوك واتساب.</T>

@@ -35,9 +35,11 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.7');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,18);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.8');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,19);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
+assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
+assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
 console.log('PASS: source integrity plus ticket external ID, pagination, safe areas, Android Back, version increment and demo isolation');
 
 const updateCode=get('mobile/src/components/UpdateGate.tsx');
