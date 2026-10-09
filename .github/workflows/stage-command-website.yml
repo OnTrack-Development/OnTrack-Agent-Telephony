@@ -1,0 +1,46 @@
+name: Stage OnTrack Command APK for website
+on:
+  push:
+    branches: [command-site-migration]
+    paths:
+      - '.github/workflows/stage-command-website.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official signed release into web root
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=command-v0.2.3-16
+          FILE=OnTrack-Command-v0.2.3-ARM64-release-signed.apk
+          gh release download "$TAG" -R OnTrack-Development/OnTrack-Agent-Telephony --pattern "$FILE" --dir /tmp
+          test "$(stat -c%s "/tmp/$FILE")" -eq 27183938
+          mkdir -p web/downloads
+          cp "/tmp/$FILE" "web/downloads/$FILE"
+          sha256sum "web/downloads/$FILE"
+          SHA="$(sha256sum "web/downloads/$FILE" | awk '{print $1}')"
+          cat > web/downloads/latest.json <<EOF
+          {
+            "app_id":"com.ontrackdevelopment.command",
+            "version_name":"0.2.3",
+            "version_code":4,
+            "filename":"$FILE",
+            "sha256":"$SHA",
+            "size_bytes":27183938,
+            "release_notes":"v0.2.3: Android safe areas, back navigation and confirmation, WHMCS ticket numbers and paginated lists. WhatsApp and AI native integrations still under development.",
+            "published_at":"$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          }
+          EOF
+          git config user.name "OnTrack Command Release Bot"
+          git config user.email "releases@ontrackegy.com"
+          git add web/downloads/latest.json "web/downloads/$FILE"
+          git commit -m "Stage locally-hosted OnTrack Command v0.2.3 APK [skip ci]"
+          git push origin HEAD:command-site-migration
