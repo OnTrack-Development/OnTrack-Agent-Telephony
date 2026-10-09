@@ -131,7 +131,7 @@ jobs:
           test "$BYTES" -lt 73304381
       - uses: actions/upload-artifact@v4
         with:
-          name: WHMCS-v0.3.8-ARM64-signed
+          name: WHMCS-v0.3.9-ARM64-signed
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Publish GitHub Release with APK and ZIP
@@ -142,12 +142,12 @@ jobs:
           set -euo pipefail
           mkdir -p out
           APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-          cp "$APK" out/WHMCS-v0.3.8-ARM64-release-signed.apk
-          (cd out && zip -9 WHMCS-v0.3.8-ARM64-release-signed.zip WHMCS-v0.3.8-ARM64-release-signed.apk)
+          cp "$APK" out/WHMCS-v0.3.9-ARM64-release-signed.apk
+          (cd out && zip -9 WHMCS-v0.3.9-ARM64-release-signed.zip WHMCS-v0.3.9-ARM64-release-signed.apk)
           BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v0.3.8: correct WhatsApp admin login false-negative, verify actual authenticated WhatsApp Inbox access rather than requiring logout.php in admin HTML, support login 2FA and actionable permission errors. Signed ARM64 APK bytes: ${BYTES}."
-          gh release create "whmcs-v0.3.8-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
+          NOTES="WHMCS v0.3.9: WhatsApp native admin login form no longer resets on errors; support addon CSRF token lengths from 32 to 128; distinguish WHMCS Administrator role and username and surface exact permission, redirect, or module-page errors. No new WHMCS addon or webhook changes. Signed ARM64 APK bytes: ${BYTES}."
+          gh release create "whmcs-v0.3.9-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
-            --title "WHMCS v0.3.8 (Android build 19)" \
+            --title "WHMCS v0.3.9 (Android build 20)" \
             --notes "$NOTES"
           echo "Signed APK published; APK release published after successful workflow completion."
