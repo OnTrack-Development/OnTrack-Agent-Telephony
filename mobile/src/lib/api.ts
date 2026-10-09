@@ -5,6 +5,27 @@ import type {ApiResult,DemoState,Session,Ticket,Client,Invoice,Service,Order,Dom
 
 const STORAGE_KEY='ontrack-command-direct-v2';
 const TIMEOUT_MS=18000;
+// Serial calls and share a backoff across all WHMCS screens.
+const REQUEST_SPACING_MS=2000;
+let nextRequestAt=0;
+let rateLimitedUntil=0;
+let consecutive429=0;
+let gate:Promise<void>=Promise.resolve();
+const readActions=new Set(['GetTickets','GetTicket','GetAdminDetails','GetSupportStatuses','GetClients','GetInvoices','GetClientsProducts','GetOrders','GetClientsDomains']);
+const cache=new WeakMap<Session,Map<string,{until:number;promise:Promise<ApiResult<any>>}>>();
+export function getApiRetryAfterMs():number{return Math.max(0,rateLimitedUntil-Date.now());}
+async function waitTurn():Promise<void>{
+ const turn=gate.catch(()=>{}).then(async()=>{
+  const ms=Math.max(0,nextRequestAt-Date.now());
+  if(ms)await new Promise<void>(done=>setTimeout(done,ms));
+  nextRequestAt=Date.now()+REQUEST_SPACING_MS;
+ });
+ gate=turn;
+ await turn;
+}
+function throttled():ApiResult<any>{
+ return {ok:false,code:'HTTP_429',error:`WHMCS HTTP 429 — ضغط مؤقت على API؛ المحاولة التالية بعد ${Math.ceil(getApiRetryAfterMs()/1000)} ثانية`};
+}
 export function validateBaseUrl(value:string):string {
  const u=new URL(value.trim());
  if(u.protocol!=='https:'||!u.hostname||u.username||u.password||u.search||u.hash||u.port&&u.port!=='443')throw Error('اكتب رابط HTTPS الصحيح بدون كلمة مرور أو معاملات إضافية');
@@ -19,7 +40,7 @@ const s=(v:any)=>v===null||v===undefined?'':String(v);
 const n=(v:any)=>Number(v)||0;
 const redact=(msg:string)=>msg.replace(/(password|secret|accesskey|identifier|token)\s*[=:]\s*[^\s,;&]+/gi,'$1=[REDACTED]');
 
-export async function callApi<T=any>(session:Session,action:string,params:Record<string,string|number|boolean|undefined>={}):Promise<ApiResult<T>>{
+async function callApiUncached<T=any>(session:Session,action:string,params:Record<string,string|number|boolean|undefined>={}):Promise<ApiResult<T>>{
  const body=new URLSearchParams();
  const pass=session.mode==='admin'?md5(session.password):session.secret;
  const username=session.mode==='admin'?session.username:session.identifier;
@@ -27,16 +48,43 @@ export async function callApi<T=any>(session:Session,action:string,params:Record
  if(session.mode==='admin'&&session.accessKey)body.set('accesskey',session.accessKey);
  body.set('action',action);
  Object.entries(params).forEach(([k,v])=>{if(v!==undefined)body.set(k,String(v));});
+ if(getApiRetryAfterMs()>0)return throttled();
+ await waitTurn();
+ if(getApiRetryAfterMs()>0)return throttled();
  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),TIMEOUT_MS);
  try{
   const response=await fetch(apiEndpoint(session.baseUrl),{method:'POST',headers:{'Accept':'application/json','Content-Type':'application/x-www-form-urlencoded'},body:body.toString(),signal:controller.signal});
+  if(response.status===429){
+   consecutive429++;
+   const rawRetry=response.headers?.get?.('retry-after')||'';
+   const seconds=Number(rawRetry);
+   const retryMs=rawRetry?(Number.isFinite(seconds)?seconds*1000:Date.parse(rawRetry)-Date.now()):0;
+   const waitMs=Math.max(20000,Math.min(180000,Math.max(Number.isFinite(retryMs)?retryMs:0,20000*Math.pow(2,Math.min(3,consecutive429-1)))));
+   rateLimitedUntil=Math.max(rateLimitedUntil,Date.now()+waitMs);
+   return throttled();
+  }
   const raw=await response.text();
   if(!response.ok)return {ok:false,code:`HTTP_${response.status}`,error:`WHMCS HTTP ${response.status}`};
+  consecutive429=0;
   let json:any;try{json=JSON.parse(raw);}catch{return {ok:false,code:'INVALID_JSON',error:'WHMCS لم يرجع JSON صالح. راجع رابط التثبيت و WAF.'};}
   if(json?.result!=='success')return {ok:false,code:'WHMCS_ERROR',error:redact(s(json?.message||json?.error||'WHMCS رفض العملية')).slice(0,240)};
   return {ok:true,data:json as T};
  }catch(e){return {ok:false,code:'NETWORK_ERROR',error:e instanceof Error?redact(e.message):'خطأ اتصال'};}
  finally{clearTimeout(timeout);}
+}
+// Cache only read-only calls, scoped to each authenticated session (never shared across users).
+export async function callApi<T=any>(session:Session,action:string,params:Record<string,string|number|boolean|undefined>={}):Promise<ApiResult<T>>{
+ if(!readActions.has(action))return callApiUncached<T>(session,action,params);
+ const key=action+'|'+JSON.stringify(params);
+ let items=cache.get(session);
+ if(!items){items=new Map();cache.set(session,items);}
+ const prior=items.get(key);
+ if(prior&&prior.until>Date.now())return prior.promise as Promise<ApiResult<T>>;
+ const task=callApiUncached<T>(session,action,params);
+ items.set(key,{until:Date.now()+45000,promise:task});
+ const active=items;
+ void task.then(result=>{if(!result.ok&&active.get(key)?.promise===task)active.delete(key);});
+ return task;
 }
 export async function connect(data:Session):Promise<ApiResult<Session>>{
  const session={...data,baseUrl:validateBaseUrl(data.baseUrl)};
