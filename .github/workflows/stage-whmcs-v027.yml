@@ -1,0 +1,86 @@
+name: Stage WHMCS v0.2.7 for Server
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/stage-whmcs-v027.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: whmcs-v027-server
+  cancel-in-progress: false
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download verified signed Android release
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="OnTrack-Development/OnTrack-Agent-Telephony"
+          TAG=""
+          for i in $(seq 1 180); do
+            TAG="$(gh release list -R "$REPO" --limit 100 --json tagName --jq '.[] | select(.tagName | startswith("whmcs-v0.2.7-")) | .tagName' | head -n1)"
+            if test -n "$TAG"; then break; fi
+            sleep 15
+          done
+          test -n "$TAG" || { echo "Failed to find signed v0.2.7 release"; exit 1; }
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+          mkdir -p /tmp/whmcs-release
+          gh release download "$TAG" -R "$REPO" --pattern 'WHMCS-v0.2.7-ARM64-release-signed.apk' --dir /tmp/whmcs-release
+          test -s /tmp/whmcs-release/WHMCS-v0.2.7-ARM64-release-signed.apk
+      - name: Replace website manifest and APK (both root and web)
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="WHMCS-v0.2.7-ARM64-release-signed.apk"
+          FROM="/tmp/whmcs-release/$APK"
+          SIZE="$(stat -c%s "$FROM")"
+          SHA="$(sha256sum "$FROM" | awk '{print $1}')"
+          test "$SIZE" -gt 10000000
+          test "$SIZE" -lt 70000000
+          for dir in web/downloads downloads; do
+            mkdir -p "$dir"
+            find "$dir" -maxdepth 1 -type f -name 'WHMCS-v*-ARM64-release-signed.apk' -delete
+            cp -f "$FROM" "$dir/$APK"
+          done
+          python3 - <<'PY'
+          import json,os,datetime,pathlib,hashlib
+          d=pathlib.Path('web/downloads')
+          apk=d/'WHMCS-v0.2.7-ARM64-release-signed.apk'
+          sha=hashlib.sha256(apk.read_bytes()).hexdigest()
+          meta={
+           'app_id':'com.ontrackdevelopment.command','version_name':'0.2.7',
+           'version_code':8,'filename':apk.name,'sha256':sha,
+           'size_bytes':apk.stat().st_size,
+           'release_notes':'WHMCS 0.2.7: update popup version detection corrected, explicit update check in Settings, WHMCS HTTP 429 backoff and automatic recovery, cached data retained during connection errors.',
+           'published_at':datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds').replace('+00:00','Z')
+          }
+          for path in [pathlib.Path('web/downloads/latest.json'),pathlib.Path('downloads/latest.json')]:
+           path.write_text(json.dumps(meta,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          assert sha==hashlib.sha256((pathlib.Path('downloads')/apk.name).read_bytes()).hexdigest()
+          print('Manifest and APK verified',sha)
+          PY
+      - name: Package verified server upload ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          (cd web && zip -qr ../out/WHMCS-Server-v0.2.7-Ready-To-Upload.zip .)
+          unzip -t out/WHMCS-Server-v0.2.7-Ready-To-Upload.zip | tail -2
+          test "$(unzip -Z1 out/WHMCS-Server-v0.2.7-Ready-To-Upload.zip | grep -c 'WHMCS-v0.2.7-ARM64-release-signed.apk')" -eq 1
+      - name: Upload ZIP to signed release and push updated website sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "$RELEASE_TAG" -R OnTrack-Development/OnTrack-Agent-Telephony out/WHMCS-Server-v0.2.7-Ready-To-Upload.zip --clobber
+          git config user.name "WHMCS Release Automation"
+          git config user.email "releases@ontrackegy.com"
+          git add -A web/downloads downloads
+          git commit -m 'Stage signed WHMCS v0.2.7 APK and website deployment archive [skip ci]'
+          git push origin HEAD:main
