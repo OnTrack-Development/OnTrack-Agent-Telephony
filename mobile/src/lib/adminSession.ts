@@ -1,5 +1,6 @@
 import {NativeModules} from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import {md5} from 'js-md5';
 import {validateBaseUrl} from './api';
 import type {Session} from '../types';
 
@@ -7,7 +8,9 @@ interface HttpResponse {status:number;url:string;body:string}
 interface LoginForm {action:string;fields:Record<string,string>;otpField?:string}
 interface AdminState {directory:string;key:string;ready:boolean;username:string;revision:number;challenge?:LoginForm}
 let states=new WeakMap<Session,AdminState>();
-const CONFIG_KEY='whmcs-existing-whatsapp-admin-directory-v1';
+const CONFIG_KEY='whmcs-admin-directory-v2';
+/** SecureStore keys cannot contain : / or |. Hash only the public WHMCS URL. */
+export const adminDirectoryStorageKey=(session:Session):string=>CONFIG_KEY+'-'+md5(validateBaseUrl(session.baseUrl));
 let epoch=0;
 export const adminSessionReady=(session:Session)=>!!states.get(session)?.ready;
 export const adminSessionStamp=(session:Session)=>(states.get(session)?.key||'')+'|'+(states.get(session)?.revision||0);
@@ -40,7 +43,18 @@ export function validateAdminDirectory(value:string,baseUrl?:string):string {
  return dir;
 }
 export async function savedAdminDirectory(session:Session):Promise<string>{
- return await SecureStore.getItemAsync(CONFIG_KEY+'|'+validateBaseUrl(session.baseUrl))||'admin';
+ try{
+  const value=await SecureStore.getItemAsync(adminDirectoryStorageKey(session));
+  return value?validateAdminDirectory(value,session.baseUrl):'admin';
+ }catch{return 'admin';}
+}
+/** Only store the selected admin *directory*, never username/password/Meta tokens. */
+export async function saveAdminDirectory(session:Session,value:string):Promise<string>{
+ const dir=validateAdminDirectory(value,session.baseUrl);
+ await SecureStore.setItemAsync(adminDirectoryStorageKey(session),dir,{
+  keychainAccessible:SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY
+ });
+ return dir;
 }
 export function htmlText(value:string):string {
  return value.replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]*>/g,' ').replace(/&#x([0-9a-f]+);/gi,(_m,n)=>{
@@ -175,7 +189,7 @@ export async function loginAdmin(session:Session,directory:string,username:strin
  // hard-coded logout.php link that isn't present in many WHMCS themes.
  await proveAdminAccess(session,state);
  state.ready=true;state.revision++;
- await SecureStore.setItemAsync(CONFIG_KEY+'|'+validateBaseUrl(session.baseUrl),dir,{keychainAccessible:SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY});
+ await saveAdminDirectory(session,dir);
  return {ready:true,needsOtp:false};
 }
 export async function adminRequest(session:Session,target:string,method:'GET'|'POST'='GET',fields:Record<string,string|number>={},headers:Record<string,string>={}):Promise<HttpResponse>{
