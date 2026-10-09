@@ -1,5 +1,9 @@
 name: Stage Latest Signed WHMCS APK to Live Website
 on:
+  workflow_run:
+    workflows: [Build WHMCS Compact ARM64 APK]
+    types: [completed]
+    branches: [ontrack-command-native]
   workflow_dispatch:
 permissions:
   contents: write
@@ -8,6 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   stage:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
