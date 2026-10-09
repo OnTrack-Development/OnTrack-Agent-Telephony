@@ -1,0 +1,90 @@
+name: Deploy WHMCS Website
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: whmcs-website-ftps
+  cancel-in-progress: false
+jobs:
+  deploy:
+    name: Upload website over encrypted FTPS and verify it
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm credentials and local update manifest
+        env:
+          FTP_SERVER: ${{ secrets.WHMCS_FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.WHMCS_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.WHMCS_FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$FTP_SERVER" ] || [ -z "$FTP_USERNAME" ] || [ -z "$FTP_PASSWORD" ]; then
+            echo "::error::Set WHMCS_FTP_SERVER, WHMCS_FTP_USERNAME, WHMCS_FTP_PASSWORD in repository Actions secrets."
+            exit 2
+          fi
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          root=Path('web')
+          meta=json.loads((root/'downloads/latest.json').read_text())
+          assert meta['app_id']=='com.ontrackdevelopment.command'
+          assert meta['version_code']>0 and meta['version_name']
+          apk=root/'downloads'/meta['filename']
+          assert apk.is_file() and apk.stat().st_size==meta['size_bytes']
+          assert hashlib.sha256(apk.read_bytes()).hexdigest()==meta['sha256']
+          for f in ('index.php','.htaccess','api/app/latest.php'):
+           assert (root/f).is_file(),f
+          print('Verified update manifest, signed APK checksum, and site files')
+          PY
+      - name: Upload web directory (keep unrelated server files)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.WHMCS_FTP_SERVER }}
+          username: ${{ secrets.WHMCS_FTP_USERNAME }}
+          password: ${{ secrets.WHMCS_FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          security: strict
+          local-dir: ./web/
+          server-dir: ./
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+      - name: Check live website matches repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --retry-delay 3 --connect-timeout 10 --max-time 30 -H 'Cache-Control: no-cache' https://agent.ontrackegy.com/api/app/latest.php > /tmp/whmcs-live.json
+          python3 - <<'PY'
+          import json
+          local=json.load(open('web/downloads/latest.json'))
+          live=json.load(open('/tmp/whmcs-live.json'))
+          for k in ('app_id','version_name','version_code','size_bytes','sha256'):
+           assert live.get(k)==local.get(k),f'Live mismatch: {k}'
+          assert live.get('ok') is True
+          assert live.get('download_url')=='https://agent.ontrackegy.com/downloads/'+local['filename']
+          print('PASS: Live API matches GitHub release',live['version_name'])
+          PY
+          python3 - <<'PY' > /tmp/apk-url
+          import json
+          m=json.load(open('web/downloads/latest.json'))
+          print('https://agent.ontrackegy.com/downloads/'+m['filename'])
+          PY
+          curl -fsSL --retry 3 --connect-timeout 10 --max-time 180 "$(cat /tmp/apk-url)" -o /tmp/live-whmcs.apk
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          meta=json.load(open('web/downloads/latest.json'))
+          apk=Path('/tmp/live-whmcs.apk')
+          assert apk.stat().st_size==meta['size_bytes']
+          assert hashlib.sha256(apk.read_bytes()).hexdigest()==meta['sha256']
+          print('PASS: Live APK has expected size and SHA256')
+          PY
