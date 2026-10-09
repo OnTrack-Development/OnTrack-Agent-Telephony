@@ -34,12 +34,12 @@ export function AdminAccess({session,onReady}:{session:Session;onReady:()=>void}
  if(ready&&adminSessionReady(session))return <Card style={{gap:8}}><T size={12} color={C.green}>جلسة الإدارة متصلة</T></Card>;
  return <Card style={{gap:12}}>
   <T size={16} weight="800">تسجيل دخول الإدارة</T>
-  <T size={12} color={C.muted}>سجّل دخول الموظف لعرض المحادثات داخل التطبيق. جلسة المتصفح منفصلة عن جلسة التطبيق، حتى لو الرابط بيفتح عندك عادي.</T>
+  <T size={12} color={C.muted}>اكتب اسم مستخدم WHMCS الحقيقي وكلمة مروره، مش اسم مجموعة الصلاحيات. Administrator ممكن يكون اسم دور وليس اسم المستخدم. جلسة المتصفح منفصلة عن التطبيق.</T>
   {!needsOtp?<>
    <TextInput accessibilityLabel="مجلد إدارة WHMCS" placeholder="اسم المجلد أو رابط لوحة الإدارة" placeholderTextColor={C.muted} value={directory} onChangeText={setDirectory} autoCapitalize="none" autoCorrect={false} style={field}/>
    <T size={12} color={C.muted}>تقدر تكتب اسم المجلد فقط، أو تلصق رابط إدارة WHMCS الكامل من المتصفح. ده غير رابط ويبهوك واتساب.</T>
    <Action label="اختبار فتح رابط الإدارة بالمتصفح" compact secondary icon="open-in-new" onPress={()=>void checkBrowser()}/>
-   <TextInput accessibilityLabel="اسم الموظف" placeholder="اسم الموظف" placeholderTextColor={C.muted} value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} style={field}/>
+   <TextInput accessibilityLabel="اسم مستخدم إدارة WHMCS" placeholder="اسم مستخدم إدارة WHMCS (مثلاً support أو Administrator)" placeholderTextColor={C.muted} value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} style={field}/>
    <TextInput accessibilityLabel="كلمة المرور" placeholder="كلمة المرور" placeholderTextColor={C.muted} value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" style={field}/>
   </>:<TextInput accessibilityLabel="رمز التحقق" placeholder="رمز التحقق بخطوتين" placeholderTextColor={C.muted} value={otp} onChangeText={setOtp} keyboardType="number-pad" style={field}/>}
   {error?<T size={12} color={C.orange}>{error}</T>:null}
