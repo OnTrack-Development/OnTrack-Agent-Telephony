@@ -3,7 +3,8 @@ import {ActivityIndicator,Pressable,ScrollView,View} from 'react-native';
 import type {Client,Session} from '../types';
 import {C} from '../theme';
 import {Action,Card,Header,Icon,Pill,T} from '../components/UI';
-import {ClientSummary,ClientTab,ClientTabResult,fetchClientSummary,fetchClientTab,ProfileField} from '../lib/clientProfile';
+import {fetchClientSummary,fetchClientTab} from '../lib/clientProfile';
+import type {ClientSummary,ClientTab,ClientTabResult,ProfileField} from '../lib/clientProfile';
 const tabs:{id:ClientTab;name:string}[]=[
  {id:'overview',name:'الملخص'},{id:'services',name:'الخدمات'},{id:'domains',name:'الدومينات'},
  {id:'invoices',name:'الفواتير'},{id:'tickets',name:'التذاكر'},{id:'orders',name:'الطلبات'},
