@@ -26,8 +26,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.1');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,12);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.2');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,13);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 console.log('PASS: source integrity plus ticket external ID, pagination, safe areas, Android Back, version increment and demo isolation');
 

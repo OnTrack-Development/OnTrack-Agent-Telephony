@@ -3,7 +3,7 @@
     "name": "WHMCS",
     "slug": "whmcs-admin",
     "scheme": "whmcsadmin",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -15,7 +15,7 @@
       "package": "com.ontrackdevelopment.command",
       "edgeToEdgeEnabled": true,
       "permissions": [],
-      "versionCode": 12,
+      "versionCode": 13,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#081322"

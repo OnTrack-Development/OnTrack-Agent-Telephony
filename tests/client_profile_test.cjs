@@ -13,7 +13,9 @@ const fixtures={
  GetInvoices:{result:'success',totalresults:1,invoices:{invoice:[{id:11,userid:92,total:'250.00'}]}},
  GetTickets:{result:'success',totalresults:1,tickets:{ticket:[{id:33,userid:92,title:'Need support'}]}},
  GetOrders:{result:'success',totalresults:0,orders:{order:[]}},
- GetContacts:{result:'success',totalresults:0,contacts:{contact:[]}}
+ GetContacts:{result:'success',totalresults:0,contacts:{contact:[]}},
+ GetQuotes:{result:'success',totalresults:1,quotes:{quote:[{id:99,userid:92,subject:'Migration'}]}},
+ GetTransactions:{result:'success',totalresults:1,transactions:{transaction:[{id:44,userid:92,amountin:'100.00'}]}}
 };
 const context={exports:{},require(name){
  if(name==='./api')return {callApi:async(_session,action,params)=>{requests.push({action,params});return {ok:true,data:fixtures[action]}},listOf:(d,k,l)=>d?.[k]?.[l]||[]};
@@ -39,6 +41,12 @@ const api=context.exports;
  assert.equal(requests[0].action,'GetClientsDetails');
  assert.equal(requests[1].action,'GetClientsProducts');
  assert.equal(requests[1].params.clientid,92);
+ const quotes=await api.fetchClientTab(session,92,'quotes');
+ const transactions=await api.fetchClientTab(session,92,'transactions');
+ assert.equal(quotes.data.records.length,1);
+ assert.equal(transactions.data.records.length,1);
+ assert.equal(requests[2].params.userid,92);
+ assert.equal(requests[3].params.clientid,92);
  const bad=api.normalizeClientDetails({client:{id:93,email:'other@example.test'}},client);
  throw Error('Should have rejected cross-client profile: '+bad.id);
 })().catch(e=>{
