@@ -1,0 +1,58 @@
+name: Package WHMCS Mobile Companion
+on:
+  push:
+    branches: [ontrack-command-native]
+    paths:
+      - 'companion/**'
+      - '.github/workflows/package-whmcs-companion.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate isolated WhatsApp addon PHP
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l companion/modules/addons/ontrack_mobile_admin/ontrack_mobile_admin.php
+          php -l companion/modules/addons/ontrack_mobile_admin/bridge.php
+          test ! -e companion/modules/addons/whatsapp_notifications
+          grep -Fq 'WhatsApp_ChatService::sendText' companion/modules/addons/ontrack_mobile_admin/bridge.php
+          grep -Fq 'mod_whatsapp_conversations' companion/modules/addons/ontrack_mobile_admin/bridge.php
+          grep -Fq 'mod_whatsapp_chat_messages' companion/modules/addons/ontrack_mobile_admin/bridge.php
+          grep -Fq 'mod_ontrack_mobile_sessions' companion/modules/addons/ontrack_mobile_admin/bridge.php
+          ! grep -RiE 'EA[A-Za-z0-9]{80,}' companion || exit 1
+          echo 'PASS: independent WHMCS Mobile Companion validates; stable WhatsApp addon untouched'
+      - name: Package installable addon
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          (cd companion && zip -q -r ../output/WHMCS-Mobile-Companion-v0.1.0.zip modules README.md)
+          unzip -t output/WHMCS-Mobile-Companion-v0.1.0.zip | tail -2
+          unzip -Z1 output/WHMCS-Mobile-Companion-v0.1.0.zip | grep '^modules/addons/ontrack_mobile_admin/bridge.php$'
+          sha256sum output/WHMCS-Mobile-Companion-v0.1.0.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WHMCS-Mobile-Companion-v0.1.0
+          path: output/WHMCS-Mobile-Companion-v0.1.0.zip
+      - name: Publish server install package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ASSET=output/WHMCS-Mobile-Companion-v0.1.0.zip
+          TAG=whmcs-mobile-companion-v0.1.0
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" --clobber
+          else
+            gh release create "$TAG" "$ASSET" --target "$GITHUB_SHA" \
+              --title "WHMCS Mobile Companion v0.1.0 — WhatsApp" \
+              --notes "Independent WHMCS admin pairing and WhatsApp Inbox bridge. Extract into WHMCS root and activate Addon Modules. Original whatsapp_notifications and webhooks are unchanged. No provider credentials are embedded."
+          fi
+          echo "PASS: install package published as GH release"
