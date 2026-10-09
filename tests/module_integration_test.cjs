@@ -50,6 +50,12 @@ function load(name){
  const admin=load('adminSession'),wa=load('whatsapp'),ticket=load('ticketAdmin'),create=load('createTicket'),ai=load('aiSnapshot');
  assert.equal(admin.isVerifiedWhatsAppInbox(`<script>window.waCSRFToken = "${csrf}";</script>`),true);
  assert.equal(admin.isVerifiedWhatsAppInbox('<main>No login, no inbox</main>'),false);
+ const token32='a'.repeat(32);
+ assert.equal(admin.isVerifiedWhatsAppInbox('<script>window.waCSRFToken = "'+token32+'";</script>'),true);
+ assert.equal(wa.whatsappCsrf('<script>window.waCSRFToken = "'+token32+'";</script>'),token32);
+ assert.match(admin.whatsappAccessDiagnostic('<section>Unauthorized WHMCS addon access</section>','https://example.test/portal/admin/addonmodules.php','admin'),/صلاحية موديول واتساب|صلاحية الموديول|WHMCS رفض/);
+ assert.match(admin.whatsappAccessDiagnostic('<main>WHMCS dashboard</main>','https://example.test/portal/admin/index.php','admin'),/أعاد التوجيه/);
+ assert.ok(!fs.readFileSync(path.join(__dirname,'../mobile/src/screens/WhatsApp.tsx'),'utf8').includes('<AdminAccess key={error}'), 'Admin login fields must survive errors');
  assert.throws(()=>admin.checkedAdminUrl(session.baseUrl,'admin','https://attacker.test/admin/dologin.php'));
  assert.throws(()=>admin.checkedAdminUrl(session.baseUrl,'admin','admin/addonmodules.php?module=other'));
  assert.throws(()=>admin.checkedAdminUrl(session.baseUrl,'admin','admin/../clientarea.php'));
