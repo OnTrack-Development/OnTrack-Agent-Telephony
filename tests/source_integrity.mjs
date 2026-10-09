@@ -23,8 +23,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.2.5');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,6);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.2.6');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,7);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 console.log('PASS: source integrity plus ticket external ID, pagination, safe areas, Android Back, version increment and demo isolation');
 
@@ -42,3 +42,16 @@ assert.equal(JSON.parse(get('mobile/app.json')).expo.android.package,'com.ontrac
 assert.ok(get('mobile/src/components/UpdateGate.tsx').includes('WHMCS-v'));
 assert.ok(get('mobile/native/android/CommandUpdateModule.java').includes('WHMCS-v'));
 console.log('PASS: WHMCS identity and icon config, stable Android package and updates');
+
+const ticketScreen=get('mobile/src/screens/Tickets.tsx');
+const ticketClient=get('mobile/src/lib/tickets.ts');
+assert.ok(ticketScreen.includes('التذاكر المسندة'));
+assert.ok(ticketScreen.includes('fetchTicketQueue'));
+assert.ok(ticketScreen.includes('إرفاق توقيع الأدمن'));
+assert.ok(ticketClient.includes('My Flagged Tickets'));
+assert.ok(ticketClient.includes('Awaiting Reply'));
+assert.ok(ticketClient.includes('GetAdminDetails'));
+assert.ok(get('mobile/App.tsx').includes('KeyboardAvoidingView'));
+assert.ok(get('mobile/App.tsx').includes('keyboardVisible'));
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.softwareKeyboardLayoutMode,'resize');
+console.log('PASS: ticket queue separation, operator signature, keyboard resizing and safe navigation');

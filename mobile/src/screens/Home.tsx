@@ -4,7 +4,7 @@ import {C,money} from '../theme';
 import type {DemoState,Page} from '../types';
 import {Action,Card,Header,Icon,ItemRow,Metric,Pill,Section,T} from '../components/UI';
 export function Home({data,demo,navigate,capabilities,totals}: {data:DemoState,demo:boolean,navigate:(p:Page)=>void,capabilities:Record<string,boolean>,totals:Record<string,number|null>}) {
- const open=data.tickets.filter(x=>x.status==='Awaiting Reply'||x.status==='Open');
+ const open=data.tickets.filter(x=>x.status!=='Answered'&&x.status!=='Closed');
  const unpaid=data.invoices.filter(x=>x.status==='Unpaid'||x.status==='Overdue');
  const outstanding=unpaid.reduce((s,i)=>s+i.amount,0);
  const bars=[26,36,28,47,40,61,49,72,65,80,60,91];
@@ -25,7 +25,7 @@ export function Home({data,demo,navigate,capabilities,totals}: {data:DemoState,d
    {demo?<Section title="نشاط التحصيل" action="التفاصيل" onPress={()=>navigate('invoices')}/>:null}
    {demo?<Card style={{paddingBottom:12}}><View style={{flexDirection:'row-reverse',justifyContent:'space-between'}}><View><T weight="800" size={19}>الأداء المالي</T><T size={11} color={C.muted}>رسم توضيحي في الوضع التجريبي</T></View><Pill label="آخر 12 يوم" color={C.blue}/></View><View style={{height:105,flexDirection:'row-reverse',gap:7,alignItems:'flex-end',paddingTop:15}}>{bars.map((n,i)=><View key={i} style={{flex:1,backgroundColor:i===bars.length-1?C.red:C.surface2,borderRadius:6,height:`${n}%`,maxHeight:90}}/>)}</View><View style={{flexDirection:'row-reverse',justifyContent:'space-between',marginTop:9}}><T size={10} color={C.muted}>الأحدث</T><T size={10} color={C.muted}>الأقدم</T></View></Card>:null}
    <Section title="تذاكر تستحق المتابعة" action="كل التذاكر" onPress={()=>navigate('tickets')}/>
-   <Card>{data.tickets.slice(0,3).map((t,i)=><View key={t.id}><ItemRow icon="ticket-outline" heading={t.subject} subtitle={`#${t.id} • ${t.customer}`} color={t.priority==='High'?C.red:C.blue} onPress={()=>navigate('tickets')} right={<Pill label={t.priority==='High'?'عاجل':'متابعة'} color={t.priority==='High'?C.red:C.orange}/>}/>{i===2?null:null}</View>)}</Card>
+   <Card>{data.tickets.filter(t=>t.status!=='Answered'&&t.status!=='Closed').slice(0,3).map((t,i)=><View key={t.id}><ItemRow icon="ticket-outline" heading={t.subject} subtitle={`#${t.number} • ${t.customer} • ${t.priority}`} color={t.priority==='High'?C.red:C.blue} onPress={()=>navigate('tickets')} right={<Pill label={t.priority==='High'?'عاجل':'متابعة'} color={t.priority==='High'?C.red:C.orange}/>}/>{i===2?null:null}</View>)}</Card>
    <Section title="الوصول السريع"/><View style={{flexDirection:'row-reverse',gap:9,marginBottom:20}}><View style={{flex:1}}><Action label="رسائل واتساب" icon="whatsapp" onPress={()=>navigate('whatsapp')}/></View><View style={{flex:1}}><Action label="غرفة AI" icon="robot-outline" secondary onPress={()=>navigate('ai')}/></View></View>
  </View>;
 }
