@@ -35,5 +35,17 @@ jobs:
           echo
           echo '=== APK headers ==='
           curl -sSI --connect-timeout 8 --max-time 22 -w 'APK_HTTP=%{http_code} APK_SIZE=%{size_download}\n' https://agent.ontrackegy.com/downloads/WHMCS-v0.2.6-ARM64-release-signed.apk | grep -Ei '^HTTP/|^content-length:|^content-type:|^location:|^APK_HTTP'
+          echo '=== REQUIRED WHMCS 0.2.7 VERSION ==='
+          python3 - <<'PY'
+          import json
+          try:
+              meta=json.load(open('/tmp/manifest'))
+              assert meta.get('ok') is True
+              print('LIVE_VERSION=',meta.get('version_name'),'BUILD=',meta.get('version_code'))
+              if meta.get('version_name')!='0.2.7' or meta.get('version_code')!=8:
+                  print('SITE_NOT_UPDATED: WHMCS v0.2.7 not deployed on live host')
+          except Exception as e:
+              print('FAILED_TO_VERIFY_VERSION:',type(e).__name__,str(e))
+          PY
           echo '=== Old login page ==='
           curl -sS --connect-timeout 8 --max-time 22 -o /dev/null -w 'OLD_LOGIN_HTTP=%{http_code}\n' https://agent.ontrackegy.com/login.php
