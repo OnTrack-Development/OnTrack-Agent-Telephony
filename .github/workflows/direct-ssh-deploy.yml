@@ -1,0 +1,87 @@
+name: Direct SSH Deploy WHMCS v0.2.7
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/direct-ssh-deploy.yml'
+      - 'web/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: direct-ssh-whmcs-server
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY || secrets.SSH_PRIVATE_KEY || secrets.SFTP_PRIVATE_KEY }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_SSH_HOST || secrets.SSH_HOST || 'agent.ontrackegy.com' }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_SSH_USER || secrets.SSH_USER || 'agentontrackegy' }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_SSH_PORT || secrets.SSH_PORT || '22' }}
+      DEPLOY_ROOT: ${{ secrets.DEPLOY_SSH_PATH || secrets.SSH_DEPLOY_PATH || '/home/agentontrackegy/public_html' }}
+      PINNED_HOST_KEYS: ${{ secrets.SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact release is present
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          m=json.loads(Path('web/downloads/latest.json').read_text())
+          assert m['version_name']=='0.2.7' and m['version_code']==8
+          apk=Path('web/downloads')/m['filename']
+          assert apk.stat().st_size==m['size_bytes']
+          assert hashlib.sha256(apk.read_bytes()).hexdigest()==m['sha256']
+          print('Verified v0.2.7 APK and manifest')
+          PY
+      - name: Require existing SSH deployment credentials
+        run: |
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::error::No SSH deployment private key configured in this GitHub repository (DEPLOY_SSH_KEY or SSH_PRIVATE_KEY or SFTP_PRIVATE_KEY). GitHub connection alone cannot access hosting."
+            exit 3
+          fi
+          echo 'Found an existing SSH deployment key (value will not be exposed).'
+      - name: Prepare authenticated SSH channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/whmcs_deploy
+          chmod 600 ~/.ssh/whmcs_deploy
+          if [ -n "$PINNED_HOST_KEYS" ]; then
+            printf '%s\n' "$PINNED_HOST_KEYS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          test -s ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Upload app and updater, retaining unrelated hosting files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$DEPLOY_USER" = 'agentontrackegy'
+          case "$DEPLOY_ROOT" in
+            /home/agentontrackegy/public_html|/home/agentontrackegy/public_html/) ;;
+            *) echo "::error::Unverified destination path $DEPLOY_ROOT"; exit 4;;
+          esac
+          SSH="ssh -i $HOME/.ssh/whmcs_deploy -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=15 -p $DEPLOY_PORT"
+          $SSH "$DEPLOY_USER@$DEPLOY_HOST" "test -d '$DEPLOY_ROOT' && test -w '$DEPLOY_ROOT'"
+          rsync -av --checksum -e "$SSH" web/ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_ROOT/"
+          # Remove only the old release, never recursively delete unrelated server data.
+          $SSH "$DEPLOY_USER@$DEPLOY_HOST" "rm -f '$DEPLOY_ROOT/downloads/WHMCS-v0.2.6-ARM64-release-signed.apk'"
+      - name: Verify live version and APK URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --max-time 25 https://agent.ontrackegy.com/api/app/latest.php -o /tmp/live.json
+          python3 - <<'PY'
+          import json
+          x=json.load(open('/tmp/live.json'))
+          assert x.get('ok') is True and x.get('version_name')=='0.2.7' and x.get('version_code')==8,x
+          assert x.get('download_url')=='https://agent.ontrackegy.com/downloads/WHMCS-v0.2.7-ARM64-release-signed.apk'
+          print('SITE_LIVE_VERIFIED: WHMCS 0.2.7 build 8')
+          PY
+          curl -fsSI --max-time 20 https://agent.ontrackegy.com/downloads/WHMCS-v0.2.7-ARM64-release-signed.apk | head -10
