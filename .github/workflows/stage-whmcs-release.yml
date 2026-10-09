@@ -1,0 +1,98 @@
+name: Stage Latest Signed WHMCS APK to Live Website
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: whmcs-latest-signed-release-stage
+  cancel-in-progress: false
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: OnTrack-Development/OnTrack-Agent-Telephony
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Identify signed Android release and exact versionCode
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="$(gh release list -R "$REPO" --limit 30 --json tagName,isDraft,isPrerelease --jq '.[] | select((.isDraft|not) and (.isPrerelease|not) and (.tagName|test("^whmcs-v[0-9]+[.][0-9]+[.][0-9]+-[0-9]+$"))) | .tagName' | head -n1)"
+          test -n "$TAG" || { echo "::error::No WHMCS signed release found"; exit 1; }
+          git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
+          git show "$TAG:mobile/app.json" > /tmp/whmcs-mobile-version.json
+          VERSION="$(python3 -c 'import json;print(json.load(open("/tmp/whmcs-mobile-version.json"))["expo"]["version"])')"
+          CODE="$(python3 -c 'import json;print(json.load(open("/tmp/whmcs-mobile-version.json"))["expo"]["android"]["versionCode"])')"
+          case "$TAG" in whmcs-v"$VERSION"-*) ;; *) echo "::error::Release tag does not match Android app.json"; exit 2;; esac
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_CODE=$CODE" >> "$GITHUB_ENV"
+          mkdir -p /tmp/whmcs-signed-release
+          gh release download "$TAG" -R "$REPO" --pattern "WHMCS-v$VERSION-ARM64-release-signed.apk" --dir /tmp/whmcs-signed-release
+          test -s "/tmp/whmcs-signed-release/WHMCS-v$VERSION-ARM64-release-signed.apk"
+          echo "Ready to stage $TAG app version $VERSION code $CODE"
+      - name: Stage only signed, newer Android APK release
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,hashlib,os,pathlib,datetime
+          version=os.environ['RELEASE_VERSION']
+          code=int(os.environ['RELEASE_CODE'])
+          old=json.loads(pathlib.Path('web/downloads/latest.json').read_text())
+          apkname=f'WHMCS-v{version}-ARM64-release-signed.apk'
+          src=pathlib.Path('/tmp/whmcs-signed-release')/apkname
+          digest=hashlib.sha256(src.read_bytes()).hexdigest()
+          size=src.stat().st_size
+          assert 10000000 < size < 73000000,size
+          assert code >= int(old['version_code']),'Release rollback forbidden'
+          if code == int(old['version_code']):
+           assert version == old['version_name'] and digest == old['sha256'],'Same build number has different APK; increment Android versionCode'
+          meta={
+           'app_id':'com.ontrackdevelopment.command',
+           'version_name':version,
+           'version_code':code,
+           'filename':apkname,
+           'sha256':digest,
+           'size_bytes':size,
+           'release_notes':f'WHMCS v{version}: improved ticket workflow, closed-status filters, keyboard-safe replies, operator signature, rate-limit recovery.',
+           'published_at':datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds').replace('+00:00','Z')
+          }
+          for folder in ('downloads','web/downloads'):
+           dest=pathlib.Path(folder)
+           for old_apk in dest.glob('WHMCS-v*-ARM64-release-signed.apk'):
+            if old_apk.name != apkname: old_apk.unlink()
+           (dest/apkname).write_bytes(src.read_bytes())
+           (dest/'latest.json').write_text(json.dumps(meta,ensure_ascii=False,indent=2)+'\n',encoding='utf8')
+          assert hashlib.sha256((pathlib.Path('downloads')/apkname).read_bytes()).hexdigest()==digest
+          print('PASS: staged exact signed APK and manifest for both website locations')
+          PY
+      - name: Package and attach website installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="WHMCS-Server-v${RELEASE_VERSION}-Ready-To-Upload.zip"
+          mkdir -p out
+          (cd web && zip -qr "../out/$FILE" .)
+          unzip -t "out/$FILE" | tail -2
+          gh release upload "$RELEASE_TAG" -R "$REPO" "out/$FILE" --clobber
+      - name: Commit signed release to main for automatic server-side GitHub pull
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "WHMCS Signed Release Automation"
+          git config user.email "releases@ontrackegy.com"
+          git add -A downloads web/downloads
+          if git diff --cached --quiet; then
+            echo 'Signed release already staged and current.'
+            exit 0
+          fi
+          git commit -m "Publish signed WHMCS v${RELEASE_VERSION} build ${RELEASE_CODE} to live GitHub-pull website [skip ci]"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
+          echo "PASS: GitHub site source updated; installed server-side pull updates live website automatically"
