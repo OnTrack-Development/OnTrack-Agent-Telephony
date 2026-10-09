@@ -1,5 +1,5 @@
 # Stage the latest signed Android release and verify the live site's GitHub-pull deployment.
-# Trigger production stage for signed v0.3.7 (build 18) after validating the Android release.
+# Trigger production stage for signed v0.3.8 (build 19) after validating the Android release.
 name: Stage Latest Signed WHMCS APK to Live Website
 on:
   push:
