@@ -10,7 +10,7 @@ header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store');
 ?><!doctype html>
 <html lang="ar" dir="rtl">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WHMCS — تحديث GitHub التلقائي</title>
+<head><meta name="whmcs-deployment-check" content="github-pull-20261009-verified"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WHMCS — تحديث GitHub التلقائي</title>
 <style>body{font:16px system-ui;background:#0a101c;color:#e8edf7;min-height:100vh;display:grid;place-items:center;margin:0;padding:24px}main{max-width:600px;padding:30px;background:#171e2c;border:1px solid #2d3545;border-radius:20px}a{color:#ff576d}small{color:#a8b7cb}</style></head>
 <body><main><h1>تحديث WHMCS من GitHub</h1>
 <p>التحديث التلقائي مفعّل على السيرفر. يتم فحص المصدر بصورة دورية عند زيارة الموقع أو استخدام واجهة التحديث.</p>
