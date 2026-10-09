@@ -1,7 +1,7 @@
 {
   "name": "ontrack-command-mobile",
   "private": true,
-  "version": "0.2.6",
+  "version": "0.2.7",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
