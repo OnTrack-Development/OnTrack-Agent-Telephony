@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const ts=require('../mobile/node_modules/typescript');
 const calls=[],saved=[],apiCalls=[];
+const secureStore=new Map();
 let scenario='success',apiHandler=async()=>({ok:false,error:'Not allowed'});
 const csrf='a'.repeat(64),nonce='1791600000.'+'b'.repeat(64),snapshot='c'.repeat(48);
 const loginHtml='<form action="dologin.php"><input type="hidden" name="token" value="login-token"><input name="username"><input type="password" name="password"></form>';
@@ -39,7 +40,13 @@ function load(name){
  const js=ts.transpileModule(code,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  const context={exports:{},URL,URLSearchParams,setTimeout,clearTimeout,require(imported){
   if(imported==='react-native')return {NativeModules:{CommandAdminSession:native}};
-  if(imported==='expo-secure-store')return {WHEN_UNLOCKED_THIS_DEVICE_ONLY:1,getItemAsync:async()=>null,setItemAsync:async(k,v)=>saved.push({k,v})};
+  if(imported==='expo-secure-store')return {WHEN_UNLOCKED_THIS_DEVICE_ONLY:1,
+  getItemAsync:async k=>secureStore.get(k)||null,
+  setItemAsync:async(k,v)=>{
+   assert.match(k,/^[A-Za-z0-9._-]+$/,'SecureStore key must not contain URL delimiters');
+   saved.push({k,v});secureStore.set(k,v);
+  }};
+  if(imported==='js-md5')return {md5:value=>require('node:crypto').createHash('md5').update(value).digest('hex')};
   if(imported==='./api')return {validateBaseUrl:base=>base.replace(/\/$/,''),listOf:(d,c,s)=>{const v=d?.[c]?.[s];return Array.isArray(v)?v:v?[v]:[];},callApi:async(s,action,params)=>{apiCalls.push({s,action,params});return apiHandler(s,action,params);}};
   if(imported.startsWith('./'))return load(imported.slice(2));
   throw Error('Unexpected import '+imported);
@@ -49,8 +56,10 @@ function load(name){
 (async()=>{
  const admin=load('adminSession'),wa=load('whatsapp'),ticket=load('ticketAdmin'),create=load('createTicket'),ai=load('aiSnapshot');
  const waScreen=fs.readFileSync(path.join(__dirname,'../mobile/src/screens/WhatsApp.tsx'),'utf8');
- assert.ok(waScreen.includes("if(session.mode==='api')return"),'API mode must never solicit a second WHMCS admin password in the app');
- assert.ok(waScreen.includes('loginAdmin(session,dir,session.username,session.password)'),'Admin Legacy must use saved credentials silently');
+ assert.ok(waScreen.includes("session.mode==='admin'"),'Only Admin Legacy may use saved admin credentials in native inbox');
+ assert.ok(waScreen.includes('loginAdmin(session,dir,session.username,session.password,otp.trim())'),'Admin Legacy must reuse saved credentials after selecting admin folder');
+ assert.ok(!waScreen.includes('<AdminAccess'),'WhatsApp must not ask for a separate username and password');
+ assert.ok(waScreen.includes('saveAdminDirectory(session,dir)'),'Chosen folder must be persisted with a valid SecureStore key');
  assert.ok(waScreen.includes('checkedAdminUrl(baseUrl,dir'),'Browser fallback URL must be checked and same-origin');
  assert.ok(waScreen.includes('Linking.openURL(target)'),'Reuse browser administrator cookies, not API credentials');
  assert.ok(!waScreen.includes('CreateSsoToken'),'Client SSO must never impersonate a WHMCS administrator');
@@ -67,6 +76,14 @@ function load(name){
  assert.throws(()=>admin.checkedAdminUrl(session.baseUrl,'admin','admin/../clientarea.php'));
  assert.throws(()=>admin.validateAdminDirectory('https://attacker.test'));
  assert.equal(admin.validateAdminDirectory('customadmin'),'customadmin');
+ assert.match(admin.adminDirectoryStorageKey(session),/^[A-Za-z0-9._-]+$/);
+ assert.ok(!admin.adminDirectoryStorageKey(session).includes('|'));
+ assert.equal(await admin.savedAdminDirectory(session),'admin');
+ assert.equal(await admin.saveAdminDirectory(session,'customadmin'),'customadmin');
+ assert.equal(await admin.savedAdminDirectory(session),'customadmin');
+ assert.ok(!saved.some(x=>x.k.includes('://')));
+ await assert.rejects(()=>admin.saveAdminDirectory(session,'https://attacker.test/portal/admin'),/نفس سيرفر/);
+ assert.equal(await admin.savedAdminDirectory(session),'customadmin');
  assert.equal(admin.validateAdminDirectory('customadmin/'),'customadmin');
  assert.equal(admin.validateAdminDirectory('https://example.test/portal/customadmin/',session.baseUrl),'customadmin');
  assert.equal(admin.validateAdminDirectory('https://example.test/portal/customadmin/index.php',session.baseUrl),'customadmin');
