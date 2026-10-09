@@ -1,10 +1,10 @@
 {
   "app_id":"com.ontrackdevelopment.command",
-  "version_name":"0.2.3",
-  "version_code":4,
-  "filename":"OnTrack-Command-v0.2.3-ARM64-release-signed.apk",
-  "sha256":"8757a9759bf822bb966e9452489441c334d96923484acc2329cb58769dc1e55e",
-  "size_bytes":27183938,
-  "release_notes":"v0.2.3: Android safe areas, back navigation and confirmation, WHMCS ticket numbers and paginated lists. WhatsApp and AI native integrations still under development.",
-  "published_at":"2026-10-09T03:16:28Z"
+  "version_name":"0.2.4",
+  "version_code":5,
+  "filename":"OnTrack-Command-v0.2.4-ARM64-release-signed.apk",
+  "sha256":"a7036d2a432f92d3a2aa4155c4b4b12c865c5fc3282d774287a886afa171c2a4",
+  "size_bytes":27183994,
+  "release_notes":"v0.2.4: In-app download, SHA-256 verification and Android installer. WHMCS core improvements remain, WhatsApp and AI native integrations still under development.",
+  "published_at":"2026-10-09T03:41:23Z"
 }
