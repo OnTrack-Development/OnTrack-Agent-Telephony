@@ -1,4 +1,5 @@
 name: Export WHMCS Website Source
+# Export the exact APK+manifest pair after the 0.2.7 signed release is staged.
 on:
   push:
     branches: [main]
