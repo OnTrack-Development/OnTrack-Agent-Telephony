@@ -143,4 +143,5 @@ jobs:
           gh release create "whmcs-v0.2.8-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
             --title "WHMCS v0.2.8 (Android build 9)" \
-            --notes "$NOTES"\n          # GITHUB_TOKEN does not trigger release webhooks, but workflow_dispatch is supported.\n          gh workflow run stage-whmcs-release.yml --ref main
+            --notes "$NOTES"
+          echo "Signed APK published; website release staging starts automatically after successful workflow completion."
