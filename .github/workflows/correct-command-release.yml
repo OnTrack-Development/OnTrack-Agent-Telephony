@@ -1,0 +1,18 @@
+name: Correct OnTrack Command release metadata
+on:
+  push:
+    branches: [ontrack-command-native]
+    paths:
+      - '.github/workflows/correct-command-release.yml'
+permissions:
+  contents: write
+jobs:
+  release-notes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update compact APK release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit command-v0.2.2-14 -R OnTrack-Development/OnTrack-Agent-Telephony \
+            --notes "OnTrack Command v0.2.2: production-signed ARM64 APK (26,909,411 bytes), reduced from 73,304,381 bytes in v0.2.0 by removing unused non-ARM64 native libraries and the expo-updates package; re-signed using the same existing release keystore for in-place Android upgrades. Build checks and APK signature verification passed. Includes an automatic update popup that checks GitHub Releases at startup, on app resume, and periodically while the app is open. This release does not use R8 minification. Requires ARM64 Android and may need Android permission to install downloaded APKs."
