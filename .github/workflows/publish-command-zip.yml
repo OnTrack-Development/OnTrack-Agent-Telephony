@@ -1,0 +1,29 @@
+name: Publish Command APK as ZIP alternative
+on:
+  push:
+    branches: [ontrack-command-native]
+    paths:
+      - '.github/workflows/publish-command-zip.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Package already signed APK into ZIP for Android download managers
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="OnTrack-Development/OnTrack-Agent-Telephony"
+          TAG="command-v0.2.2-14"
+          ASSET="OnTrack-Command-v0.2.2-ARM64-release-signed.apk"
+          gh release download "$TAG" -R "$REPO" --pattern "$ASSET" --dir .
+          test "$(stat -c%s "$ASSET")" -eq 26909411
+          zip -9 OnTrack-Command-v0.2.2-ARM64-release-signed.zip "$ASSET"
+          unzip -t OnTrack-Command-v0.2.2-ARM64-release-signed.zip
+          gh release upload "$TAG" OnTrack-Command-v0.2.2-ARM64-release-signed.zip -R "$REPO" --clobber
+          echo "Public ZIP mirror published"
