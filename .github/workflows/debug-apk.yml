@@ -10,7 +10,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: command-apk-main
+  group: command-apk-arm64-v021
   cancel-in-progress: true
 jobs:
   android:
