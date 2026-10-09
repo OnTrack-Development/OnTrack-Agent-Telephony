@@ -6,6 +6,7 @@ import {UpdateGate} from './src/components/UpdateGate';
 import type {DemoState,Page,Session} from './src/types';
 import {seed} from './src/data/demo';
 import {connect as connectApi,loadSession,loadOverview,loadPage,getTicketThread,replyToTicket,signOut,getApiRetryAfterMs} from './src/lib/api';
+import type {SectionKey} from './src/lib/api';
 import {Action,Card,Icon,T} from './src/components/UI';
 import {Connect} from './src/screens/Connect';
 import {Home} from './src/screens/Home';
@@ -55,19 +56,28 @@ function CommandApp(){
  },[]);
  const [initializing,setInitializing]=useState(true),[session,setSession]=useState<Session|null>(null),[demo,setDemo]=useState(false);
  const [data,setData]=useState<DemoState>(empty),[page,setPage]=useState<Page>('home'),[loading,setLoading]=useState(false);
+ const [ticketReload,setTicketReload]=useState(0);
+ const pageRef=useRef<Page>('home');pageRef.current=page;
  const [error,setError]=useState(''),[errors,setErrors]=useState<Record<string,string>>({}),[caps,setCaps]=useState<Record<string,boolean>>({}),[totals,setTotals]=useState<Record<string,number|null>>({}),[moreBusy,setMoreBusy]=useState(false),[lastSync,setLastSync]=useState(''),[history,setHistory]=useState<Page[]>([]),[detail,setDetail]=useState<{title:string,lines:[string,string][]}|null>(null);
- const refreshInFlight=useRef(false),lastRefreshAt=useRef(0),retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null),generation=useRef(0);
- const refresh=useCallback(async(s:Session,force=false)=>{
-  if(refreshInFlight.current||(!force&&Date.now()-lastRefreshAt.current<45000))return;
-  if(getApiRetryAfterMs()>0){
-   if(!retryTimer.current)retryTimer.current=setTimeout(()=>{retryTimer.current=null;void refresh(s,true);},getApiRetryAfterMs()+1500);
+ const refreshInFlight=useRef(false),lastRefreshAt=useRef<Record<string,number>>({}),retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null),generation=useRef(0);
+ const refresh=useCallback(async(s:Session,force=false,section?:SectionKey)=>{
+  const current=pageRef.current;
+  const wanted=section||(current==='home'?'tickets':(['clients','invoices','services','orders','domains'].includes(current)?current as SectionKey:undefined));
+  if(!wanted)return;
+  if(refreshInFlight.current){
+   if(!retryTimer.current)retryTimer.current=setTimeout(()=>{retryTimer.current=null;void refresh(s,true,wanted);},6000);
    return;
   }
-  refreshInFlight.current=true;lastRefreshAt.current=Date.now();
+  if(!force&&Date.now()-(lastRefreshAt.current[wanted]||0)<120000)return;
+  if(getApiRetryAfterMs()>0){
+   if(!retryTimer.current)retryTimer.current=setTimeout(()=>{retryTimer.current=null;void refresh(s,true,wanted);},getApiRetryAfterMs()+3500);
+   return;
+  }
+  refreshInFlight.current=true;lastRefreshAt.current[wanted]=Date.now();
   const snapshot=generation.current;
   setLoading(true);
   try{
-   const result=await loadOverview(s);
+   const result=await loadOverview(s,[wanted]);
    if(generation.current!==snapshot)return;
    // Keep last successful data during temporary network/429 errors.
    setData(prev=>{
@@ -82,23 +92,28 @@ function CommandApp(){
      if(/429|اتصال|network|timeout/i.test(result.errors[key]||''))next[key+'.read']=prev[key+'.read']||false;
     return next;
    });
-   setErrors(result.errors);
+   setErrors(prev=>{const next={...prev};delete next[wanted];return {...next,...result.errors};});
    setTotals(prev=>({...prev,...Object.fromEntries(Object.entries(result.totals).filter(([key])=>result.capabilities[key+'.read']))}));
    setLastSync(new Date().toLocaleTimeString('ar-EG'));setError('');
    if(Object.values(result.errors).some(e=>/429|اتصال|network|timeout/i.test(e))){
     if(retryTimer.current)clearTimeout(retryTimer.current);
-    retryTimer.current=setTimeout(()=>{retryTimer.current=null;void refresh(s,true);},Math.max(15000,getApiRetryAfterMs()+2000));
+    retryTimer.current=setTimeout(()=>{retryTimer.current=null;void refresh(s,true,wanted);},Math.max(60000,getApiRetryAfterMs()+4000));
    }
   }catch(e){
    if(generation.current!==snapshot)return;
    setError(e instanceof Error?e.message:'تعذر الاتصال مؤقتًا');
    if(retryTimer.current)clearTimeout(retryTimer.current);
-   retryTimer.current=setTimeout(()=>{retryTimer.current=null;void refresh(s,true);},Math.max(15000,getApiRetryAfterMs()+2000));
+   retryTimer.current=setTimeout(()=>{retryTimer.current=null;void refresh(s,true,wanted);},Math.max(60000,getApiRetryAfterMs()+4000));
   }finally{refreshInFlight.current=false;setLoading(false);}
  },[]);
  useEffect(()=>()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);},[]);
  useEffect(()=>{let active=true;loadSession().then(s=>{if(!active)return;setSession(s);setInitializing(false);if(s)void refresh(s);}).catch(()=>setInitializing(false));return()=>{active=false;};},[refresh]);
  useEffect(()=>{if(!session||demo)return;const listener=AppState.addEventListener('change',s=>{if(s==='active')void refresh(session);});return()=>listener.remove();},[session,demo,refresh]);
+ useEffect(()=>{
+  if(!session||demo)return;
+  if(['clients','invoices','services','orders','domains'].includes(page))
+   void refresh(session,false,page as SectionKey);
+ },[session,page,demo,refresh]);
  const navigate=(p:Page)=>{if(p!==page){setHistory(h=>[...h,page].slice(-20));setPage(p);}setDetail(null);};
  const backRef=useRef<()=>boolean>(()=>false);
  backRef.current=()=>{
@@ -120,7 +135,7 @@ function CommandApp(){
  const connect=async(config:Session)=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;
    const result=await connectApi(config);
    if(!result.ok||!result.data){Alert.alert('WHMCS رفض الاتصال',result.error||'تحقق من بيانات API والصلاحيات');return;}
-   setSession(result.data);setDemo(false);setHistory([]);setPage('home');await refresh(result.data);
+   lastRefreshAt.current={};setSession(result.data);setDemo(false);setHistory([]);setPage('home');await refresh(result.data,true,'tickets');
  };
  const logout=async()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;await signOut();setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
  const reply=async(id:number,text:string,identity?:{clientId:number;contactId:number;name:string;email:string})=>{
