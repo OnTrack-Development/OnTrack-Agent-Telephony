@@ -93,6 +93,27 @@ async function request(session:Session,state:AdminState,target:string,method:'GE
  if(stamp!==epoch)throw Error('تم تغيير جلسة الدخول.');
  return response;
 }
+/** Only an actual, WHMCS-admin-protected WhatsApp Inbox proves native authentication.
+ * Do not infer success from logout.php string in arbitrary HTML: many WHMCS
+ * themes omit that link. Browser login and app's native cookie jar are separate.
+ */
+export function isVerifiedWhatsAppInbox(html:string):boolean {
+ return /window\.waCSRFToken\s*=\s*["'][a-f0-9]{64}["']/i.test(html)
+  || /var\s+token\s*=\s*["'][a-f0-9]{64}["'];\s*window\.waCSRFToken\s*=\s*token/i.test(html);
+}
+async function proveAdminAccess(session:Session,state:AdminState):Promise<void>{
+ const route=state.directory+'/addonmodules.php?module=whatsapp_notifications&action=chat';
+ const page=await request(session,state,route,'GET');
+ if(page.status===429)throw Error('السيرفر منع محاولات الدخول مؤقتًا HTTP 429. انتظر قبل المحاولة التالية.');
+ if(page.status===401||page.status===403)
+  throw Error('WHMCS رفض الوصول لصندوق واتساب (HTTP '+page.status+'). تحقق من صلاحيات الموظف وقواعد حماية الإدارة.');
+ if(page.status>=400)
+  throw Error('تعذر فتح صندوق واتساب بعد محاولة الدخول (HTTP '+page.status+').');
+ if(parseLoginForm(page.body,page.url,session.baseUrl,state.directory))
+  throw Error('WHMCS رجّع التطبيق لصفحة تسجيل الدخول بعد إرسال البيانات. راجع بيانات الموظف أو رمز التحقق أو حماية الدخول.');
+ if(!isVerifiedWhatsAppInbox(page.body))
+  throw Error('لم أتمكن من توثيق جلسة واتساب. قد يكون دخول WHMCS نجح لكن حساب الموظف لا يملك صلاحية موديول واتساب، أو الصفحة تعرض حماية إضافية.');
+}
 export async function loginAdmin(session:Session,directory:string,username:string,password:string,otp=''):Promise<{ready:boolean;needsOtp:boolean}>{
  const dir=validateAdminDirectory(directory,session.baseUrl),name=username.trim();
  if(!name||(!password&&!otp))throw Error('اكتب اسم الموظف وكلمة المرور');
@@ -116,7 +137,11 @@ export async function loginAdmin(session:Session,directory:string,username:strin
    if(page.status>=400)throw Error('صفحة إدارة WHMCS رجّعت HTTP '+page.status+'.');
    const parsed=parseLoginForm(page.body,page.url,session.baseUrl,dir);
    if(parsed){form=parsed;loginPage=page;break;}
-   if(/logout\.php/i.test(page.body)){state.ready=true;state.revision++;return {ready:true,needsOtp:false};}
+   if(/logout\.php/i.test(page.body)){
+    await proveAdminAccess(session,state);
+    state.ready=true;state.revision++;
+    return {ready:true,needsOtp:false};
+   }
    loginPage=page;
   }
   if(seen404===entries.length)
@@ -127,10 +152,17 @@ export async function loginAdmin(session:Session,directory:string,username:strin
  if(!form)throw Error('لم يتم التعرف على نموذج تسجيل دخول WHMCS؛ افتح الإدارة من المتصفح للتحقق من مسار الدخول.');
  const fields={...form.fields,...(form.otpField?{[form.otpField]:otp}:{username:name,password})};
  const response=await request(session,state,form.action,'POST',fields);
+ if(response.status===429)throw Error('السيرفر رفض محاولات الدخول مؤقتًا HTTP 429؛ لا تكرر المحاولة قبل انتهاء الحظر.');
+ if(response.status===401||response.status===403)
+  throw Error('WHMCS رفض بيانات الدخول (HTTP '+response.status+'). قد يكون عنوان الإنترنت أو حساب الموظف مقيدًا.');
+ if(response.status>=400)throw Error('رد تسجيل دخول WHMCS هو HTTP '+response.status+'.');
  const next=parseLoginForm(response.body,response.url,session.baseUrl,dir);
  if(next?.otpField){state.challenge=next;return {ready:false,needsOtp:true};}
  state.challenge=undefined;
- if(response.status>=400||next||!/logout\.php/i.test(response.body))throw Error('لم يتم تسجيل الدخول. راجع بيانات الموظف وقيود الدخول في WHMCS.');
+ if(next)throw Error('WHMCS أعاد نموذج الدخول بعد إرسال البيانات؛ تحقق من كلمة المرور وCAPTCHA أو إعدادات التحقق الثنائي.');
+ // Prove a real authenticated page is accessible instead of demanding a
+ // hard-coded logout.php link that isn't present in many WHMCS themes.
+ await proveAdminAccess(session,state);
  state.ready=true;state.revision++;
  await SecureStore.setItemAsync(CONFIG_KEY+'|'+validateBaseUrl(session.baseUrl),dir,{keychainAccessible:SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY});
  return {ready:true,needsOtp:false};
