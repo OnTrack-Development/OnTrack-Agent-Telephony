@@ -1,0 +1,41 @@
+name: Export WHMCS Website Source
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/export-whmcs-site.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify WHMCS website and signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          root=Path('web')
+          manifest=json.loads((root/'downloads/latest.json').read_text())
+          apk=root/'downloads'/manifest['filename']
+          assert manifest['version_name']=='0.2.6' and manifest['version_code']==7
+          assert apk.stat().st_size == manifest['size_bytes']
+          assert hashlib.sha256(apk.read_bytes()).hexdigest()==manifest['sha256']
+          for f in ['index.php','.htaccess','api/app/latest.php','assets/whmcs-icon.png','downloads/.htaccess']:
+              assert (root/f).is_file(),f
+          print('WHMCS site export verified')
+          PY
+          cd web
+          zip -qr ../WHMCS-Server-v0.2.6-source.zip .
+          cd ..
+          unzip -t WHMCS-Server-v0.2.6-source.zip | tail -2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WHMCS-Server-v0.2.6-source
+          path: WHMCS-Server-v0.2.6-source.zip
+          retention-days: 7
