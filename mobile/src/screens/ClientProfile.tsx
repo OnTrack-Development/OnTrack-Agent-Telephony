@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,Pressable,ScrollView,View} from 'react-native';
+import {RecordDetails} from './RecordDetails';
 import type {Client,Session} from '../types';
 import {C} from '../theme';
 import {Action,Card,Header,Icon,Pill,T} from '../components/UI';
@@ -49,6 +50,7 @@ export function ClientProfile({session,client,onBack}:{session:Session;client:Cl
  const [records,setRecords]=useState<Partial<Record<ClientTab,ClientTabResult>>>({});
  const [errors,setErrors]=useState<Partial<Record<ClientTab,string>>>({});
  const [busy,setBusy]=useState(false);
+ const [opened,setOpened]=useState<{tab:'services'|'invoices'|'orders'|'domains';row:Record<string,unknown>}|null>(null);
  const current=useRef(0);
  useEffect(()=>{
   const id=++current.current;
@@ -71,6 +73,8 @@ export function ClientProfile({session,client,onBack}:{session:Session;client:Cl
   else setErrors(prev=>({...prev,[next]:r.error||'تعذر قراءة البيانات'}));
  };
  const selected=records[tab];
+ if(opened)return <RecordDetails page={opened.tab} item={{...opened.row,id:Number(opened.row.id)}}
+   session={session} onBack={()=>setOpened(null)} onChanged={()=>{setOpened(null);void select(opened.tab,true);}}/>;
  return <View style={{gap:12,paddingBottom:28}}>
   <Pressable onPress={onBack} style={{alignSelf:'flex-end',flexDirection:'row-reverse',gap:8,alignItems:'center'}}>
     <Icon name="arrow-right" color={C.blue}/><T color={C.blue} weight="700">كل العملاء</T>
@@ -99,15 +103,22 @@ export function ClientProfile({session,client,onBack}:{session:Session;client:Cl
   {tab!=='overview'&&selected?<View style={{gap:10}}>
    <T size={12} color={C.muted}>{selected.total===null?selected.records.length+' سجل محمّل':selected.records.length+' من '+selected.total}</T>
    {selected.records.map((item,i)=> {
-    const pairs=Object.entries(item).filter(([key,value])=>!forbidden.test(key)&&value!==null&&value!==undefined&&typeof value!=='object')
-     .slice(0,30).map(([label,value])=>({label,value:text(value).slice(0,300)})).filter(v=>v.value);
-    return <Card key={String(item.id||i)} style={{gap:7}}>
-     <T weight="800">{recordTitle(tab,item)}</T><T size={12} color={C.muted}>{recordSubtitle(tab,item)}</T>
-     {pairs.map(field=><View key={field.label} style={{flexDirection:'row-reverse',gap:9}}>
-       <T color={C.muted} size={11} style={{flex:1}}>{field.label}</T>
-       <T size={12} style={{flex:2}}>{field.value}</T>
-      </View>)}
-    </Card>
+    const canManage=['services','invoices','orders','domains'].includes(tab)&&Number(item.id)>0;
+    return <Pressable key={String(item.id||i)} disabled={!canManage} onPress={()=>{
+      if(canManage)setOpened({tab:tab as 'services'|'invoices'|'orders'|'domains',row:item});
+     }} style={{backgroundColor:C.surface,borderWidth:1,borderColor:C.stroke,borderRadius:14,padding:14,gap:7}}>
+     <View style={{flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center',gap:9}}>
+      <View style={{flex:1,gap:3}}>
+       <T weight="800" lines={2}>{recordTitle(tab,item)}</T>
+       <T color={C.muted} size={12} lines={2}>{recordSubtitle(tab,item)}</T>
+      </View>
+      {item.status?<Pill label={text(item.status)} color={C.blue}/>:null}
+     </View>
+     {canManage?<View style={{flexDirection:'row-reverse',gap:5,alignItems:'center'}}>
+      <T color={C.blue} size={12}>عرض وإدارة</T>
+      <Icon name="chevron-left" color={C.blue} size={17}/>
+     </View>:null}
+    </Pressable>;
    })}
    {!selected.records.length?<Card><T color={C.muted}>لا توجد سجلات في القسم ده</T></Card>:null}
    </View>:null}
