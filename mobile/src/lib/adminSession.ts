@@ -98,8 +98,19 @@ async function request(session:Session,state:AdminState,target:string,method:'GE
  * themes omit that link. Browser login and app's native cookie jar are separate.
  */
 export function isVerifiedWhatsAppInbox(html:string):boolean {
- return /window\.waCSRFToken\s*=\s*["'][a-f0-9]{64}["']/i.test(html)
-  || /var\s+token\s*=\s*["'][a-f0-9]{64}["'];\s*window\.waCSRFToken\s*=\s*token/i.test(html);
+ return /window\.waCSRFToken\s*=\s*["'][a-f0-9]{32,128}["']/i.test(html)
+  || /var\s+token\s*=\s*["'][a-f0-9]{32,128}["'];\s*window\.waCSRFToken\s*=\s*token/i.test(html);
+}
+/** Distinguish admin login from access to the existing WhatsApp addon. */
+export function whatsappAccessDiagnostic(html:string,url:string,directory:string):string {
+ const plain=htmlText(html).slice(0,15000);
+ if(/(?:you do not have permission|permission denied|access denied|not authori[sz]ed|ليس لديك صلاحية|غير مصرح|لا تملك صلاحية)/i.test(plain))
+  return 'WHMCS رفض الوصول لموديول واتساب. راجع صلاحية الموديول ضمن Administrator Roles، حتى لو الدور اسمه Administrator.';
+ if(/(?:addon not found|module not found|not activated|addon module is not active|الموديول غير مفعل|الإضافة غير مفعلة)/i.test(plain))
+  return 'صفحة إضافة واتساب غير متاحة داخل WHMCS. تحقق إن الموديول الأصلي مفعل.';
+ if(!url.includes('/'+directory+'/addonmodules.php'))
+  return 'WHMCS أعاد التوجيه لصفحة مختلفة بدل Inbox واتساب. راجع مسار الإدارة وجلسة دخول الموظف.';
+ return 'الدخول لموديول واتساب لم يُثبت رغم استجابة WHMCS. افتح Inbox من المتصفح بنفس الحساب وتأكد من ظهوره، ثم تحقق من صلاحية الموديول.';
 }
 async function proveAdminAccess(session:Session,state:AdminState):Promise<void>{
  const route=state.directory+'/addonmodules.php?module=whatsapp_notifications&action=chat';
@@ -112,7 +123,7 @@ async function proveAdminAccess(session:Session,state:AdminState):Promise<void>{
  if(parseLoginForm(page.body,page.url,session.baseUrl,state.directory))
   throw Error('WHMCS رجّع التطبيق لصفحة تسجيل الدخول بعد إرسال البيانات. راجع بيانات الموظف أو رمز التحقق أو حماية الدخول.');
  if(!isVerifiedWhatsAppInbox(page.body))
-  throw Error('لم أتمكن من توثيق جلسة واتساب. قد يكون دخول WHMCS نجح لكن حساب الموظف لا يملك صلاحية موديول واتساب، أو الصفحة تعرض حماية إضافية.');
+  throw Error(whatsappAccessDiagnostic(page.body,page.url,state.directory));
 }
 export async function loginAdmin(session:Session,directory:string,username:string,password:string,otp=''):Promise<{ready:boolean;needsOtp:boolean}>{
  const dir=validateAdminDirectory(directory,session.baseUrl),name=username.trim();
