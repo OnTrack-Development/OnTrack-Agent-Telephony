@@ -1,4 +1,4 @@
-# OnTrack Command website cutover (STAGED, not deployed)
+# WHMCS website cutover (STAGED, not deployed)
 This branch prepares `agent.ontrackegy.com` (old telephony/control-plane host) for a first-party
 Android download and update channel. This is NOT `OnTrack-voice` and does not touch its repository.
 Site update API: https://agent.ontrackegy.com/api/app/latest.php
