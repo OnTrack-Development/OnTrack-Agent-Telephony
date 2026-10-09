@@ -1,45 +1,95 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {AppState,Linking,Modal,Platform,Pressable,View} from 'react-native';
+import {Alert,AppState,DeviceEventEmitter,Modal,NativeModules,Platform,Pressable,View} from 'react-native';
 import {C} from '../theme';
 import {Action,Icon,T} from './UI';
-const VERSION='0.2.3';
-const API='https://api.github.com/repos/OnTrack-Development/OnTrack-Agent-Telephony/releases?per_page=15';
-const PREFIX='https://github.com/OnTrack-Development/OnTrack-Agent-Telephony/releases/download/';
+
+const CURRENT_VERSION='0.2.4';
+const CURRENT_VERSION_CODE=5;
+const UPDATE_API='https://agent.ontrackegy.com/api/app/latest.php';
+const HOST='https://agent.ontrackegy.com/downloads/';
 const INTERVAL=600000;
-interface Release {tag_name?:string;draft?:boolean;prerelease?:boolean;assets?:{name?:string;size?:number;browser_download_url?:string}[]}
-interface Update {version:string;url:string;size:number}
-export function newer(a:string,b:string){const parse=(v:string)=>/^\d+\.\d+\.\d+$/.test(v)?v.split('.').map(Number):null;const x=parse(a),y=parse(b);if(!x||!y)return false;for(let i=0;i<3;i++)if(x[i]!==y[i])return (x[i]||0)>(y[i]||0);return false;}
-export function choose(releases:Release[],installed=VERSION):Update|null{
- let selected:Update|null=null;
- for(const release of releases){
-  if(release.draft||release.prerelease)continue;
-  const v=/^command-v(\d+\.\d+\.\d+)-\d+$/.exec(release.tag_name||'')?.[1];
-  if(!v||!newer(v,installed))continue;
-  const asset=(release.assets||[]).find(a=>/^OnTrack-Command-v\d+\.\d+\.\d+-ARM64-release-signed\.apk$/.test(a.name||'')&&a.browser_download_url?.startsWith(PREFIX+release.tag_name+'/')&&(a.size||0)>0);
-  if(!asset?.browser_download_url)continue;
-  if(!selected||newer(v,selected.version))selected={version:v,url:asset.browser_download_url,size:asset.size||0};
- }
- return selected;
+interface Latest {
+ ok?:boolean;
+ app_id?:string;
+ version_name?:string;
+ version_code?:number;
+ sha256?:string;
+ download_url?:string;
+ size_bytes?:number;
+ release_notes?:string;
 }
+interface Update {version:string;code:number;url:string;size:number;sha256:string;notes:string}
+interface Progress {written:number;total:number}
+
+export function validUpdate(value:Latest):Update|null {
+ const version=value.version_name||'';
+ const target=HOST+'OnTrack-Command-v'+version+'-ARM64-release-signed.apk';
+ const sha=value.sha256||'';
+ if(value.ok!==true || value.app_id!=='com.ontrackdevelopment.command'
+  || !/^\d+\.\d+\.\d+$/.test(version)
+  || !Number.isInteger(value.version_code) || (value.version_code||0)<=CURRENT_VERSION_CODE
+  || !/^[0-9a-f]{64}$/i.test(sha)
+  || value.download_url!==target
+  || !Number.isFinite(value.size_bytes) || (value.size_bytes||0)<1000000
+  || (value.size_bytes||0)>105*1024*1024) return null;
+ return {version,code:value.version_code!,url:target,size:value.size_bytes!,sha256:sha,notes:String(value.release_notes||'').slice(0,500)};
+}
+
 export function UpdateGate(){
- const [update,setUpdate]=useState<Update|null>(null),[hidden,setHidden]=useState('');
- const last=useRef(0),busy=useRef(false);
+ const [update,setUpdate]=useState<Update|null>(null),[hidden,setHidden]=useState(''),[busy,setBusy]=useState(false);
+ const [percent,setPercent]=useState(0);
+ const last=useRef(0),checking=useRef(false);
  useEffect(()=>{
   if(Platform.OS!=='android')return;
-  let alive=true;
+  let active=true;
   const check=async()=>{
-   if(busy.current||Date.now()-last.current<INTERVAL)return;
-   busy.current=true;last.current=Date.now();
-   const ac=new AbortController(),timer=setTimeout(()=>ac.abort(),10000);
-   try{const r=await fetch(API,{headers:{Accept:'application/vnd.github+json'},signal:ac.signal});if(!r.ok)return;
-    const j:unknown=await r.json();if(Array.isArray(j)&&alive)setUpdate(choose(j as Release[]));
-   }catch{}finally{clearTimeout(timer);busy.current=false;}
+   if(checking.current||Date.now()-last.current<INTERVAL)return;
+   checking.current=true;last.current=Date.now();
+   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
+   try{
+    const r=await fetch(UPDATE_API,{headers:{Accept:'application/json','Cache-Control':'no-cache'},signal:controller.signal});
+    if(!r.ok)return;
+    const info=await r.json() as Latest;
+    if(active)setUpdate(validUpdate(info));
+   }catch{
+    // Internet failures must not block the WHMCS administrator.
+   }finally{clearTimeout(timeout);checking.current=false;}
   };
   void check();
-  const sub=AppState.addEventListener('change',s=>{if(s==='active')void check();});
+  const appSub=AppState.addEventListener('change',s=>{if(s==='active')void check();});
   const timer=setInterval(()=>{if(AppState.currentState==='active')void check();},INTERVAL);
-  return()=>{alive=false;sub.remove();clearInterval(timer);};
+  return()=>{active=false;appSub.remove();clearInterval(timer);};
  },[]);
- if(!update||hidden===update.version)return null;
- return <Modal visible transparent animationType="fade" onRequestClose={()=>setHidden(update.version)}><View style={{flex:1,justifyContent:'center',padding:24,backgroundColor:'#000B'}}><View style={{backgroundColor:C.surface,padding:22,borderRadius:22,gap:14,borderWidth:1,borderColor:C.stroke}}><Icon name="cellphone-arrow-down" color={C.red} size={31}/><T size={21} weight="900">تحديث جديد متاح</T><T size={13} color={C.muted}>OnTrack Command v{update.version} • {(update.size/1048576).toFixed(1)} MB</T><T color={C.muted} size={12}>هيتم تحميل التحديث عبر أندرويد. التطبيق مش هيقفل لوحده، والتثبيت يحتاج موافقتك.</T><Action label="تحديث الآن" icon="download" onPress={()=>{void Linking.openURL(update.url).then(()=>setHidden(update.version)).catch(()=>{});}}/><Pressable onPress={()=>setHidden(update.version)} style={{alignItems:'center',padding:8}}><T color={C.muted}>لاحقًا</T></Pressable></View></View></Modal>;
+ useEffect(()=>{
+  const listener=DeviceEventEmitter.addListener('commandUpdateProgress',(p:Progress)=>{
+   if(p.total>0)setPercent(Math.min(100,Math.floor(p.written*100/p.total)));
+  });
+  return()=>listener.remove();
+ },[]);
+ const install=async()=>{
+  if(!update||busy)return;
+  if(!NativeModules.CommandUpdateInstaller?.downloadAndInstall){
+   Alert.alert('التحديث غير متاح','نسخة التطبيق الحالية لا تحتوي على مثبت Android الداخلي.');
+   return;
+  }
+  setBusy(true);setPercent(0);
+  try{
+   await NativeModules.CommandUpdateInstaller.downloadAndInstall(update.url,update.sha256,update.version);
+   setHidden(update.version);
+  }catch(error){
+   Alert.alert('فشل التحديث',error instanceof Error?error.message:'تعذر تنزيل ملف APK أو التحقق منه');
+  }finally{setBusy(false);}
+ };
+ if(Platform.OS!=='android'||!update||hidden===update.version)return null;
+ return <Modal visible transparent animationType="fade" onRequestClose={()=>{if(!busy)setHidden(update.version);}}>
+ <View style={{flex:1,justifyContent:'center',padding:24,backgroundColor:'#000B'}}>
+ <View style={{backgroundColor:C.surface,padding:22,borderRadius:22,gap:14,borderWidth:1,borderColor:C.stroke}}>
+ <Icon name="cellphone-arrow-down" color={C.red} size={31}/>
+ <T size={21} weight="900">تحديث جديد متاح</T>
+ <T size={13} color={C.muted}>OnTrack Command v{update.version} • {(update.size/1048576).toFixed(1)} MiB</T>
+ {busy?<T size={13} color={C.red}>جاري التحميل والتحقق من الملف: {percent}%</T>:null}
+ <T color={C.muted} size={12}>التحميل من سيرفر OnTrack داخل التطبيق؛ عند اكتماله هتظهر شاشة تثبيت أندرويد مباشرة، بدون مدير التحميلات.</T>
+ <Action label={busy?`تحميل التحديث ${percent}%`:'تحديث الآن'} disabled={busy} icon="download" onPress={()=>{void install();}}/>
+ <Pressable disabled={busy} onPress={()=>setHidden(update.version)} style={{alignItems:'center',padding:8}}><T color={C.muted}>لاحقًا</T></Pressable>
+ </View></View></Modal>;
 }

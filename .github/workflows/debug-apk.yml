@@ -10,7 +10,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: command-apk-arm64-v023
+  group: command-apk-arm64-v024
   cancel-in-progress: true
 jobs:
   android:
@@ -47,6 +47,8 @@ jobs:
       - name: Generate native Android project
         working-directory: mobile
         run: npx expo prebuild --platform android --no-install --non-interactive
+      - name: Install native OnTrack update manager after Expo prebuild
+        run: python3 mobile/scripts/prepare_native_update.py
       - name: Build debug to initialize React Native and Gradle codegen
         working-directory: mobile/android
         run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon --stacktrace
@@ -123,7 +125,7 @@ jobs:
           test "$BYTES" -lt 73304381
       - uses: actions/upload-artifact@v4
         with:
-          name: OnTrack-Command-v0.2.3-ARM64-signed
+          name: OnTrack-Command-v0.2.4-ARM64-signed
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Publish GitHub Release with APK and ZIP
@@ -134,10 +136,10 @@ jobs:
           set -euo pipefail
           mkdir -p out
           APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-          cp "$APK" out/OnTrack-Command-v0.2.3-ARM64-release-signed.apk
-          (cd out && zip -9 OnTrack-Command-v0.2.3-ARM64-release-signed.zip OnTrack-Command-v0.2.3-ARM64-release-signed.apk)
+          cp "$APK" out/OnTrack-Command-v0.2.4-ARM64-release-signed.apk
+          (cd out && zip -9 OnTrack-Command-v0.2.4-ARM64-release-signed.zip OnTrack-Command-v0.2.4-ARM64-release-signed.apk)
           BYTES="$(stat -c%s "$APK")"
-          NOTES="OnTrack Command v0.2.3: safe areas, Android Back navigation, exit confirmation, official ticket numbers, truthful API counts and pagination, no production demo data. Signed ARM64 APK size: ${BYTES} bytes. In-app GitHub update popup. No WebView. WhatsApp and AI connectors remain unavailable until their authenticated APIs are documented."
-          gh release create "command-v0.2.3-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
-            --title "OnTrack Command v0.2.3 (build ${GITHUB_RUN_NUMBER})" \
+          NOTES="OnTrack Command v0.2.4: safe areas, Android Back navigation, exit confirmation, official ticket numbers, truthful API counts and pagination, no production demo data. Signed ARM64 APK size: ${BYTES} bytes. Direct in-app website downloader and Android installer via FileProvider. No WebView. WhatsApp and AI connectors remain unavailable until their authenticated APIs are documented."
+          gh release create "command-v0.2.4-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
+            --title "OnTrack Command v0.2.4 (build ${GITHUB_RUN_NUMBER})" \
             --notes "$NOTES"

@@ -27,3 +27,11 @@ assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.2.3');
 assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,4);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 console.log('PASS: source integrity plus ticket external ID, pagination, safe areas, Android Back, version increment and demo isolation');
+
+const updateCode=get('mobile/src/components/UpdateGate.tsx');
+assert.match(updateCode,/agent\\.ontrackegy\\.com\\/api\\/app\\/latest\\.php/);
+assert.match(updateCode,/CommandUpdateInstaller/);
+assert.doesNotMatch(updateCode,/Linking\\.openURL|api\\.github\\.com/);
+assert.match(get('mobile/native/android/CommandUpdateModule.java'),/FileProvider\\.getUriForFile/);
+assert.match(get('mobile/native/android/CommandUpdateModule.java'),/SHA256 mismatch/);
+console.log('PASS: native website APK download, SHA256 verification, direct Android installer');
