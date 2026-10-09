@@ -1,17 +1,14 @@
-# WHMCS Mobile
+# WHMCS Android Distribution
 
-This repository's main branch contains only the self-hosted WHMCS Android download/update site.
-Target virtual host: https://agent.ontrackegy.com
+Main branch contains the website source for the WHMCS Android APK distribution.
+Signed release: WHMCS v0.2.6 (Android versionCode 7).
+APK: web/downloads/WHMCS-v0.2.6-ARM64-release-signed.apk
+Manifest: web/downloads/latest.json (verified SHA-256).
+Public site target: https://agent.ontrackegy.com
 
-Application source: branch `ontrack-command-native`
-Site distribution: `web/`
-Signed APK: `web/downloads/WHMCS-v0.2.5-ARM64-release-signed.apk`
-Update metadata: `web/api/app/latest.php`
+Application source and ticket improvements: branch ontrack-command-native.
+Legacy telephony application and its server source are not included in main.
+No new backups are created.
 
-The previous Android SIM telephony application, backend services, recording endpoints, settings,
-and databases have been removed from the current main tree. No new backup was generated.
-
-IMPORTANT: GitHub repository updates alone do not upload or delete files in a cPanel/SSH
-document root. The production site must be replaced using authorized server deployment access
-and then verified. The Android app's Java package identifier is intentionally kept
-stable to preserve update compatibility.
+DEPLOYMENT STATUS: The main branch is a hosting-ready site tree, NOT a verified deployment to agent.ontrackegy.com.
+An authenticated cPanel/SFTP/SSH deploy is still necessary; GitHub repository changes do not delete files in the live document root.
