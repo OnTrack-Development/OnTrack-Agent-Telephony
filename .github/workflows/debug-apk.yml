@@ -140,7 +140,7 @@ jobs:
           cp "$APK" out/OnTrack-Command-v0.2.2-ARM64-release-signed.apk
           BYTES="$(stat -c%s "$APK")"
           SAVED="$((73304381-BYTES))"
-          NOTES="Signed ARM64-only Android release, R8 minified and resources shrunk. APK bytes: ${BYTES}; saving: ${SAVED} bytes versus the 73,304,381-byte v0.2.0 release. Uses the same signing keystore/package ID for in-place upgrades; requires an ARM64 Android phone."
+          NOTES="Signed ARM64-only Android release, with non-ARM64 native libraries removed and the APK re-signed (without R8 minification). APK bytes: ${BYTES}; saving: ${SAVED} bytes versus the 73,304,381-byte v0.2.0 release. Uses the same signing keystore/package ID for in-place upgrades; requires an ARM64 Android phone."
           gh release create "command-v0.2.2-${GITHUB_RUN_NUMBER}" out/*.apk \
             --title "OnTrack Command v0.2.2 ARM64 Compact (build ${GITHUB_RUN_NUMBER})" \
             --notes "$NOTES"
