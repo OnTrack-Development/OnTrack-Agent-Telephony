@@ -1,0 +1,20 @@
+name: cPanel endpoint connectivity
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/probe-cpanel-endpoint.yml
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Probe cPanel HTTPS ports without credentials
+        shell: bash
+        run: |
+          for HOST in agent.ontrackegy.com 65.21.208.232; do
+            for PORT in 2083 443; do
+              echo "Checking ${HOST}:${PORT}"
+              curl -k --max-time 8 --connect-timeout 4 --silent --show-error --output /dev/null --write-out 'HTTP %{http_code}; connected_ip %{remote_ip}\n' "https://${HOST}:${PORT}/" || true
+            done
+          done
