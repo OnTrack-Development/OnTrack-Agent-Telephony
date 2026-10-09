@@ -30,7 +30,7 @@ const menu:{page:Page,label:string,icon:string}[]=[
  {page:'explorer',label:'دليل WHMCS الكامل',icon:'view-grid-outline'},
  {page:'settings',label:'الإعدادات',icon:'cog-outline'}
 ];
-export default function App(){
+function CommandApp(){
  const [initializing,setInitializing]=useState(true),[session,setSession]=useState<Session|null>(null),[demo,setDemo]=useState(false);
  const [data,setData]=useState<DemoState>(empty),[page,setPage]=useState<Page>('home'),[loading,setLoading]=useState(false);
  const [error,setError]=useState(''),[errors,setErrors]=useState<Record<string,string>>({}),[caps,setCaps]=useState<Record<string,boolean>>({}),[detail,setDetail]=useState<{title:string,lines:[string,string][]}|null>(null);
@@ -95,3 +95,6 @@ export default function App(){
   <Modal visible={!!detail} transparent animationType="slide" onRequestClose={()=>setDetail(null)}><View style={{flex:1,justifyContent:'flex-end',backgroundColor:'#000A'}}><View style={{backgroundColor:C.surface,borderTopLeftRadius:24,borderTopRightRadius:24,padding:22,maxHeight:'82%'}}><T weight="900" size={21}>{detail?.title||''}</T><T color={C.muted} style={{marginBottom:14}}>تفاصيل السجل — للقراءة فقط</T><ScrollView>{(detail?.lines||[]).map(([k,v],i)=><View key={`${k}-${i}`} style={{paddingVertical:10,borderBottomWidth:1,borderBottomColor:C.stroke}}><T size={11} color={C.muted}>{k}</T><T weight="600">{v}</T></View>)}</ScrollView><View style={{marginTop:16}}><Action label="إغلاق" secondary onPress={()=>setDetail(null)}/></View></View></View></Modal>
  </SafeAreaView>;
 }
+
+import {UpdateGate} from './src/components/UpdateGate';
+export default function App(){return <><CommandApp/><UpdateGate/></>;}
