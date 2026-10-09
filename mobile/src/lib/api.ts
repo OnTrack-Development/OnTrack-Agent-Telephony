@@ -79,7 +79,7 @@ export async function callApi<T=any>(session:Session,action:string,params:Record
   if(result.ok)cache.delete(session); // A successful write invalidates ticket/status reads.
   return result;
  }
- const key=action+'|'+JSON.stringify(params);
+ const key=action+'|'+JSON.stringify(Object.entries(params).filter(([,v])=>v!==undefined).sort(([a],[b])=>a.localeCompare(b)));
  let items=cache.get(session);
  if(!items){items=new Map();cache.set(session,items);}
  const prior=items.get(key);
