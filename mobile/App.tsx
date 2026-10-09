@@ -5,7 +5,7 @@ import {SafeAreaProvider,SafeAreaView,useSafeAreaInsets} from 'react-native-safe
 import {UpdateGate} from './src/components/UpdateGate';
 import type {DemoState,Page,Session} from './src/types';
 import {seed} from './src/data/demo';
-import {connect as connectApi,loadSession,loadOverview,loadPage,getTicketThread,replyToTicket,signOut} from './src/lib/api';
+import {connect as connectApi,loadSession,loadOverview,loadPage,getTicketThread,replyToTicket,signOut,getApiRetryAfterMs} from './src/lib/api';
 import {Action,Card,Icon,T} from './src/components/UI';
 import {Connect} from './src/screens/Connect';
 import {Home} from './src/screens/Home';
@@ -41,14 +41,47 @@ function CommandApp(){
  const [initializing,setInitializing]=useState(true),[session,setSession]=useState<Session|null>(null),[demo,setDemo]=useState(false);
  const [data,setData]=useState<DemoState>(empty),[page,setPage]=useState<Page>('home'),[loading,setLoading]=useState(false);
  const [error,setError]=useState(''),[errors,setErrors]=useState<Record<string,string>>({}),[caps,setCaps]=useState<Record<string,boolean>>({}),[totals,setTotals]=useState<Record<string,number|null>>({}),[moreBusy,setMoreBusy]=useState(false),[lastSync,setLastSync]=useState(''),[history,setHistory]=useState<Page[]>([]),[detail,setDetail]=useState<{title:string,lines:[string,string][]}|null>(null);
- const refresh=useCallback(async(s:Session)=>{
-   setLoading(true);
-   try{
-    const result=await loadOverview(s);
-    setData(result.state);setCaps(result.capabilities);setErrors(result.errors);setTotals(result.totals);setLastSync(new Date().toLocaleTimeString('ar-EG'));setError('');
-   }catch(e){setError(e instanceof Error?e.message:'خطأ غير متوقع أثناء القراءة');}
-   finally{setLoading(false);}
+ const refreshInFlight=useRef(false),lastRefreshAt=useRef(0),retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null),generation=useRef(0);
+ const refresh=useCallback(async(s:Session,force=false)=>{
+  if(refreshInFlight.current||(!force&&Date.now()-lastRefreshAt.current<45000))return;
+  if(getApiRetryAfterMs()>0){
+   if(!retryTimer.current)retryTimer.current=setTimeout(()=>{retryTimer.current=null;void refresh(s,true);},getApiRetryAfterMs()+1500);
+   return;
+  }
+  refreshInFlight.current=true;lastRefreshAt.current=Date.now();
+  const snapshot=generation.current;
+  setLoading(true);
+  try{
+   const result=await loadOverview(s);
+   if(generation.current!==snapshot)return;
+   // Keep last successful data during temporary network/429 errors.
+   setData(prev=>{
+    const next={...prev};
+    for(const key of ['tickets','clients','invoices','services','orders','domains'] as const)
+     if(result.capabilities[key+'.read'])(next as any)[key]=(result.state as any)[key];
+    return next;
+   });
+   setCaps(prev=>{
+    const next={...prev,...result.capabilities};
+    for(const key of Object.keys(result.errors))
+     if(/429|اتصال|network|timeout/i.test(result.errors[key]||''))next[key+'.read']=prev[key+'.read']||false;
+    return next;
+   });
+   setErrors(result.errors);
+   setTotals(prev=>({...prev,...Object.fromEntries(Object.entries(result.totals).filter(([key])=>result.capabilities[key+'.read']))}));
+   setLastSync(new Date().toLocaleTimeString('ar-EG'));setError('');
+   if(Object.values(result.errors).some(e=>/429|اتصال|network|timeout/i.test(e))){
+    if(retryTimer.current)clearTimeout(retryTimer.current);
+    retryTimer.current=setTimeout(()=>{retryTimer.current=null;void refresh(s,true);},Math.max(15000,getApiRetryAfterMs()+2000));
+   }
+  }catch(e){
+   if(generation.current!==snapshot)return;
+   setError(e instanceof Error?e.message:'تعذر الاتصال مؤقتًا');
+   if(retryTimer.current)clearTimeout(retryTimer.current);
+   retryTimer.current=setTimeout(()=>{retryTimer.current=null;void refresh(s,true);},Math.max(15000,getApiRetryAfterMs()+2000));
+  }finally{refreshInFlight.current=false;setLoading(false);}
  },[]);
+ useEffect(()=>()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);},[]);
  useEffect(()=>{let active=true;loadSession().then(s=>{if(!active)return;setSession(s);setInitializing(false);if(s)void refresh(s);}).catch(()=>setInitializing(false));return()=>{active=false;};},[refresh]);
  useEffect(()=>{if(!session||demo)return;const listener=AppState.addEventListener('change',s=>{if(s==='active')void refresh(session);});return()=>listener.remove();},[session,demo,refresh]);
  const navigate=(p:Page)=>{if(p!==page){setHistory(h=>[...h,page].slice(-20));setPage(p);}setDetail(null);};
@@ -69,18 +102,18 @@ function CommandApp(){
    setTotals(prev=>({...prev,[key]:pageResult.total}));
   }finally{setMoreBusy(false);}
  };
- const connect=async(config:Session)=>{
+ const connect=async(config:Session)=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;
    const result=await connectApi(config);
    if(!result.ok||!result.data){Alert.alert('WHMCS رفض الاتصال',result.error||'تحقق من بيانات API والصلاحيات');return;}
    setSession(result.data);setDemo(false);setHistory([]);setPage('home');await refresh(result.data);
  };
- const logout=async()=>{await signOut();setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
+ const logout=async()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;await signOut();setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
  const reply=async(id:number,text:string)=>{
   if(demo){setData(d=>({...d,tickets:d.tickets.map(t=>t.id===id?{...t,status:'Answered',message:text}:t)}));Alert.alert('وضع تجريبي','تم تعديل البيانات المحلية فقط.');return true;}
   if(!session||!caps['tickets.read'])return false;
   const r=await replyToTicket(session,id,text);
   if(!r.ok){Alert.alert('تعذر إرسال الرد',r.error||'حدث خطأ');return false;}
-  await refresh(session);Alert.alert('تم الإرسال','تم تسجيل الرد بنجاح في WHMCS.');return true;
+  await refresh(session,true);Alert.alert('تم الإرسال','تم تسجيل الرد بنجاح في WHMCS.');return true;
  };
  const openTicket=async(id:number)=>{
   if(demo){const t=data.tickets.find(t=>t.id===id);return t?[{id:'sample',message:t.message||'',name:t.customer,date:t.updated,admin:false}]:[];}
@@ -112,7 +145,7 @@ function CommandApp(){
  const currentTab=nav.some(n=>n.page===page)?page:'more';
  return <View style={{flex:1,backgroundColor:C.bg}}><StatusBar barStyle="light-content" translucent={false} backgroundColor={C.bg}/>
   <View style={{flexDirection:'row-reverse',paddingHorizontal:19,paddingTop:10,paddingBottom:9,justifyContent:'space-between',alignItems:'center',borderBottomWidth:1,borderBottomColor:C.stroke}}><T weight="900" size={12} color={C.red}>WHMCS</T><View style={{flexDirection:'row-reverse',gap:8,alignItems:'center'}}><Icon name={demo?'flask-outline':'shield-check'} color={demo?C.orange:C.green} size={16}/><T size={10} color={C.muted}>{demo?'DEMO':lastSync?`API • ${lastSync}`:'WHMCS API'}</T></View></View>
-  {Object.keys(errors).length>0&&!demo?<Pressable style={{backgroundColor:'#483820',padding:9}} onPress={()=>navigate('settings')}><T color={C.orange} size={11}>بعض الأقسام غير متاحة لصلاحيات API الحالية — التفاصيل في الإعدادات</T></Pressable>:null}
+  {Object.keys(errors).length>0&&!demo?<Pressable style={{backgroundColor:'#483820',padding:9}} onPress={()=>{if(session)void refresh(session,true);}}><T color={C.orange} size={11}>{Object.values(errors).some(x=>/429/.test(x))?'WHMCS HTTP 429 — جاري انتظار السيرفر وإعادة المحاولة تلقائيًا':'تعذر تحميل بعض البيانات — اضغط لإعادة المحاولة'}</T></Pressable>:null}
   {error?<Pressable style={{backgroundColor:'#47212A',padding:11}} onPress={()=>session&&refresh(session)}><T color={C.orange} size={12}>تعذر التحديث: {error} — اضغط لإعادة المحاولة</T></Pressable>:null}
   <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}>
    <ScrollView ref={pageScroll} key={page} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled"
