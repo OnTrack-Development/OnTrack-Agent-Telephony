@@ -11,9 +11,16 @@ export interface TicketDetail {
 }
 export interface OperatorProfile {adminid:number;name:string;signature:string}
 export interface TicketBatch {ok:boolean;tickets:Ticket[];total:number|null;error?:string}
-export const isClosed=(status:string)=>/^(closed|مغلقة|مغلق)$/i.test(status.trim());
+export const isClosed=(status:string)=>/^(closed|مغلقة|مغلق|مقفولة|مقفول)$/i.test(status.trim());
 export const isAnswered=(status:string)=>/^(answered|تم الرد|تم الرد عليها)$/i.test(status.trim());
 export const isActionable=(status:string)=>!isClosed(status)&&!isAnswered(status);
+export const ticketMatchesQueue=(status:string,kind:QueueKind):boolean=>{
+ if(kind==='closed')return isClosed(status);
+ if(kind==='answered')return isAnswered(status);
+ if(kind==='all')return true;
+ if(kind==='allActive')return !isClosed(status);
+ return isActionable(status);
+};
 export const priorityColor=(priority:string)=>priority.toLowerCase()==='high'?'urgent':priority.toLowerCase()==='medium'?'normal':'low';
 export function mapTicket(x:any):Ticket {
  return {
@@ -33,7 +40,7 @@ export async function fetchTicketQueue(session:Session,kind:QueueKind,start=0,li
  if(d?.tickets===undefined&&total(d)!==0)return {ok:false,tickets:[],total:null,error:'WHMCS أرجع قائمة تذاكر غير متوقعة'};
  const tickets=listOf(d,'tickets','ticket').map(mapTicket).filter(t=>t.id>0);
  // Never mix an agent's completed replies or closed tickets into the default work queues.
- return {ok:true,tickets:kind==='assigned'||kind==='awaiting'?tickets.filter(t=>isActionable(t.status)):tickets,total:total(d)};
+ return {ok:true,tickets:tickets.filter(t=>ticketMatchesQueue(t.status,kind)),total:total(d)};
 }
 export async function fetchOperatorProfile(session:Session):Promise<OperatorProfile|null>{
  const r=await callApi(session,'GetAdminDetails');
