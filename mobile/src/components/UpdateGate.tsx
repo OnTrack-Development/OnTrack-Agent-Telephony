@@ -1,10 +1,11 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {Alert,AppState,DeviceEventEmitter,Modal,NativeModules,Platform,Pressable,View} from 'react-native';
 import {C} from '../theme';
+import appConfig from '../../app.json';
 import {Action,Icon,T} from './UI';
 
-const CURRENT_VERSION='0.2.5';
-const CURRENT_VERSION_CODE=6;
+const CURRENT_VERSION=appConfig.expo.version;
+const CURRENT_VERSION_CODE=appConfig.expo.android.versionCode;
 const UPDATE_API='https://agent.ontrackegy.com/api/app/latest.php';
 const HOST='https://agent.ontrackegy.com/downloads/';
 const INTERVAL=600000;
@@ -42,23 +43,27 @@ export function UpdateGate(){
  useEffect(()=>{
   if(Platform.OS!=='android')return;
   let active=true;
-  const check=async()=>{
-   if(checking.current||Date.now()-last.current<INTERVAL)return;
+  const check=async(manual=false)=>{
+   if(checking.current||(!manual&&Date.now()-last.current<INTERVAL))return;
    checking.current=true;last.current=Date.now();
    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
    try{
     const r=await fetch(UPDATE_API,{headers:{Accept:'application/json','Cache-Control':'no-cache'},signal:controller.signal});
-    if(!r.ok)return;
+    if(!r.ok)throw Error('HTTP '+r.status);
     const info=await r.json() as Latest;
-    if(active)setUpdate(validUpdate(info));
+    const available=validUpdate(info);
+    if(active)setUpdate(available);
+    if(manual&&!available)Alert.alert('آخر إصدار','التطبيق الحالي WHMCS v'+CURRENT_VERSION+' — لا يوجد إصدار أحدث.');
    }catch{
+    if(manual)Alert.alert('تعذر الفحص','تأكد من الاتصال وحاول مرة أخرى.');
     // Internet failures must not block the WHMCS administrator.
    }finally{clearTimeout(timeout);checking.current=false;}
   };
   void check();
   const appSub=AppState.addEventListener('change',s=>{if(s==='active')void check();});
   const timer=setInterval(()=>{if(AppState.currentState==='active')void check();},INTERVAL);
-  return()=>{active=false;appSub.remove();clearInterval(timer);};
+  const manualCheck=DeviceEventEmitter.addListener('whmcs-check-update',()=>void check(true));
+  return()=>{active=false;appSub.remove();clearInterval(timer);manualCheck.remove();};
  },[]);
  useEffect(()=>{
   const listener=DeviceEventEmitter.addListener('commandUpdateProgress',(p:Progress)=>{
