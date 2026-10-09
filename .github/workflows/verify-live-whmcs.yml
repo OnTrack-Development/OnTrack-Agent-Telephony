@@ -11,41 +11,43 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check public site release and old files
+      - name: Verify live WHMCS v0.2.7 and update channel
         shell: bash
         run: |
-          set +e
-          echo '=== DNS ==='
-          getent ahostsv4 agent.ontrackegy.com | head -3
-          echo '=== Root ==='
-          curl -sS -L --connect-timeout 8 --max-time 22 -o /tmp/rootbody -w 'ROOT_HTTP=%{http_code} ROOT_URL=%{url_effective} ROOT_BYTES=%{size_download}\n' https://agent.ontrackegy.com/
-          echo 'ROOT_TITLE:'
-          grep -ioE '<title[^>]*>[^<]+' /tmp/rootbody | head -2
-          echo 'ROOT_WHMSC_MENTIONS:'
-          grep -oi WHMCS /tmp/rootbody | wc -l
-          echo 'ROOT_OLD_TELEPHONY_MENTIONS:'
-          grep -Eoi 'OnTrack AI Phone|Call History|Telephony' /tmp/rootbody | head -5
-          echo '=== WHMCS manifest ==='
-          curl -sS --connect-timeout 8 --max-time 22 -o /tmp/manifest -w 'MANIFEST_HTTP=%{http_code} MANIFEST_BYTES=%{size_download}\n' https://agent.ontrackegy.com/api/app/latest.php
-          head -c 1100 /tmp/manifest
-          echo
-          echo '=== Latest JSON ==='
-          curl -sS --connect-timeout 8 --max-time 22 -o /tmp/latest -w 'LATEST_HTTP=%{http_code} LATEST_BYTES=%{size_download}\n' https://agent.ontrackegy.com/downloads/latest.json
-          head -c 1100 /tmp/latest
-          echo
-          echo '=== APK headers ==='
-          curl -sSI --connect-timeout 8 --max-time 22 -w 'APK_HTTP=%{http_code} APK_SIZE=%{size_download}\n' https://agent.ontrackegy.com/downloads/WHMCS-v0.2.6-ARM64-release-signed.apk | grep -Ei '^HTTP/|^content-length:|^content-type:|^location:|^APK_HTTP'
-          echo '=== REQUIRED WHMCS 0.2.7 VERSION ==='
+          set -euo pipefail
+          BASE="https://agent.ontrackegy.com"
+          curl -fsSL --retry 2 --connect-timeout 8 --max-time 22 -H 'Cache-Control: no-cache' "$BASE/" -o /tmp/home
+          grep -qi 'WHMCS' /tmp/home
+          echo 'PASS: live WHMCS homepage'
+          curl -fsSL --retry 2 --connect-timeout 8 --max-time 22 -H 'Cache-Control: no-cache' "$BASE/api/app/latest.php" -o /tmp/api
+          curl -fsSL --retry 2 --connect-timeout 8 --max-time 22 -H 'Cache-Control: no-cache' "$BASE/downloads/latest.json" -o /tmp/meta
           python3 - <<'PY'
           import json
-          try:
-              meta=json.load(open('/tmp/manifest'))
-              assert meta.get('ok') is True
-              print('LIVE_VERSION=',meta.get('version_name'),'BUILD=',meta.get('version_code'))
-              if meta.get('version_name')!='0.2.7' or meta.get('version_code')!=8:
-                  print('SITE_NOT_UPDATED: WHMCS v0.2.7 not deployed on live host')
-          except Exception as e:
-              print('FAILED_TO_VERIFY_VERSION:',type(e).__name__,str(e))
+          a=json.load(open('/tmp/api'))
+          m=json.load(open('/tmp/meta'))
+          for label,obj in [('API',a),('manifest',m)]:
+              print(label, 'version:',obj.get('version_name'),'build:',obj.get('version_code'))
+              assert obj.get('version_name')=='0.2.7' and obj.get('version_code')==8, f'ERROR: {label} still runs old version'
+              assert obj.get('sha256')==m.get('sha256') and obj.get('size_bytes')==m.get('size_bytes')
+          assert a.get('ok') is True
+          assert a.get('app_id')=='com.ontrackdevelopment.command'
+          assert a.get('download_url')=='https://agent.ontrackegy.com/downloads/WHMCS-v0.2.7-ARM64-release-signed.apk'
+          open('/tmp/expected_size','w').write(str(m['size_bytes']))
+          print('PASS: live version, manifest and API agree')
           PY
-          echo '=== Old login page ==='
-          curl -sS --connect-timeout 8 --max-time 22 -o /dev/null -w 'OLD_LOGIN_HTTP=%{http_code}\n' https://agent.ontrackegy.com/login.php
+          curl -fsSI --retry 2 --connect-timeout 8 --max-time 22 "$BASE/downloads/WHMCS-v0.2.7-ARM64-release-signed.apk" > /tmp/apkheaders
+          python3 - <<'PY'
+          from email.parser import Parser
+          text=open('/tmp/apkheaders').read().replace('\r\n','\n')
+          chunks=[p for p in text.split('\n\n') if p.strip()]
+          headers=Parser().parsestr(chunks[-1])
+          actual=int(headers.get('Content-Length') or -1)
+          expected=int(open('/tmp/expected_size').read())
+          print('APK expected bytes:',expected,'actual:',actual)
+          assert actual==expected, 'APK served with wrong size'
+          print('PASS: live WHMCS v0.2.7 APK is served at correct size')
+          PY
+          old="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 12 "$BASE/login.php")"
+          echo "Old login.php HTTP: $old"
+          test "$old" = 404
+          echo 'PASS: old login.php not served'
