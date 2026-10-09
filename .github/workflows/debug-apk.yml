@@ -43,7 +43,7 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Unit tests and typecheck
         working-directory: mobile
-        run: npm run typecheck && npm run test:source && node ../tests/ticket_workflow_test.cjs
+        run: npm run typecheck && npm run test:source && node ../tests/ticket_workflow_test.cjs && node ../tests/api_mock_test.cjs
       - name: Generate native Android project
         working-directory: mobile
         run: npx expo prebuild --platform android --no-install --non-interactive
@@ -141,5 +141,6 @@ jobs:
           BYTES="$(stat -c%s "$APK")"
           NOTES="WHMCS v0.2.8: safe areas, Android Back navigation, exit confirmation, official ticket numbers, truthful API counts and pagination, no production demo data. Signed ARM64 APK size: ${BYTES} bytes. Direct in-app website downloader and Android installer via FileProvider. No WebView. WhatsApp and AI connectors remain unavailable until their authenticated APIs are documented."
           gh release create "whmcs-v0.2.8-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
-            --title "WHMCS v0.2.8 (build ${GITHUB_RUN_NUMBER})" \
-            --notes "$NOTES"
+            --target "$GITHUB_SHA" \
+            --title "WHMCS v0.2.8 (Android build 9)" \
+            --notes "$NOTES"\n          # GITHUB_TOKEN does not trigger release webhooks, but workflow_dispatch is supported.\n          gh workflow run stage-whmcs-release.yml --ref main
