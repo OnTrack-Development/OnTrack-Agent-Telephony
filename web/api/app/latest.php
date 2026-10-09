@@ -1,5 +1,8 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/../../app/site_updater.php';
+otup_schedule_auto(dirname(__DIR__, 2));
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, must-revalidate');
 header('X-Content-Type-Options: nosniff');

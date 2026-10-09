@@ -1,5 +1,8 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/app/site_updater.php';
+otup_schedule_auto(__DIR__);
+
 $manifest = __DIR__ . '/downloads/latest.json';
 $meta = is_file($manifest) ? json_decode((string) file_get_contents($manifest), true) : null;
 $version = is_array($meta) ? (string)($meta['version_name'] ?? '') : '';
