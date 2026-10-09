@@ -4,16 +4,16 @@ import * as SecureStore from 'expo-secure-store';
 import {md5} from 'js-md5';
 import type {Session} from '../types';
 
-export type NoticeCategory='whatsapp'|'tickets'|'invoices'|'orders'|'services'|'domains';
+export type NoticeCategory='whatsapp'|'tickets'|'clients'|'invoices'|'orders'|'services'|'domains';
 export interface NoticeInput {category:NoticeCategory;id:string|number;revision:string;title:string;body:string}
 interface Seen {revision:string;lastSeen:number}
 type SeenMap=Record<string,Seen>;
 const channel:Record<NoticeCategory,string>={
- whatsapp:'whmcs-whatsapp',tickets:'whmcs-tickets',invoices:'whmcs-invoices',
+ whatsapp:'whmcs-whatsapp',tickets:'whmcs-tickets',clients:'whmcs-clients',invoices:'whmcs-invoices',
  orders:'whmcs-orders',services:'whmcs-services',domains:'whmcs-domains'
 };
 const labels:Record<NoticeCategory,string>={
- whatsapp:'واتساب',tickets:'التذاكر',invoices:'الفواتير',
+ whatsapp:'واتساب',tickets:'التذاكر',clients:'العملاء',invoices:'الفواتير',
  orders:'الطلبات',services:'الخدمات',domains:'الدومينات'
 };
 let ready=false;
@@ -118,7 +118,7 @@ export function whmcsSectionNotifications(category:Exclude<NoticeCategory,'whats
   const updated=String(r.updated||r.date||r.created||r.due||r.expiry||'');
   return {category,id,revision:status+'|'+updated,
    title:labels[category]+' • #'+id,
-   body:category==='tickets'?'تحديث على التذكرة':category==='invoices'?'حالة الفاتورة: '+status:
+   body:category==='tickets'?'تحديث على التذكرة':category==='clients'?'تحديث على بيانات العميل':category==='invoices'?'حالة الفاتورة: '+status:
     category==='orders'?'حالة الطلب: '+status:category==='services'?'حالة الخدمة: '+status:
      'حالة الدومين: '+status};
  });
