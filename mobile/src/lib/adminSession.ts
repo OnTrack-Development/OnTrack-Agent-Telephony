@@ -104,13 +104,13 @@ export function isVerifiedWhatsAppInbox(html:string):boolean {
 /** Distinguish admin login from access to the existing WhatsApp addon. */
 export function whatsappAccessDiagnostic(html:string,url:string,directory:string):string {
  const plain=htmlText(html).slice(0,15000);
- if(/(?:you do not have permission|permission denied|access denied|not authori[sz]ed|ليس لديك صلاحية|غير مصرح|لا تملك صلاحية)/i.test(plain))
+ if(/(?:you do not have permission|permission denied|access denied|unauthori[sz]ed|not authori[sz]ed|ليس لديك صلاحية|غير مصرح|لا تملك صلاحية)/i.test(plain))
   return 'WHMCS رفض الوصول لموديول واتساب. راجع صلاحية الموديول ضمن Administrator Roles، حتى لو الدور اسمه Administrator.';
  if(/(?:addon not found|module not found|not activated|addon module is not active|الموديول غير مفعل|الإضافة غير مفعلة)/i.test(plain))
   return 'صفحة إضافة واتساب غير متاحة داخل WHMCS. تحقق إن الموديول الأصلي مفعل.';
  if(!url.includes('/'+directory+'/addonmodules.php'))
   return 'WHMCS أعاد التوجيه لصفحة مختلفة بدل Inbox واتساب. راجع مسار الإدارة وجلسة دخول الموظف.';
- return 'الدخول لموديول واتساب لم يُثبت رغم استجابة WHMCS. افتح Inbox من المتصفح بنفس الحساب وتأكد من ظهوره، ثم تحقق من صلاحية الموديول.';
+ return 'الدخول لموديول واتساب لم يُثبت رغم استجابة WHMCS. افتح Inbox من المتصفح بنفس الحساب وتأكد من ظهوره، ثم تحقق من صلاحية موديول واتساب.';
 }
 async function proveAdminAccess(session:Session,state:AdminState):Promise<void>{
  const route=state.directory+'/addonmodules.php?module=whatsapp_notifications&action=chat';
