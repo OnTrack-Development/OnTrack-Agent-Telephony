@@ -1,40 +1,21 @@
-# OnTrack Agent Telephony
+# OnTrack Command — WHMCS Native Android App
 
-POC for connecting an Android SIM line to the OnTrack AI telephony control plane without customer-side GSM hardware.
+React Native (Expo SDK 57) app, source v0.2.0. **No new WHMCS addon and no WebView.**
 
-## Repository layout
+## Real API integration
 
-- `web/` — dashboard + API for `https://agent.ontrackegy.com`
-- `web/update.php` — shared-hosting GitHub Bridge updater
-- `android/` — OnTrack AI Phone Bridge source
-- `dist/OnTrack-AI-Phone-Bridge-v0.1.0.apk` — current installable POC APK
-- `.github/workflows/build-android.yml` — Android APK build
+WHMCS core: HTTPS POST to `/includes/api.php`. Admin or API identifier/secret authentication, SecureStore, ticket replies with manual confirmation, clients, services, invoices, orders and domains. API permissions are always enforced on the WHMCS server.
 
-## Shared-hosting deployment
+## Not yet connected
 
-This project follows the same simple deployment pattern used for the OnTrack Voice demo: the hosting-side updater pulls the public GitHub repository directly.
+The custom WhatsApp Notifications and AI Support Agent panels currently do not execute real actions. Their existing private module routes and authentication must be verified before integration. Never assume an undocumented AJAX endpoint works as a mobile API.
 
-One-time setup:
+## GitHub Android build
 
-1. Upload `web/update.php` to the subdomain `public_html/update.php`.
-2. Open `https://agent.ontrackegy.com/update.php`.
-3. Set the dashboard password and updater password.
-4. Press **Update from GitHub**.
+Every push to `main` runs `.github/workflows/debug-apk.yml`, builds an APK, verifies its signature, attaches it to a GitHub Actions artifact, and creates a tagged GitHub Release. A normal debug APK **is debug-signed only**. If repository secret `ANDROID_SIGNING_PASSWORD` has already been configured, the workflow restores the **existing** encrypted keystore from the `backup/telephony-server-before-command-2026-10-09` branch and attempts a persistent release-signed APK. Do not publish that password or the decoded key.
 
-Every later deployment is:
+## Development
 
-`Push main → open update.php → Update from GitHub`
+`cd mobile && npm install && npm run typecheck && npx expo prebuild --platform android`
 
-The updater downloads the repository, deploys only `web/`, and preserves:
-
-- `config/local.php`
-- `storage/app.sqlite`
-- SQLite WAL/SHM files
-
-No FTP credentials or GitHub deployment secrets are required because the repository is public.
-
-## Current POC flow
-
-Dashboard → device pairing → Android foreground bridge → incoming call events / outbound jobs → SIM call state → dashboard.
-
-The AI carrier-conference/media leg is intentionally the next milestone after this transport layer is verified on the target Android phone and Egyptian carrier.
+No build/runtime success or deployment is implied by this document.

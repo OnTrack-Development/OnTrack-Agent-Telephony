@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "OnTrack Command",
+    "slug": "ontrack-command",
+    "scheme": "ontrackcommand",
+    "version": "0.2.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#080D17",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.ontrackdevelopment.command",
+      "edgeToEdgeEnabled": true,
+      "permissions": []
+    },
+    "ios": {
+      "bundleIdentifier": "com.ontrackdevelopment.command",
+      "supportsTablet": true
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-updates"
+    ],
+    "updates": {
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    }
+  }
+}
