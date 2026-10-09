@@ -14,7 +14,7 @@ const native={resetAll:async()=>{},request:async(key,base,dir,target,method,fiel
  if(scenario==='expired')return {status:401,url:url.toString(),body:'{"status":"error"}'};
  if(scenario==='wa_429'&&url.pathname.endsWith('ajax.php'))return {status:429,url:url.toString(),body:'Rate Limited'};
  if(url.pathname.endsWith('/admin/')){status=404;body='Not Found';}
- else if(url.pathname.endsWith('/index.php')||/\\/login\\.php$/.test(url.pathname))body=loginHtml;
+ else if(url.pathname.endsWith('/index.php')||url.pathname.endsWith('/login.php'))body=loginHtml;
  else if(url.pathname.endsWith('dologin.php')){assert.equal(fields.token,'login-token');assert.equal(fields.username,'staff');assert.equal(fields.password,'staff-pass');body=scenario==='otp'?'<form action="twofa.php"><input type="hidden" name="token" value="otp-token"><input name="code"></form>':scenario==='no_logout'?'<main id="dashboard">WHMCS dashboard with no logout link</main>':'<a href="logout.php">Sign out</a>';}
  else if(url.pathname.endsWith('twofa.php')){assert.equal(fields.code,'123456');assert.equal(fields.token,'otp-token');body='<a href="logout.php">Sign out</a>';}
  else if(url.pathname.endsWith('addonmodules.php'))body=scenario==='no_wa_permission'?'<section>Unauthorized WHMCS addon access</section>':url.searchParams.get('module')==='whatsapp_notifications'?`<script>var token = "${csrf}"; window.waCSRFToken = token;</script>`:`<script>{"snapshot_url":"../modules/addons/ai_support_agent/admin_snapshot.php?events=100&token=${snapshot}"}</script>`;
