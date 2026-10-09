@@ -17,7 +17,7 @@ assert.match(actions,/GetClientsProducts/);
 assert.match(actions,/GetInvoices/);
 assert.match(actions,/GetTickets/);
 assert.match(get('mobile/src/screens/WhatsApp.tsx'),/existingInboxUrl/);
-assert.match(get('mobile/src/screens/WhatsApp.tsx'),/addonmodules\\.php/);
+assert.match(get('mobile/src/screens/WhatsApp.tsx'),/addonmodules\.php/);
 assert.ok(!existsSync(resolve(root,'mobile/src/lib/whatsappBridge.ts')));
 assert.ok(!get('mobile/App.tsx').includes('unpairWhatsApp'));
 assert.ok(get('mobile/src/screens/ClientProfile.tsx').includes('fetchClientTab'));
