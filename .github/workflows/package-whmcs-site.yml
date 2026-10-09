@@ -1,0 +1,44 @@
+name: Package WHMCS update website
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/package-whmcs-site.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate and package live website files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s web/index.php
+          test -s web/api/app/latest.php
+          test -s web/downloads/latest.json
+          python3 - <<'PY'
+          import json,pathlib,hashlib
+          w=pathlib.Path('web')
+          data=json.loads((w/'downloads/latest.json').read_text())
+          apk=w/'downloads'/data['filename']
+          assert data['version_name']=='0.2.6',data
+          assert data['version_code']==7,data
+          assert data['filename']=='WHMCS-v0.2.6-ARM64-release-signed.apk',data
+          assert apk.exists() and apk.stat().st_size==data['size_bytes'],data
+          assert hashlib.sha256(apk.read_bytes()).hexdigest()==data['sha256']
+          print('PASS: website APK matches update manifest and checksum')
+          PY
+          cd web
+          zip -rq ../WHMCS-Website-v0.2.6-Deploy.zip . -x '*.git*'
+          cd ..
+          unzip -t WHMCS-Website-v0.2.6-Deploy.zip | tail -2
+      - name: Publish deployable archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload whmcs-v0.2.6-22 WHMCS-Website-v0.2.6-Deploy.zip --clobber
+          echo 'Published only the release website, no legacy telephony files.'
