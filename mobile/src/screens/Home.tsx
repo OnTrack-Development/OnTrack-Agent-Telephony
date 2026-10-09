@@ -9,12 +9,12 @@ export function Home({data,demo,navigate,capabilities,totals}: {data:DemoState,d
  const outstanding=unpaid.reduce((s,i)=>s+i.amount,0);
  const bars=[26,36,28,47,40,61,49,72,65,80,60,91];
  const currencies=[...new Set(unpaid.map(i=>i.currency).filter(Boolean))];
- const unpaidText=!demo&&!capabilities['invoices.read']?'غير متاح':demo?money(outstanding):currencies.length===1?money(outstanding,currencies[0]||''):currencies.length>1?'فواتير بعملات متعددة':`عدد الفواتير: ${unpaid.length}`;
+ const unpaidText=!demo&&capabilities['invoices.read']===undefined?'افتح قسم الفواتير للتحميل':!demo&&!capabilities['invoices.read']?'غير متاح':demo?money(outstanding):currencies.length===1?money(outstanding,currencies[0]||''):currencies.length>1?'فواتير بعملات متعددة':`عدد الفواتير: ${unpaid.length}`;
  return <View>
    <View style={{flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center',marginBottom:19}}><View><T color={C.muted} size={12}>{`مركز التحكم • ${new Date().toLocaleDateString('ar-EG')}`}</T><T size={25} weight="900">أهلًا بيك 👋</T></View><View style={{width:45,height:45,borderRadius:15,backgroundColor:C.redDark,alignItems:'center',justifyContent:'center'}}><Icon name="shield-account" color={C.red} size={28}/></View></View>
    <Card style={{backgroundColor:'#251925',borderColor:'#542539',padding:18,overflow:'hidden'}}>
      <View style={{flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center'}}><Pill label={demo?'بيانات تجريبية':'اتصال مباشر'} color={demo?C.orange:C.green} icon="circle-small"/><Icon name="pulse" color={C.red}/></View>
-     <T size={13} color={C.muted} style={{marginTop:12}}>الفواتير غير المسددة (السجلات المحمّلة)</T><T size={29} weight="900">{unpaidText}</T><View style={{marginTop:13,flexDirection:'row-reverse',justifyContent:'space-between'}}><T size={12} color={C.muted}>{!demo&&!capabilities['invoices.read']?'صلاحية القراءة غير متاحة':`${unpaid.length} فاتورة من المحمّل`}</T><Pressable onPress={()=>navigate('invoices')}><T size={12} color={C.red} weight="800">عرض الفواتير ←</T></Pressable></View>
+     <T size={13} color={C.muted} style={{marginTop:12}}>الفواتير غير المسددة (السجلات المحمّلة)</T><T size={29} weight="900">{unpaidText}</T><View style={{marginTop:13,flexDirection:'row-reverse',justifyContent:'space-between'}}><T size={12} color={C.muted}>{!demo&&capabilities['invoices.read']===undefined?'لم تُطلب البيانات بعد':!demo&&!capabilities['invoices.read']?'صلاحية القراءة غير متاحة':`${unpaid.length} فاتورة من المحمّل`}</T><Pressable onPress={()=>navigate('invoices')}><T size={12} color={C.red} weight="800">عرض الفواتير ←</T></Pressable></View>
    </Card>
    <Section title="نظرة عامة"/><View style={{flexDirection:'row-reverse',flexWrap:'wrap',gap:10}}>
       <Metric icon="ticket-confirmation-outline" label="تذاكر منتظرة" value={!demo&&!capabilities['tickets.read']?'—':`${open.length}`} color={C.red} sub="ضمن المحمّل" onPress={()=>navigate('tickets')}/>
