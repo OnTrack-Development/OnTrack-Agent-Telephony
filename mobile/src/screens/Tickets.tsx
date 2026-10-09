@@ -18,9 +18,9 @@ const sections:{id:QueueKind;label:string}[]=[
 const showPlain=(input:string)=>input.replace(/<br\s*\/?\s*>/gi,'\n').replace(/<\/p>/gi,'\n')
  .replace(/<[^>]*>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').trim();
 
-export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailChange}:{
+export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFocus,onDetailChange}:{
  session:Session|null;tickets:Ticket[];onReply:(id:number,text:string,identity?:{clientId:number;contactId:number;name:string;email:string})=>Promise<boolean>;
- demo:boolean;onComposerFocus?:()=>void;onDetailChange?:(active:boolean)=>void
+ demo:boolean;reloadSignal?:number;onComposerFocus?:()=>void;onDetailChange?:(active:boolean)=>void
 }){
  const [mode,setMode]=useState<QueueKind>('awaiting'),[search,setSearch]=useState('');
  const [assigned,setAssigned]=useState<Collection>(empty);
@@ -73,10 +73,10 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
   // Keep previous rows until fresh data is received; a 429 cannot clear the screen.
   if(mode==='awaiting'||mode==='allActive')void load('assigned',0);
   void load('general',0);
- },[session?.baseUrl,session?.mode,session?.username,session?.identifier,mode,demo,reloadCounter]);
+ },[session?.baseUrl,session?.mode,session?.username,session?.identifier,mode,demo,reloadCounter,reloadSignal]);
  useEffect(()=>{
   if(demo||!session||![assigned.error,general.error].some(x=>/429|اتصال|network|timeout/i.test(x)))return;
-  const timer=setTimeout(()=>setReloadCounter(n=>n+1),Math.max(15000,getApiRetryAfterMs()+2500));
+  const timer=setTimeout(()=>setReloadCounter(n=>n+1),Math.max(60000,getApiRetryAfterMs()+4500));
   return()=>clearTimeout(timer);
  },[assigned.error,general.error,session,demo]);
  const refresh=()=>setReloadCounter(n=>n+1);
