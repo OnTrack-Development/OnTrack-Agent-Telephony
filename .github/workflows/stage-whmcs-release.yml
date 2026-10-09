@@ -1,4 +1,4 @@
-# Stage signed WHMCS v0.3.11 (and subsequent releases) and verify live hosting GitHub-pull updates.
+# Stage signed WHMCS v0.3.12 and subsequent releases; verify exact server-side APK and live manifest.
 # Publish the latest Android version; fallback checks recover missed workflow_run events.
 name: Stage Latest Signed WHMCS APK to Live Website
 on:
