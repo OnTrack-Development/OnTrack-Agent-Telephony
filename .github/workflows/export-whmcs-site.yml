@@ -29,7 +29,7 @@ jobs:
           root=Path('web')
           m=json.loads((root/'downloads/latest.json').read_text())
           v=m['version_name'];apk=root/'downloads'/m['filename']
-          assert v=='0.2.7' and m['version_code']==8
+          assert isinstance(v,str) and len(v.split('.'))==3 and int(m['version_code'])>=8
           assert m['app_id']=='com.ontrackdevelopment.command'
           assert apk.stat().st_size==m['size_bytes']
           assert hashlib.sha256(apk.read_bytes()).hexdigest()==m['sha256']
@@ -38,16 +38,22 @@ jobs:
           assert 'otup_schedule_auto' in (root/'index.php').read_text()
           assert 'otup_schedule_auto' in (root/'api/app/latest.php').read_text()
           print('PASS: GitHub pull updater, signed APK, release and website integrated:',v)
+          Path('/tmp/whmcs-export-version').write_text(v)
           PY
-          (cd web && zip -qr ../WHMCS-Server-v0.2.7-GitHub-AutoSync.zip .)
-          unzip -t WHMCS-Server-v0.2.7-GitHub-AutoSync.zip | tail -2
+          version="$(cat /tmp/whmcs-export-version)"
+          (cd web && zip -qr "../WHMCS-Server-v${version}-GitHub-AutoSync.zip" .)
+          unzip -t "WHMCS-Server-v${version}-GitHub-AutoSync.zip" | tail -2
       - uses: actions/upload-artifact@v4
         with:
-          name: WHMCS-Server-v0.2.7-GitHub-AutoSync
-          path: WHMCS-Server-v0.2.7-GitHub-AutoSync.zip
+          name: WHMCS-Server-GitHub-AutoSync
+          path: WHMCS-Server-v*-GitHub-AutoSync.zip
           retention-days: 30
       - name: Publish verified installer to signed release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload whmcs-v0.2.7-29 WHMCS-Server-v0.2.7-GitHub-AutoSync.zip --clobber
+          set -euo pipefail
+          version="$(cat /tmp/whmcs-export-version)"
+          tag="$(gh release list --limit 60 --json tagName --jq '.[] | .tagName' | grep -E "^whmcs-v${version}-[0-9]+$" | head -n1)"
+          test -n "$tag"
+          gh release upload "$tag" "WHMCS-Server-v${version}-GitHub-AutoSync.zip" --clobber
