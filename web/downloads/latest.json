@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.2.5",
-  "version_code": 6,
-  "filename": "WHMCS-v0.2.5-ARM64-release-signed.apk",
-  "sha256": "98daa2676294dba568be6a9a87ddab1315c0af24bb88444dd87894041da14c19",
-  "size_bytes": 27593991,
-  "release_notes": "WHMCS v0.2.5: new app name and icon, Android direct installer and website-only update feed.",
-  "published_at": "2026-10-09T04:04:18Z"
+  "version_name": "0.2.6",
+  "version_code": 7,
+  "filename": "WHMCS-v0.2.6-ARM64-release-signed.apk",
+  "sha256": "1496733a14b0bc065a2d6ce6d5662bb4a8b5e84bcd1903ad12429568259331de",
+  "size_bytes": 27618567,
+  "release_notes": "WHMCS v0.2.6: assigned-first ticket queues, keyboard-safe reply editor, administrator signatures, filters, priority and status controls.",
+  "published_at": "2026-10-09T04:29:37Z"
 }
