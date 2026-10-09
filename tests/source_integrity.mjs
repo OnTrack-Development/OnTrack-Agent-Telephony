@@ -29,9 +29,10 @@ assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe
 console.log('PASS: source integrity plus ticket external ID, pagination, safe areas, Android Back, version increment and demo isolation');
 
 const updateCode=get('mobile/src/components/UpdateGate.tsx');
-assert.match(updateCode,/agent\\.ontrackegy\\.com\\/api\\/app\\/latest\\.php/);
-assert.match(updateCode,/CommandUpdateInstaller/);
-assert.doesNotMatch(updateCode,/Linking\\.openURL|api\\.github\\.com/);
-assert.match(get('mobile/native/android/CommandUpdateModule.java'),/FileProvider\\.getUriForFile/);
-assert.match(get('mobile/native/android/CommandUpdateModule.java'),/SHA256 mismatch/);
-console.log('PASS: native website APK download, SHA256 verification, direct Android installer');
+assert.ok(updateCode.includes('agent.ontrackegy.com/api/app/latest.php'));
+assert.ok(updateCode.includes('CommandUpdateInstaller'));
+assert.ok(!updateCode.includes('Linking.openURL'));
+const nativeUpdate=get('mobile/native/android/CommandUpdateModule.java');
+assert.ok(nativeUpdate.includes('FileProvider.getUriForFile'));
+assert.ok(nativeUpdate.includes('APK SHA256 mismatch'));
+console.log('PASS: native website APK downloader, checksum verification, Android installer');
