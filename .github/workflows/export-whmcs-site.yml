@@ -21,6 +21,7 @@ jobs:
           php -l web/app/site_updater.php
           php -l web/index.php
           php -l web/api/app/latest.php
+          php -l web/update.php
           php -r 'require "web/app/site_updater.php"; if (!function_exists("otup_auto_tick") || !function_exists("otup_validate_whmcs_tree")) exit(1); echo "PASS: updater module compiled\n";'
           python3 - <<'PY'
           from pathlib import Path
@@ -32,7 +33,7 @@ jobs:
           assert m['app_id']=='com.ontrackdevelopment.command'
           assert apk.stat().st_size==m['size_bytes']
           assert hashlib.sha256(apk.read_bytes()).hexdigest()==m['sha256']
-          for f in ['index.php','.htaccess','api/app/latest.php','app/site_updater.php','assets/whmcs-icon.png','downloads/.htaccess']:
+          for f in ['index.php','.htaccess','api/app/latest.php','app/site_updater.php','update.php','assets/whmcs-icon.png','downloads/.htaccess']:
            assert (root/f).is_file(),f
           assert 'otup_schedule_auto' in (root/'index.php').read_text()
           assert 'otup_schedule_auto' in (root/'api/app/latest.php').read_text()

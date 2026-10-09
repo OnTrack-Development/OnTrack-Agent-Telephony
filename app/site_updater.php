@@ -325,7 +325,7 @@ function otup_auto_tick(string $root): void {
     }
     try {
         $stamp = $stateDir . '/.whmcs-last-check';
-        if (is_file($stamp) && time() - (int)@filemtime($stamp) < 600) return;
+        if (is_file($stamp) && time() - (int)@filemtime($stamp) < 180) return;
         @touch($stamp);
         $status = otup_status($root);
         if (!empty($status['update_available'])) {
@@ -343,7 +343,7 @@ function otup_schedule_auto(string $root): void {
     if (PHP_SAPI === 'cli' || ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') return;
     $stateDir = $root . '/storage';
     $stamp = $stateDir . '/.whmcs-last-check';
-    if (is_file($stamp) && time() - (int)@filemtime($stamp) < 600) return;
+    if (is_file($stamp) && time() - (int)@filemtime($stamp) < 180) return;
     register_shutdown_function(static function () use ($root): void {
         ignore_user_abort(true);
         if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
