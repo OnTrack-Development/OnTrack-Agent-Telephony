@@ -1,0 +1,31 @@
+name: Diagnose WHMCS Website Update Channel
+on:
+  push:
+    branches: [ontrack-command-native]
+    paths:
+      - .github/workflows/check-whmcs-ota.yml
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: DNS and HTTPS update endpoint diagnostic
+        shell: bash
+        run: |
+          set +e
+          echo "UTC: $(date -u +%FT%TZ)"
+          echo "=== DNS ==="
+          getent ahostsv4 agent.ontrackegy.com | head -5
+          echo "DNS exit code: ${PIPESTATUS[0]}"
+          echo "=== HTTPS root ==="
+          curl --max-time 12 --connect-timeout 6 --silent --show-error --output /tmp/root.html --write-out 'Root HTTP: %{http_code}; IP: %{remote_ip}; redirect: %{redirect_url}; bytes: %{size_download}\n' https://agent.ontrackegy.com/
+          echo "=== HTTPS update JSON ==="
+          curl --max-time 12 --connect-timeout 6 --silent --show-error --output /tmp/latest.out --write-out 'Manifest HTTP: %{http_code}; IP: %{remote_ip}; redirect: %{redirect_url}; bytes: %{size_download}\n' https://agent.ontrackegy.com/api/app/latest.php
+          echo "Response sample (max 1KB):"
+          head -c 1024 /tmp/latest.out 2>/dev/null
+          echo ""
+          echo "=== HTTPS APK headers ==="
+          curl --max-time 12 --connect-timeout 6 --silent --show-error --head --output /tmp/apk.headers --write-out 'APK HTTP: %{http_code}; IP: %{remote_ip}; size_header: %{size_download}; redirect: %{redirect_url}\n' https://agent.ontrackegy.com/downloads/WHMCS-v0.2.6-ARM64-release-signed.apk
+          head -n 15 /tmp/apk.headers 2>/dev/null
+          exit 0
