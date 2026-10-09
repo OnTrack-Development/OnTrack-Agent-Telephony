@@ -26,7 +26,7 @@ vm.runInNewContext(js,context);const api=context.exports;
  const session={baseUrl:'https://whmcs.example',mode:'api',username:'',password:'',accessKey:'',identifier:'identifier-a',secret:'secret-b'};
  const result=await api.connect(session);assert.equal(result.ok,true);
  assert.equal(packets[0].get('username'),'identifier-a');assert.equal(packets[0].get('password'),'secret-b');
- const overview=await api.loadOverview(session);assert.equal(overview.state.clients.length,1);assert.equal(overview.state.clients[0].name,'Demo Client');assert.equal(Object.keys(overview.errors).length,0);
+ const overview=await api.loadOverview(session,['tickets','clients','invoices','services','orders','domains']);assert.equal(overview.state.clients.length,1);assert.equal(overview.state.clients[0].name,'Demo Client');assert.equal(Object.keys(overview.errors).length,0);
  assert.equal(overview.state.tickets[0].id,52);assert.equal(overview.state.tickets[0].number,'969335');assert.equal(overview.totals.tickets,1);
  const ticket=await api.replyToTicket(session,123,'مرحبا');assert.equal(ticket.ok,true);
  assert.equal(packets.at(-1).get('ticketid'),'123');
