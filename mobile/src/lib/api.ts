@@ -52,26 +52,38 @@ export async function loadSession():Promise<Session|null>{
  try{const parsed=JSON.parse(value) as Session;return parsed?.mode&&parsed?.baseUrl?parsed:null;}catch{return null;}
 }
 export async function signOut():Promise<void>{await SecureStore.deleteItemAsync(STORAGE_KEY);}
+export type SectionKey = 'tickets'|'clients'|'invoices'|'services'|'orders'|'domains';
+const sections:Record<SectionKey,string>={tickets:'GetTickets',clients:'GetClients',invoices:'GetInvoices',services:'GetClientsProducts',orders:'GetOrders',domains:'GetClientsDomains'};
 const strStatus=(v:any)=>s(v||'Unknown');
-export async function loadOverview(session:Session):Promise<{state:DemoState,errors:Record<string,string>,capabilities:Record<string,boolean>}>{
- const specs=[['tickets','GetTickets'],['clients','GetClients'],['invoices','GetInvoices'],['services','GetClientsProducts'],['orders','GetOrders'],['domains','GetClientsDomains']] as const;
- const results=await Promise.all(specs.map(async ([key,action])=>[key,await callApi(session,action,{limitstart:0,limitnum:50})] as const));
+const validTotal=(v:any):number|null=>v!==undefined&&v!==null&&v!==''&&Number.isFinite(Number(v))&&Number(v)>=0?Number(v):null;
+export async function loadPage(session:Session,key:SectionKey,start=0,limit=50):Promise<{ok:boolean,records:any[],total:number|null,error?:string}>{
+ const r=await callApi(session,sections[key],{limitstart:start,limitnum:limit});
+ if(!r.ok)return {ok:false,records:[],total:null,error:r.error||'تعذر قراءة بيانات WHMCS'};
+ const d=r.data as any;
+ const wrappers:Record<SectionKey,[string,string]>={tickets:['tickets','ticket'],clients:['clients','client'],invoices:['invoices','invoice'],services:['products','product'],orders:['orders','order'],domains:['domains','domain']};
+ const [root,item]=wrappers[key];
+ const total=validTotal(d?.totalresults);
+ if(d?.[root]===undefined && total!==0)return {ok:false,records:[],total:null,error:`WHMCS رجّع بيانات غير متوقعة لقسم ${key}، ولم يتم تعويضها ببيانات وهمية`};
+ const raw=listOf(d,root,item);
+ const records=raw.map((x:any)=>{
+  if(key==='tickets')return {id:n(x.id),number:s(x.tid||x.id),subject:s(x.title||x.subject)||'بدون موضوع',customer:s(x.name||x.email||x.userid)||'غير متاح',department:s(x.deptname||x.department),priority:s(x.urgency||x.priority),status:strStatus(x.status),updated:s(x.lastreply||x.date),message:s(x.message)} as Ticket;
+  if(key==='clients')return {id:n(x.id),name:s(x.companyname||`${s(x.firstname)} ${s(x.lastname)}`.trim()),email:s(x.email),status:strStatus(x.status),services:n(x.productsnum),initials:s(x.firstname||x.companyname).slice(0,2)} as Client;
+  if(key==='invoices')return {id:n(x.id),customer:s(x.firstname||x.userid),amount:n(x.total),currency:s(x.currencycode||x.currency||''),status:strStatus(x.status),due:s(x.duedate)} as Invoice;
+  if(key==='services')return {id:n(x.id),domain:s(x.domain),customer:s(x.clientid),plan:s(x.name||x.productname),status:strStatus(x.status),renewal:s(x.nextduedate)} as Service;
+  if(key==='orders')return {id:n(x.id),customer:s(x.userid||x.clientname),product:s(x.names||x.lineitems||'طلب'),amount:n(x.amount),status:strStatus(x.status),created:s(x.date)} as Order;
+  return {id:n(x.id),name:s(x.domainname||x.domain),customer:s(x.userid),expiry:s(x.expirydate||x.nextduedate),status:strStatus(x.status)} as Domain;
+ });
+ return {ok:true,records,total};
+}
+export async function loadOverview(session:Session):Promise<{state:DemoState,errors:Record<string,string>,capabilities:Record<string,boolean>,totals:Record<string,number|null>}>{
+ const keys=Object.keys(sections) as SectionKey[];
+ const results=await Promise.all(keys.map(async key=>[key,await loadPage(session,key)] as const));
  const state:DemoState={tickets:[],clients:[],invoices:[],services:[],orders:[],domains:[],chats:[],agents:[],queue:[]};
- const errors:Record<string,string>={};const capabilities:Record<string,boolean>={};
- for(const [key,result] of results){
-  capabilities[`${key}.read`]=result.ok;
-  if(!result.ok){errors[key]=result.error||'غير مصرح به';continue;}
-  const data=result.data as any;
-  if(key==='tickets')state.tickets=listOf(data,'tickets','ticket').map((x):Ticket=>({id:n(x.id),subject:s(x.title||x.subject),customer:s(x.name||x.email||x.userid),department:s(x.deptname||x.department),priority:s(x.urgency||x.priority),status:strStatus(x.status),updated:s(x.lastreply||x.date),message:s(x.message)}));
-  if(key==='clients')state.clients=listOf(data,'clients','client').map((x):Client=>({id:n(x.id),name:s(x.companyname||`${s(x.firstname)} ${s(x.lastname)}`.trim()),email:s(x.email),status:strStatus(x.status),services:n(x.productsnum),initials:s(x.firstname||x.companyname).slice(0,2)}));
-  if(key==='invoices')state.invoices=listOf(data,'invoices','invoice').map((x):Invoice=>({id:n(x.id),customer:s(x.firstname||x.userid),amount:n(x.total),currency:s(x.currencycode||x.currency||''),status:strStatus(x.status),due:s(x.duedate)}));
-  if(key==='services')state.services=listOf(data,'products','product').map((x):Service=>({id:n(x.id),domain:s(x.domain),customer:s(x.clientid),plan:s(x.name||x.productname),status:strStatus(x.status),renewal:s(x.nextduedate)}));
-  if(key==='orders')state.orders=listOf(data,'orders','order').map((x):Order=>({id:n(x.id),customer:s(x.userid||x.clientname),product:s(x.names||x.lineitems||'طلب'),amount:n(x.amount),status:strStatus(x.status),created:s(x.date)}));
-  if(key==='domains')state.domains=listOf(data,'domains','domain').map((x):Domain=>({id:n(x.id),name:s(x.domainname||x.domain),customer:s(x.userid),expiry:s(x.expirydate||x.nextduedate),status:strStatus(x.status)}));
- }
- // A successful read does NOT imply write permission. Explicit user confirmation and server API role enforce writes.
- capabilities['tickets.reply']=capabilities['tickets.read']===true;
- return {state,errors,capabilities};
+ const errors:Record<string,string>={},capabilities:Record<string,boolean>={},totals:Record<string,number|null>={};
+ for(const [key,result] of results){capabilities[`${key}.read`]=result.ok;totals[key]=result.total;if(!result.ok){errors[key]=result.error||'غير متاح';continue;}(state as any)[key]=result.records;}
+ // Do not infer action rights from read rights. WHMCS enforces AddTicketReply server-side after explicit confirmation.
+ capabilities['tickets.reply']=false;
+ return {state,errors,capabilities,totals};
 }
 export async function getTicketThread(session:Session,id:number):Promise<ApiResult<any>>{return callApi(session,'GetTicket',{ticketid:id});}
 export async function replyToTicket(session:Session,id:number,message:string):Promise<ApiResult<any>>{

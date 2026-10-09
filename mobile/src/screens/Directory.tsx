@@ -2,7 +2,7 @@ import React, {useMemo,useState} from 'react';
 import {View} from 'react-native';
 import {C} from '../theme';
 import type {DemoState,Page} from '../types';
-import {Avatar,Card,Empty,Header,ItemRow,Pill,Search,T} from '../components/UI';
+import {Action,Avatar,Card,Empty,Header,ItemRow,Pill,Search,T} from '../components/UI';
 
 const config:Record<string,{title:string,subtitle:string,icon:string,key:keyof DemoState}>={
  clients:{title:'العملاء',subtitle:'الدليل وبيانات الحسابات',icon:'account-group-outline',key:'clients'},
@@ -12,17 +12,17 @@ const config:Record<string,{title:string,subtitle:string,icon:string,key:keyof D
  domains:{title:'الدومينات',subtitle:'الحالة وتواريخ الانتهاء',icon:'web',key:'domains'}
 };
 const colorOf=(status:string)=>/active|paid/i.test(status)?C.green:/unpaid|overdue|fraud|suspended|expiring/i.test(status)?C.red:C.orange;
-export function Directory({page,data,onDetails}: {page:Page,data:DemoState,onDetails:(title:string,lines:[string,string][])=>void}) {
+export function Directory({page,data,onDetails,total,error,loading,onLoadMore}: {page:Page,data:DemoState,onDetails:(title:string,lines:[string,string][])=>void,total?:number|null,error?:string,loading?:boolean,onLoadMore:()=>void}) {
  const c=config[page]; const [q,setQ]=useState('');
  const records=useMemo(()=>c?(data[c.key] as any[]):[],[c,data]);
  const filtered=records.filter(record=>JSON.stringify(record).toLowerCase().includes(q.toLowerCase()));
  if(!c)return null;
- return <View><Header title={c.title} subtitle={c.subtitle}/><Search value={q} onChange={setQ} placeholder={`بحث في ${c.title}...`}/><T size={11} color={C.muted} style={{marginBottom:12}}>{filtered.length} سجل • البيانات {q?'المفلترة':'المعروضة'}</T>
- <Card style={{paddingVertical:4}}>{filtered.length?filtered.map((r:any,i:number)=>{
- const title=String(r.name||r.domain||r.customer||`${c.title} #${r.id}`);
+ return <View><Header title={c.title} subtitle={c.subtitle}/><Search value={q} onChange={setQ} placeholder={`بحث في ${c.title}...`}/><T size={11} color={C.muted} style={{marginBottom:12}}>{error?'تعذر القراءة':total!=null?`${records.length} محمّل من ${total}`:`${records.length} سجل محمّل`} • {q?'بحث داخل المحمّل':'من WHMCS'}</T>
+ {error?<T color={C.orange} style={{marginBottom:12}}>{error}</T>:null}<Card style={{paddingVertical:4}}>{filtered.length?filtered.map((r:any,i:number)=>{
+ const title=page==='invoices'?`فاتورة #${r.id}`:page==='orders'?`طلب #${r.id}`:String(r.name||r.domain||r.customer||`${c.title} #${r.id}`);
  const description=page==='invoices'?`#${r.id} • ${r.amount} ${r.currency} • ${r.due}`:page==='services'?`${r.plan} • ${r.customer}`:page==='orders'?`${r.product} • ${r.amount}`:page==='clients'?r.email:`${r.customer} • ${r.expiry}`;
  const pairs=Object.entries(r).filter(([k])=>k!=='initials').map(([k,v])=>[k,String(v)] as [string,string]);
  return <ItemRow key={r.id||i} icon={c.icon} heading={title} subtitle={description} color={colorOf(r.status||'')} right={<Pill color={colorOf(r.status||'')} label={String(r.status||'—')}/>} onPress={()=>onDetails(title,pairs)}/>;
  }):<Empty text="لا توجد نتائج مطابقة" icon={c.icon}/>}</Card>
- </View>;
+ {total!=null&&records.length<total&&!error?<View style={{marginTop:14}}><Action label={loading?'جارٍ التحميل...':'تحميل المزيد'} disabled={loading} secondary onPress={onLoadMore}/></View>:null}</View>;
 }

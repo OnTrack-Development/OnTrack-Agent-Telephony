@@ -10,7 +10,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: command-apk-arm64-v021
+  group: command-apk-arm64-v023
   cancel-in-progress: true
 jobs:
   android:
@@ -92,7 +92,6 @@ jobs:
           test -s "$APK"
           UNIV_SIZE="$(stat -c%s "$APK")"
           cp "$APK" "${APK%.apk}-universal-backup.apk"
-          # Remove only non-ARM64 native shared libraries. Keep all resources and app logic.
           zip -qd "$APK" 'lib/armeabi-v7a/*' 'lib/x86/*' 'lib/x86_64/*' || true
           if unzip -Z1 "$APK" | grep -qE '^lib/(armeabi-v7a|x86|x86_64)/'; then
             echo "Failed to strip non-ARM64 libraries"; exit 1
@@ -119,17 +118,15 @@ jobs:
           APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
-          echo "APK bytes: $(stat -c%s "$APK")"
           sha256sum "$APK"
-          # Enforce a real size improvement versus v0.2.0 (73,304,381 bytes).
           BYTES="$(stat -c%s "$APK")"
           test "$BYTES" -lt 73304381
       - uses: actions/upload-artifact@v4
         with:
-          name: OnTrack-Command-v0.2.2-ARM64-signed
+          name: OnTrack-Command-v0.2.3-ARM64-signed
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-      - name: Publish GitHub Release
+      - name: Publish GitHub Release with APK and ZIP
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -137,10 +134,10 @@ jobs:
           set -euo pipefail
           mkdir -p out
           APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-          cp "$APK" out/OnTrack-Command-v0.2.2-ARM64-release-signed.apk
+          cp "$APK" out/OnTrack-Command-v0.2.3-ARM64-release-signed.apk
+          (cd out && zip -9 OnTrack-Command-v0.2.3-ARM64-release-signed.zip OnTrack-Command-v0.2.3-ARM64-release-signed.apk)
           BYTES="$(stat -c%s "$APK")"
-          SAVED="$((73304381-BYTES))"
-          NOTES="Signed ARM64-only Android release, with non-ARM64 native libraries removed and the APK re-signed (without R8 minification). APK bytes: ${BYTES}; saving: ${SAVED} bytes versus the 73,304,381-byte v0.2.0 release. Uses the same signing keystore/package ID for in-place upgrades; requires an ARM64 Android phone."
-          gh release create "command-v0.2.2-${GITHUB_RUN_NUMBER}" out/*.apk \
-            --title "OnTrack Command v0.2.2 ARM64 Compact (build ${GITHUB_RUN_NUMBER})" \
+          NOTES="OnTrack Command v0.2.3: safe areas, Android Back navigation, exit confirmation, official ticket numbers, truthful API counts and pagination, no production demo data. Signed ARM64 APK size: ${BYTES} bytes. In-app GitHub update popup. No WebView. WhatsApp and AI connectors remain unavailable until their authenticated APIs are documented."
+          gh release create "command-v0.2.3-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
+            --title "OnTrack Command v0.2.3 (build ${GITHUB_RUN_NUMBER})" \
             --notes "$NOTES"

@@ -1,5 +1,5 @@
-import React,{useState} from 'react';
-import {ActivityIndicator,Pressable,View} from 'react-native';
+import React,{useEffect,useState} from 'react';
+import {ActivityIndicator,BackHandler,Pressable,View} from 'react-native';
 import type {Session} from '../types';
 import {callApi,listOf} from '../lib/api';
 import {READ_ACTIONS,READ_CATEGORIES} from '../catalog/actions';
@@ -10,6 +10,7 @@ const isSensitive=(name:string)=>/password|secret|accesskey|token|auth|hash|pass
 const safeValue=(value:unknown)=>typeof value==='object'?JSON.stringify(value).slice(0,280):String(value??'');
 export function Explorer({session,onDetails}:{session:Session|null,onDetails:(title:string,lines:[string,string][])=>void}){
  const [selected,setSelected]=useState<ReadAction|null>(null),[filter,setFilter]=useState(''),[items,setItems]=useState<any[]>([]),[offset,setOffset]=useState(0),[total,setTotal]=useState(0),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ useEffect(()=>{if(!selected)return;const sub=BackHandler.addEventListener('hardwareBackPress',()=>{setSelected(null);setError('');return true;});return()=>sub.remove();},[selected]);
  const run=async(action:ReadAction,start=0)=>{
   if(!session)return;
   setBusy(true);setError('');

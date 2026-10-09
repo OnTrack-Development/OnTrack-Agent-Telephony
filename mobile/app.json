@@ -3,7 +3,7 @@
     "name": "OnTrack Command",
     "slug": "ontrack-command",
     "scheme": "ontrackcommand",
-    "version": "0.2.2",
+    "version": "0.2.3",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -15,7 +15,7 @@
       "package": "com.ontrackdevelopment.command",
       "edgeToEdgeEnabled": true,
       "permissions": [],
-      "versionCode": 3
+      "versionCode": 4
     },
     "ios": {
       "bundleIdentifier": "com.ontrackdevelopment.command",
