@@ -35,8 +35,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.6');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,17);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.7');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,18);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 console.log('PASS: source integrity plus ticket external ID, pagination, safe areas, Android Back, version increment and demo isolation');
 
@@ -85,3 +85,6 @@ assert.ok(get('mobile/App.tsx').includes('KeyboardAvoidingView'));
 assert.ok(get('mobile/App.tsx').includes('keyboardVisible'));
 assert.equal(JSON.parse(get('mobile/app.json')).expo.android.softwareKeyboardLayoutMode,'resize');
 console.log('PASS: ticket queue separation, operator signature, keyboard resizing and safe navigation');
+
+assert.ok(get('mobile/src/lib/adminSession.ts').includes('validateAdminDirectory(directory,session.baseUrl'));
+assert.ok(get('mobile/src/components/AdminAccess.tsx').includes('اختبار فتح رابط الإدارة بالمتصفح'));

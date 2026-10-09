@@ -12,7 +12,8 @@ const native={resetAll:async()=>{},request:async(key,base,dir,target,method,fiel
  const url=new URL(target,base+'/');let body='',status=200;
  if(scenario==='expired')return {status:401,url:url.toString(),body:'{"status":"error"}'};
  if(scenario==='wa_429'&&url.pathname.endsWith('ajax.php'))return {status:429,url:url.toString(),body:'Rate Limited'};
- if(url.pathname.endsWith('index.php'))body=loginHtml;
+ if(url.pathname.endsWith('/admin/')){status=404;body='Not Found';}
+ else if(url.pathname.endsWith('index.php'))body=loginHtml;
  else if(url.pathname.endsWith('dologin.php')){assert.equal(fields.token,'login-token');assert.equal(fields.username,'staff');assert.equal(fields.password,'staff-pass');body=scenario==='otp'?'<form action="twofa.php"><input type="hidden" name="token" value="otp-token"><input name="code"></form>':'<a href="logout.php">Sign out</a>';}
  else if(url.pathname.endsWith('twofa.php')){assert.equal(fields.code,'123456');assert.equal(fields.token,'otp-token');body='<a href="logout.php">Sign out</a>';}
  else if(url.pathname.endsWith('addonmodules.php'))body=url.searchParams.get('module')==='whatsapp_notifications'?`<script>var token = "${csrf}"; window.waCSRFToken = token;</script>`:`<script>{"snapshot_url":"../modules/addons/ai_support_agent/admin_snapshot.php?events=100&token=${snapshot}"}</script>`;
@@ -51,9 +52,23 @@ function load(name){
  assert.throws(()=>admin.checkedAdminUrl(session.baseUrl,'admin','admin/addonmodules.php?module=other'));
  assert.throws(()=>admin.checkedAdminUrl(session.baseUrl,'admin','admin/../clientarea.php'));
  assert.throws(()=>admin.validateAdminDirectory('https://attacker.test'));
+ assert.equal(admin.validateAdminDirectory('customadmin'),'customadmin');
+ assert.equal(admin.validateAdminDirectory('customadmin/'),'customadmin');
+ assert.equal(admin.validateAdminDirectory('https://example.test/portal/customadmin/',session.baseUrl),'customadmin');
+ assert.equal(admin.validateAdminDirectory('https://example.test/portal/customadmin/index.php',session.baseUrl),'customadmin');
+ assert.equal(admin.validateAdminDirectory('https://example.test/portal/customadmin/addonmodules.php?module=whatsapp_notifications&action=chat',session.baseUrl),'customadmin');
+ assert.throws(()=>admin.validateAdminDirectory('https://attacker.test/portal/customadmin/',session.baseUrl),/نفس سيرفر/);
+ assert.throws(()=>admin.validateAdminDirectory('https://example.test/other/customadmin/',session.baseUrl),/خارج مسار/);
+ assert.throws(()=>admin.validateAdminDirectory('https://user:pass@example.test/portal/customadmin/',session.baseUrl));
+ assert.throws(()=>admin.validateAdminDirectory('/home/user/public_html/admin',session.baseUrl));
+ assert.throws(()=>admin.validateAdminDirectory('https://example.test/portal/customadmin/sensitive.php',session.baseUrl));
+ 
  assert.throws(()=>admin.parseLoginForm('<form action="https://attacker.test/admin/dologin.php"><input name="username"><input name="password"></form>','https://example.test/portal/admin/index.php',session.baseUrl,'admin'));
  await assert.rejects(()=>admin.adminRequest(session,'admin/index.php'),/أولًا/);
- scenario='otp';const first=await admin.loginAdmin(session,'admin','staff','staff-pass');assert.equal(first.needsOtp,true);assert.equal(admin.adminSessionReady(session),false);
+ scenario='otp';const first=await admin.loginAdmin(session,'admin','staff','staff-pass');assert.equal(first.needsOtp,true);
+ assert.ok(calls.some(c=>c.target==='admin/'&&c.method==='GET'),'Try admin landing path before index.php');
+ assert.ok(calls.some(c=>c.target==='admin/index.php'&&c.method==='GET'),'Try fallback login page on 404');
+ assert.equal(admin.adminSessionReady(session),false);
  scenario='success';const second=await admin.loginAdmin(session,'admin','staff','staff-pass','123456');assert.equal(second.ready,true);assert.ok(!saved.some(x=>x.v.includes('staff-pass')));
  await wa.prepareWhatsApp(session);const list=await wa.listConversations(session,'Customer',true);assert.equal(list.unread,2);assert.equal(list.conversations[0].id,3);
  const query=new URL(calls.at(-1).target,session.baseUrl+'/');assert.equal(query.searchParams.get('ajax_action'),'chat_list');assert.equal(query.searchParams.get('unread_only'),'1');
