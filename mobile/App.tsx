@@ -1,6 +1,7 @@
 import React,{useCallback,useEffect,useState} from 'react';
 import {ActivityIndicator,Alert,AppState,Modal,Pressable,RefreshControl,SafeAreaView,ScrollView,StatusBar,View} from 'react-native';
 import {C} from './src/theme';
+import {UpdateGate} from './src/components/UpdateGate';
 import type {DemoState,Page,Session} from './src/types';
 import {seed} from './src/data/demo';
 import {connect as connectApi,loadSession,loadOverview,getTicketThread,replyToTicket,signOut} from './src/lib/api';
@@ -96,5 +97,4 @@ function CommandApp(){
  </SafeAreaView>;
 }
 
-import {UpdateGate} from './src/components/UpdateGate';
 export default function App(){return <><CommandApp/><UpdateGate/></>;}

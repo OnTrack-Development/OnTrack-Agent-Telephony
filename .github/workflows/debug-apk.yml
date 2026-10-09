@@ -115,7 +115,7 @@ jobs:
           test "$BYTES" -lt 73304381
       - uses: actions/upload-artifact@v4
         with:
-          name: OnTrack-Command-v0.2.1-ARM64-signed
+          name: OnTrack-Command-v0.2.2-ARM64-signed
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Publish GitHub Release
@@ -126,10 +126,10 @@ jobs:
           set -euo pipefail
           mkdir -p out
           APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-          cp "$APK" out/OnTrack-Command-v0.2.1-ARM64-release-signed.apk
+          cp "$APK" out/OnTrack-Command-v0.2.2-ARM64-release-signed.apk
           BYTES="$(stat -c%s "$APK")"
           SAVED="$((73304381-BYTES))"
           NOTES="Signed ARM64-only Android release, R8 minified and resources shrunk. APK bytes: ${BYTES}; saving: ${SAVED} bytes versus the 73,304,381-byte v0.2.0 release. Uses the same signing keystore/package ID for in-place upgrades; requires an ARM64 Android phone."
-          gh release create "command-v0.2.1-${GITHUB_RUN_NUMBER}" out/*.apk \
-            --title "OnTrack Command v0.2.1 ARM64 Compact (build ${GITHUB_RUN_NUMBER})" \
+          gh release create "command-v0.2.2-${GITHUB_RUN_NUMBER}" out/*.apk \
+            --title "OnTrack Command v0.2.2 ARM64 Compact (build ${GITHUB_RUN_NUMBER})" \
             --notes "$NOTES"
