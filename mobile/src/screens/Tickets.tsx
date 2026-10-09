@@ -1,6 +1,7 @@
 import React,{useCallback,useEffect,useState} from 'react';
 import {ActivityIndicator,Alert,BackHandler,Pressable,ScrollView,TextInput,View} from 'react-native';
 import type {Session,Ticket} from '../types';
+import {getApiRetryAfterMs} from '../lib/api';
 import {C} from '../theme';
 import {Action,Card,Divider,Header,Icon,Pill,T} from '../components/UI';
 import {QueueKind,OperatorProfile,TicketDetail,TicketBatch,changeTicket,fetchOperatorProfile,
@@ -39,12 +40,12 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
   return()=>sub.remove();
  },[selected]);
  useEffect(()=>{
-  if(!session||demo){setProfile(null);return;}
+  if(!session||demo||!selected){if(!session||demo)setProfile(null);return;}
   let active=true;
   void fetchOperatorProfile(session).then(x=>{if(active)setProfile(x);});
   void fetchSupportStatuses(session).then(x=>{if(active)setStatuses(x);});
   return()=>{active=false;};
- },[session?.baseUrl,session?.mode,session?.username,session?.identifier,demo]);
+ },[session?.baseUrl,session?.mode,session?.username,session?.identifier,demo,selected?.id]);
  const load=useCallback(async(which:'assigned'|'general',offset=0)=>{
   const selectedQueue=which==='assigned'?'assigned':mode;
   const setter=which==='assigned'?setAssigned:setGeneral;
@@ -66,9 +67,14 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
        mode==='closed'?isClosed(t.status):mode==='answered'?t.status.toLowerCase()==='answered':true)});
    return;
   }
-  setAssigned(empty());setGeneral(empty());
+  // Keep previous rows until fresh data is received; a 429 cannot clear the screen.
   void load('assigned',0);void load('general',0);
  },[session?.baseUrl,session?.mode,session?.username,session?.identifier,mode,demo,reloadCounter]);
+ useEffect(()=>{
+  if(demo||!session||![assigned.error,general.error].some(x=>/429|اتصال|network|timeout/i.test(x)))return;
+  const timer=setTimeout(()=>setReloadCounter(n=>n+1),Math.max(15000,getApiRetryAfterMs()+2500));
+  return()=>clearTimeout(timer);
+ },[assigned.error,general.error,session,demo]);
  const refresh=()=>setReloadCounter(n=>n+1);
  const open=async(ticket:Ticket)=>{
   setSelected(ticket);setDetail(null);setDetailLoading(true);setDetailError('');setReply('');
