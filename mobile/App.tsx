@@ -13,7 +13,6 @@ import {Home} from './src/screens/Home';
 import {Tickets} from './src/screens/Tickets';
 import {Directory} from './src/screens/Directory';
 import {WhatsApp} from './src/screens/WhatsApp';
-import {unpairWhatsApp} from './src/lib/whatsappBridge';
 import {AiOps} from './src/screens/AiOps';
 import {Settings} from './src/screens/Settings';
 import {Explorer} from './src/screens/Explorer';
@@ -138,7 +137,7 @@ function CommandApp(){
    if(!result.ok||!result.data){Alert.alert('WHMCS رفض الاتصال',result.error||'تحقق من بيانات API والصلاحيات');return;}
    lastRefreshAt.current={};setSession(result.data);setDemo(false);setHistory([]);setPage('home');await refresh(result.data,true,'tickets');
  };
- const logout=async()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;await unpairWhatsApp(session);await signOut();setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
+ const logout=async()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;await signOut();setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
  const reply=async(id:number,text:string,identity?:{clientId:number;contactId:number;name:string;email:string})=>{
   if(demo){setData(d=>({...d,tickets:d.tickets.map(t=>t.id===id?{...t,status:'Answered',message:text}:t)}));Alert.alert('وضع تجريبي','تم تعديل البيانات المحلية فقط.');return true;}
   if(!session)return false; // WHMCS enforces actual reply permission; list/read failures aren't reply denials.
