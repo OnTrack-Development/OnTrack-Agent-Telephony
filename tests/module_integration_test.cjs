@@ -14,7 +14,7 @@ const native={resetAll:async()=>{},request:async(key,base,dir,target,method,fiel
  if(scenario==='expired')return {status:401,url:url.toString(),body:'{"status":"error"}'};
  if(scenario==='wa_429'&&url.pathname.endsWith('ajax.php'))return {status:429,url:url.toString(),body:'Rate Limited'};
  if(url.pathname.endsWith('/admin/')){status=404;body='Not Found';}
- else if(url.pathname.endsWith('index.php'))body=loginHtml;
+ else if(url.pathname.endsWith('index.php')||url.pathname.endsWith('login.php'))body=loginHtml;
  else if(url.pathname.endsWith('dologin.php')){assert.equal(fields.token,'login-token');assert.equal(fields.username,'staff');assert.equal(fields.password,'staff-pass');body=scenario==='otp'?'<form action="twofa.php"><input type="hidden" name="token" value="otp-token"><input name="code"></form>':scenario==='no_logout'?'<main id="dashboard">WHMCS dashboard with no logout link</main>':'<a href="logout.php">Sign out</a>';}
  else if(url.pathname.endsWith('twofa.php')){assert.equal(fields.code,'123456');assert.equal(fields.token,'otp-token');body='<a href="logout.php">Sign out</a>';}
  else if(url.pathname.endsWith('addonmodules.php'))body=scenario==='no_wa_permission'?'<section>Unauthorized WHMCS addon access</section>':url.searchParams.get('module')==='whatsapp_notifications'?`<script>var token = "${csrf}"; window.waCSRFToken = token;</script>`:`<script>{"snapshot_url":"../modules/addons/ai_support_agent/admin_snapshot.php?events=100&token=${snapshot}"}</script>`;
@@ -65,6 +65,9 @@ function load(name){
  assert.ok(!waScreen.includes('CreateSsoToken'),'Client SSO must never impersonate a WHMCS administrator');
  assert.equal(admin.isVerifiedWhatsAppInbox(`<script>window.waCSRFToken = "${csrf}";</script>`),true);
  assert.equal(admin.isVerifiedWhatsAppInbox('<main>No login, no inbox</main>'),false);
+ assert.match(admin.loginPageDiagnostic('<title>Just a moment</title><div>cf-chl</div>','https://example.test/portal/admin/login.php'),/حماية السيرفر/);
+ assert.match(admin.loginPageDiagnostic('<title>WHMCS - Login</title>','https://example.test/portal/admin/login.php'),/صفحة تسجيل/);
+
  const token32='a'.repeat(32);
  assert.equal(admin.isVerifiedWhatsAppInbox('<script>window.waCSRFToken = "'+token32+'";</script>'),true);
  assert.equal(wa.whatsappCsrf('<script>window.waCSRFToken = "'+token32+'";</script>'),token32);
@@ -97,8 +100,8 @@ function load(name){
  assert.throws(()=>admin.parseLoginForm('<form action="https://attacker.test/admin/dologin.php"><input name="username"><input name="password"></form>','https://example.test/portal/admin/index.php',session.baseUrl,'admin'));
  await assert.rejects(()=>admin.adminRequest(session,'admin/index.php'),/أولًا/);
  scenario='otp';const first=await admin.loginAdmin(session,'admin','staff','staff-pass');assert.equal(first.needsOtp,true);
- assert.ok(calls.some(c=>c.target==='admin/'&&c.method==='GET'),'Try admin landing path before index.php');
- assert.ok(calls.some(c=>c.target==='admin/index.php'&&c.method==='GET'),'Try fallback login page on 404');
+ assert.ok(calls.some(c=>c.target==='admin/login.php'&&c.method==='GET'),'Open the real WHMCS admin login endpoint first');
+ assert.ok(!calls.some(c=>c.target==='admin/index.php'&&c.method==='GET'),'Avoid unnecessary admin landing probes');
  assert.equal(admin.adminSessionReady(session),false);
  scenario='success';const second=await admin.loginAdmin(session,'admin','staff','staff-pass','123456');assert.equal(second.ready,true);assert.ok(!saved.some(x=>x.v.includes('staff-pass')));
  // Regression: WHMCS dashboard may be logged in without rendering "logout.php".

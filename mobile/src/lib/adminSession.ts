@@ -95,6 +95,20 @@ export function parseLoginForm(html:string,pageUrl:string,base:string,dir:string
  }
  return null;
 }
+/** Safe HTML login diagnostics: never expose a CSRF value or cookie. */
+export function loginPageDiagnostic(html:string,url:string):string {
+ const title=(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]||'')
+   .replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim().slice(0,60);
+ if(/cf-chl|challenge-platform|just a moment|checking your browser|turnstile/i.test(html))
+  return 'حماية السيرفر أرسلت صفحة تحقق بدل صفحة دخول WHMCS. افتح واتساب من المتصفح للتحقق، ثم راجع استثناء واجهة الإدارة من تحدي المتصفح للجهاز المصرح له.';
+ if(/h-captcha|g-recaptcha|id=["']captcha/i.test(html))
+  return 'صفحة الإدارة بتطلب CAPTCHA، وده لا يمكن تجاوزه باستخدام بيانات API. افتح WHMCS في المتصفح وأكمل التحقق هناك.';
+ if(/login|sign in|تسجيل دخول/i.test(title))
+  return 'صفحة تسجيل دخول WHMCS ظهرت، لكن التطبيق لم يجد الحقول المعتادة. اسم مجلد الإدارة صحيح؛ راجع إعدادات تسجيل الدخول وحماية الإدارة. ('+title+')';
+ const location=(()=>{try{return new URL(url).pathname}catch{return ''}})();
+ return 'WHMCS رجّع صفحة مختلفة عن تسجيل الدخول'+(title?' ('+title+')':'')+(location?' - '+location:'')+'. يمكن فتح واتساب من متصفح الإدارة الحالي.';
+}
+
 export async function resetAdminSessions():Promise<void>{
  epoch++;states=new WeakMap<Session,AdminState>();
  await NativeModules.CommandAdminSession?.resetAll();
@@ -152,7 +166,9 @@ export async function loginAdmin(session:Session,directory:string,username:strin
  if(!form||!otp){
   // WHMCS installations differ in their admin landing path. Try only
   // documented, same-origin admin entrypoints, not arbitrary endpoints.
-  const entries=[dir+'/',dir+'/index.php',dir+'/login.php'];
+  // Prefer the real WHMCS login entry point. Extra landing-page probes
+  // can trigger WAF/rate limits and are not proof of browser authentication.
+  const entries=[dir+'/login.php',dir+'/'];
   let seen404=0,loginPage:HttpResponse|null=null;
   for(const candidate of entries){
    const page=await request(session,state,candidate,'GET');
@@ -160,19 +176,21 @@ export async function loginAdmin(session:Session,directory:string,username:strin
    if(page.status===429)throw Error('WHMCS رفض كثرة المحاولات مؤقتًا (429). انتظر قبل إعادة تسجيل الدخول.');
    if(page.status===403)throw Error('WHMCS رفض الوصول للإدارة (403). تحقق من صلاحيات الحساب أو حماية السيرفر.');
    if(page.status>=400)throw Error('صفحة إدارة WHMCS رجّعت HTTP '+page.status+'.');
+   loginPage=page;
    const parsed=parseLoginForm(page.body,page.url,session.baseUrl,dir);
-   if(parsed){form=parsed;loginPage=page;break;}
+   if(parsed){form=parsed;break;}
+   if(/cf-chl|challenge-platform|just a moment|checking your browser|turnstile/i.test(page.body))
+    break; // Never submit credentials to a browser challenge.
    if(/logout\.php/i.test(page.body)){
     await proveAdminAccess(session,state);
     state.ready=true;state.revision++;
     return {ready:true,needsOtp:false};
    }
-   loginPage=page;
   }
   if(seen404===entries.length)
-   throw Error('المجلد غير موجود على هذا الرابط (404). افتح لوحة إدارة WHMCS من المتصفح وانسخ رابطها الكامل في الخانة.');
+   throw Error('المجلد غير موجود (404). تأكد من رابط لوحة إدارة WHMCS.');
   if(!form&&loginPage)
-   throw Error('صفحة الإدارة موجودة لكن نموذج تسجيل الدخول مختلف أو يطلب حماية إضافية. جرّب نفس رابط لوحة الإدارة المفتوحة في المتصفح.');
+   throw Error(loginPageDiagnostic(loginPage.body,loginPage.url));
  }
  if(!form)throw Error('لم يتم التعرف على نموذج تسجيل دخول WHMCS؛ افتح الإدارة من المتصفح للتحقق من مسار الدخول.');
  const fields={...form.fields,...(form.otpField?{[form.otpField]:otp}:{username:name,password})};
