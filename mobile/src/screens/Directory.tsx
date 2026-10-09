@@ -103,8 +103,12 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
   <View style={{gap:9}}>
    {shown.length?shown.map((r:any)=>{
     const d=listRecordSummary(page,r);
-    return <Pressable key={String(r.id)} onPress={()=>page==='clients'&&session?
-     setSelectedClient(r as Client):setSelected(r)}
+    return <Pressable key={String(r.id)} onPress={()=>{
+      if(page==='clients'){
+       if(session)setSelectedClient(r as Client);
+       else onDetails(d.title,[['الاسم',str(r.name)],['البريد',str(r.email)],['الحالة',str(r.status)]]);
+      }else setSelected(r);
+     }}
      style={{backgroundColor:C.surface,borderRadius:15,borderWidth:1,borderColor:C.stroke,padding:14,gap:7}}>
      <View style={{flexDirection:'row-reverse',gap:10,alignItems:'center',justifyContent:'space-between'}}>
       <View style={{flex:1,gap:3}}>
