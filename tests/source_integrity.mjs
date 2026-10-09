@@ -61,7 +61,7 @@ assert.ok(ticketClient.includes('parseTicketCustomFields'));
 assert.ok(ticketScreen.includes('الحقول المخصصة للتذكرة'));
 assert.ok(ticketScreen.includes('إرجاع التذكرة إلى المساعد AI'));
 assert.ok(code.includes('buildReplyParams'));
-assert.ok(code.includes('clientid=')===false);
+assert.ok(code.includes('params.clientid=owner'));
 assert.ok(ticketScreen.includes('showAssigned?section'));
 assert.ok(get('mobile/App.tsx').includes('onContentSizeChange'));
 assert.ok(ticketClient.includes('GetAdminDetails'));
