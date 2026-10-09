@@ -114,7 +114,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   {selected?<Pressable onPress={close} style={{flexDirection:'row-reverse',gap:8,paddingVertical:8}}><Icon name="arrow-right" color={C.green}/><T color={C.green}>المحادثات</T></Pressable>:null}
   <Header title={selected?.display_name||'واتساب'} subtitle={selected?.phone||'محادثات العملاء'} right={<Icon name="whatsapp" size={29} color={C.green}/>}/>
   {error?<Card style={{gap:10}}><T size={12} color={C.orange}>{error}</T><Action secondary label="إعادة المحاولة" disabled={busy} onPress={()=>void (connected?refresh():connect())}/></Card>:null}
-  {!connected?<><AdminAccess key={error} session={session} onReady={()=>void connect()}/>{adminSessionReady(session)?<Action label="تحميل المحادثات" disabled={busy} onPress={()=>void connect()}/>:null}</>:null}
+  {!connected?<><AdminAccess session={session} onReady={()=>void connect()}/>{adminSessionReady(session)?<Action label="تحميل المحادثات" disabled={busy} onPress={()=>void connect()}/>:null}</>:null}
   {busy?<ActivityIndicator color={C.green}/>:null}
   {connected&&!selected?<>
    <View style={{flexDirection:'row-reverse',gap:8,alignItems:'center'}}><View style={{flex:1}}><TextInput accessibilityLabel="بحث المحادثات" value={search} onChangeText={v=>{generation.current++;setSearch(v);}} placeholder="اسم العميل أو الرقم" placeholderTextColor={C.muted} style={{backgroundColor:C.surface2,color:C.text,padding:12,borderRadius:12,textAlign:'right'}}/></View><Pill label={`${unread} غير مقروءة`} color={C.green}/></View>
