@@ -142,6 +142,6 @@ jobs:
           NOTES="WHMCS v0.3.4: compact and readable customer services, invoices and orders; focused records, owner-aware details, invoice/service notes editing and confirmed pending-order actions. Full client profile and existing WhatsApp module are unchanged; no new hosting module is installed. Signed ARM64 APK size: ${BYTES} bytes."
           gh release create "whmcs-v0.3.4-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
-            --title "WHMCS v0.3.4 (Android build 13)" \
+            --title "WHMCS v0.3.4 (Android build 15)" \
             --notes "$NOTES"
           echo "Signed APK published; website release staging starts automatically after successful workflow completion."
