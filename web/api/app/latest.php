@@ -12,7 +12,7 @@ if (!is_array($meta)) {
  exit;
 }
 $filename = (string)($meta['filename'] ?? '');
-if ($filename === '' || basename($filename) !== $filename || !preg_match('/^OnTrack-Command-v\d+\.\d+\.\d+-ARM64-release-signed\.apk$/', $filename)) {
+if ($filename === '' || basename($filename) !== $filename || !preg_match('/^WHMCS-v\d+\.\d+\.\d+-ARM64-release-signed\.apk$/', $filename)) {
  http_response_code(500);
  echo json_encode(['ok'=>false,'error'=>'Invalid release metadata'], JSON_UNESCAPED_SLASHES);
  exit;

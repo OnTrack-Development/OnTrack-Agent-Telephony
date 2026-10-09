@@ -1,16 +1,12 @@
-# WHMCS website cutover (STAGED, not deployed)
-This branch prepares `agent.ontrackegy.com` (old telephony/control-plane host) for a first-party
-Android download and update channel. This is NOT `OnTrack-voice` and does not touch its repository.
-Site update API: https://agent.ontrackegy.com/api/app/latest.php
-APK: https://agent.ontrackegy.com/downloads/OnTrack-Command-v0.2.3-ARM64-release-signed.apk
+# WHMCS Android hosting replacement — NO BACKUP
+This Git branch contains **only** the WHMCS mobile download/update site. It does not include the old OnTrack AI Phone server.
 
-Deploy requires authorized access to cPanel/SFTP or the existing admin website updater.
-The old PHP site updater copies new files but **does not delete removed files**.
-Do NOT claim telephony APIs or live SQLite data are removed just by moving Git branches.
-Before replacing the live site, back up runtime `storage/app.sqlite*`, `config/local.php`,
-and any call recordings/uploads. Confirm host storage can serve >27MB files without redirects.
-Only after a successful live download and update manifest probe should old telephony routes
-and server-side data be retired. Protected old data must not be made publicly downloadable.
+Public hosting target: https://agent.ontrackegy.com
+Update metadata: https://agent.ontrackegy.com/api/app/latest.php
+Latest Android APK: https://agent.ontrackegy.com/downloads/WHMCS-v0.2.5-ARM64-release-signed.apk
 
-The Android app v0.2.3 still polls GitHub; a follow-up release must change its updater
-to the website after the new endpoint is verified live.
+After the v0.2.5 signed APK has been staged, replace the complete live document root with the `web/` directory contents. This is a destructive removal of all old telephony server PHP files, databases, call logs, old APKs, user configurations, and miscellaneous storage as explicitly requested. **Do not back up** them.
+
+SECURITY: The GitHub connector writes repository files, but cannot deploy to cPanel or erase the live document root. A real authenticated cPanel/SSH/SFTP deployment is required, and the live site must be probed afterward before claiming completion. Never expose secrets or backups through a public web path. Keep the legacy Android Java package ID unchanged so upgrades work, even though the visible app name is WHMCS.
+
+The site manifest must be deployed in the same cutover as the matching APK. The installer verifies downloaded SHA256, and Android requires its normal user confirmation for installation.
