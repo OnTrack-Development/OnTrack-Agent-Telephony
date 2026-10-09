@@ -1,0 +1,20 @@
+name: Probe Previous Site Updater
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/probe-previous-site-updater.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check whether legacy server-side updater still exists
+        shell: bash
+        run: |
+          set +e
+          for path in /update.php /api/admin/system-update.php /app/site_updater.php /api/app/latest.php; do
+            printf '%s ' "$path"
+            curl -sS -k --connect-timeout 6 --max-time 12 --max-redirs 0 -o /dev/null -w 'http=%{http_code} redirect=%{redirect_url}\n' "https://agent.ontrackegy.com$path"
+          done
