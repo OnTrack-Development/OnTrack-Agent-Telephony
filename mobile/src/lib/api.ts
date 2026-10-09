@@ -6,7 +6,7 @@ import type {ApiResult,DemoState,Session,Ticket,Client,Invoice,Service,Order,Dom
 const STORAGE_KEY='ontrack-command-direct-v2';
 const TIMEOUT_MS=18000;
 // Serial calls and share a backoff across all WHMCS screens.
-const REQUEST_SPACING_MS=2000;
+const REQUEST_SPACING_MS=4000; // Only a few well-spaced API requests per screen.
 let nextRequestAt=0;
 let rateLimitedUntil=0;
 let consecutive429=0;
@@ -59,7 +59,7 @@ async function callApiUncached<T=any>(session:Session,action:string,params:Recor
    const rawRetry=response.headers?.get?.('retry-after')||'';
    const seconds=Number(rawRetry);
    const retryMs=rawRetry?(Number.isFinite(seconds)?seconds*1000:Date.parse(rawRetry)-Date.now()):0;
-   const waitMs=Math.max(20000,Math.min(180000,Math.max(Number.isFinite(retryMs)?retryMs:0,20000*Math.pow(2,Math.min(3,consecutive429-1)))));
+   const waitMs=Math.max(60000,Math.min(300000,Math.max(Number.isFinite(retryMs)?retryMs:0,60000*Math.pow(2,Math.min(3,consecutive429-1)))));
    rateLimitedUntil=Math.max(rateLimitedUntil,Date.now()+waitMs);
    return throttled();
   }
@@ -127,9 +127,10 @@ export async function loadPage(session:Session,key:SectionKey,start=0,limit=50):
  });
  return {ok:true,records,total};
 }
-export async function loadOverview(session:Session):Promise<{state:DemoState,errors:Record<string,string>,capabilities:Record<string,boolean>,totals:Record<string,number|null>}>{
- const keys=Object.keys(sections) as SectionKey[];
- const results=await Promise.all(keys.map(async key=>[key,await loadPage(session,key)] as const));
+export async function loadOverview(session:Session,keys:SectionKey[]=['tickets']):Promise<{state:DemoState,errors:Record<string,string>,capabilities:Record<string,boolean>,totals:Record<string,number|null>}>{
+ // No six-section startup storm: only fetch the section the user actually opened.
+ const allowed=keys.filter(key=>Object.prototype.hasOwnProperty.call(sections,key));
+ const results=await Promise.all(allowed.map(async key=>[key,await loadPage(session,key)] as const));
  const state:DemoState={tickets:[],clients:[],invoices:[],services:[],orders:[],domains:[],chats:[],agents:[],queue:[]};
  const errors:Record<string,string>={},capabilities:Record<string,boolean>={},totals:Record<string,number|null>={};
  for(const [key,result] of results){capabilities[`${key}.read`]=result.ok;totals[key]=result.total;if(!result.ok){errors[key]=result.error||'غير متاح';continue;}(state as any)[key]=result.records;}
