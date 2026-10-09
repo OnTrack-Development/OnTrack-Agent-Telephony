@@ -1,6 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {AppState, Linking, Modal, Platform, Pressable, View} from 'react-native';
-import Constants from 'expo-constants';
 import {C} from '../theme';
 import {Action, Icon, T} from '../components/UI';
 
@@ -12,6 +11,7 @@ type Release = {
   assets?: Array<{name?: string; browser_download_url?: string; size?: number}>;
 };
 type Update = {version: string; downloadUrl: string; size: number; notes: string};
+const INSTALLED_VERSION = '0.2.2'; // Must match mobile/app.json; checked by CI.
 const API = 'https://api.github.com/repos/OnTrack-Development/OnTrack-Agent-Telephony/releases?per_page=15';
 const RELEASE_DOWNLOAD_PREFIX = 'https://github.com/OnTrack-Development/OnTrack-Agent-Telephony/releases/download/';
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
@@ -26,7 +26,7 @@ export function newerThan(incoming: string, current: string): boolean {
   const next = parseVersion(incoming), prev = parseVersion(current);
   if (!next || !prev) return false;
   for (let i = 0; i < 3; i++) {
-    if (next[i] !== prev[i]) return next[i] > prev[i];
+    if (next[i] !== prev[i]) return (next[i] ?? 0) > (prev[i] ?? 0);
   }
   return false;
 }
@@ -35,16 +35,17 @@ export function chooseRelease(releases: Release[], currentVersion: string): Upda
   for (const release of releases) {
     if (release.draft || release.prerelease) continue;
     const match = /^command-v(\d+\.\d+\.\d+)-(\d+)$/.exec(release.tag_name || '');
-    if (!match || !newerThan(match[1], currentVersion)) continue;
+    const version = match?.[1];
+    if (!version || !newerThan(version, currentVersion)) continue;
     const file = (release.assets || []).find(asset =>
       /^OnTrack-Command-v\d+\.\d+\.\d+-ARM64-release-signed\.apk$/.test(asset.name || '') &&
       (asset.browser_download_url || '').startsWith(RELEASE_DOWNLOAD_PREFIX + release.tag_name + '/') &&
       (asset.size || 0) > 0
     );
     if (!file || !file.browser_download_url) continue;
-    if (!selected || newerThan(match[1], selected.version)) {
+    if (!selected || newerThan(version, selected.version)) {
       selected = {
-        version: match[1],
+        version,
         downloadUrl: file.browser_download_url,
         size: file.size || 0,
         notes: (release.body || '').slice(0, 400)
@@ -77,7 +78,7 @@ export function UpdateGate() {
         if (!response.ok) return;
         const json: unknown = await response.json();
         if (!Array.isArray(json)) return;
-        const installedVersion = Constants.expoConfig?.version || '0.0.0';
+        const installedVersion = INSTALLED_VERSION;
         const available = chooseRelease(json as Release[], installedVersion);
         if (mounted) setUpdate(available);
       } catch {
