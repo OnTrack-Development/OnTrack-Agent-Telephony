@@ -1,7 +1,7 @@
 import {callApi,listOf} from './api';
 import type {ApiResult,Client,Session} from '../types';
 
-export type ClientTab='overview'|'services'|'domains'|'invoices'|'tickets'|'orders'|'contacts'|'emails';
+export type ClientTab='overview'|'services'|'domains'|'invoices'|'tickets'|'orders'|'contacts'|'emails'|'quotes'|'transactions';
 export interface ProfileField {label:string;value:string}
 export interface ClientSummary {
  id:number;title:string;status:string;fields:ProfileField[];billing:ProfileField[];
@@ -64,7 +64,9 @@ const tabs:Record<Exclude<ClientTab,'overview'>,{action:string;args:(id:number)=
  tickets:{action:'GetTickets',args:clientid=>({clientid,limitnum:35}),root:'tickets',singular:'ticket'},
  orders:{action:'GetOrders',args:userid=>({userid,limitnum:35}),root:'orders',singular:'order'},
  contacts:{action:'GetContacts',args:userid=>({userid,limitnum:35}),root:'contacts',singular:'contact'},
- emails:{action:'GetEmails',args:clientid=>({clientid,limitnum:35}),root:'emails',singular:'email'}
+ emails:{action:'GetEmails',args:clientid=>({clientid,limitnum:35}),root:'emails',singular:'email'},
+ quotes:{action:'GetQuotes',args:userid=>({userid,limitnum:35}),root:'quotes',singular:'quote'},
+ transactions:{action:'GetTransactions',args:clientid=>({clientid}),root:'transactions',singular:'transaction'}
 };
 export async function fetchClientSummary(session:Session,client:Client):Promise<ApiResult<ClientSummary>>{
  const r=await callApi(session,'GetClientsDetails',{clientid:client.id,stats:true});
