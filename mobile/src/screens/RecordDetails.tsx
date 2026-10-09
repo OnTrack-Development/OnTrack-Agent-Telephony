@@ -50,6 +50,7 @@ export function RecordDetails({page,item,session,onBack,onChanged}:{
  const type=page as DetailPage;
  const [data,setData]=useState<RecordItem|null>(null),[busy,setBusy]=useState(false),[working,setWorking]=useState(false);
  const [error,setError]=useState(''),[editing,setEditing]=useState(false),[notes,setNotes]=useState('');
+ const [dateEditing,setDateEditing]=useState(false),[dueDate,setDueDate]=useState('');
  const request=useRef(0);
  const load=async()=>{
   if(!session){setData(item);return;}
@@ -61,7 +62,7 @@ export function RecordDetails({page,item,session,onBack,onChanged}:{
   const response:any=r.data||{};
   const found=cfg.root?itemList(response,cfg.root,cfg.singular||'').find(x=>detailIdentityMatches(type,x,item.id)):response;
   if(!found||!detailIdentityMatches(type,found,item.id)){setError('WHMCS لم يؤكد بيانات السجل المطلوب؛ تم منع عرض بيانات سجل مختلف.');return;}
-  setData(found);setNotes(val(found.notes));
+  setData(found);setNotes(val(found.notes));setDueDate(val(found.duedate||found.nextduedate));
  };
  useEffect(()=>{setData(null);setEditing(false);void load();return()=>{request.current++};},[type,item.id,session]);
  const read=data||item;
@@ -87,6 +88,19 @@ export function RecordDetails({page,item,session,onBack,onChanged}:{
   confirm('تأكيد حفظ الملاحظات',`هيتم تحديث ملاحظات ${isInvoice?'الفاتورة':'الخدمة'} #${item.id} داخل WHMCS.`,
    ()=>void doAction(isInvoice?'UpdateInvoice':'UpdateClientProduct',isInvoice?
     {invoiceid:item.id,notes:changed}:{serviceid:item.id,notes:changed},'تم حفظ الملاحظات في WHMCS.'));
+ };
+ const saveDueDate=()=>{
+  if(!data||!session)return;
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(dueDate.trim())
+   ||Number.isNaN(Date.parse(dueDate.trim()+'T12:00:00Z'))){
+    setError('تاريخ الاستحقاق لازم يكون بصيغة YYYY-MM-DD');return;
+  }
+  const isInvoice=type==='invoices';
+  const field=isInvoice?'duedate':'nextduedate';
+  if(dueDate.trim()===val(data[field])){setDateEditing(false);return;}
+  confirm('تأكيد تغيير الاستحقاق',`هيتم تغيير تاريخ الاستحقاق للسجل #${item.id} إلى ${dueDate.trim()} داخل WHMCS. قد يؤثر على جدول الفوترة.`,
+   ()=>void doAction(isInvoice?'UpdateInvoice':'UpdateClientProduct',isInvoice?
+    {invoiceid:item.id,duedate:dueDate.trim()}:{serviceid:item.id,nextduedate:dueDate.trim()},'تم تعديل الاستحقاق في WHMCS.'));
  };
  const status=val(read.status||item.status)||'غير معروف';
  return <View style={{gap:13,paddingBottom:35}}>
@@ -124,6 +138,21 @@ export function RecordDetails({page,item,session,onBack,onChanged}:{
      <View style={{flex:1}}><Action label="حفظ" disabled={working} onPress={saveNote}/></View>
      <View style={{flex:1}}><Action label="إلغاء" secondary onPress={()=>{setEditing(false);setNotes(val(data.notes))}}/></View>
     </View></>:<T color={C.muted} size={13}>{val(data.notes)||'بدون ملاحظات'}</T>}
+  </Card>:null}
+  {data&&(type==='invoices'||type==='services')?<Card style={{gap:10}}>
+   <T weight="800">تاريخ الاستحقاق والتجديد</T>
+   {dateEditing?<><TextInput value={dueDate} onChangeText={setDueDate}
+    placeholder="YYYY-MM-DD" placeholderTextColor={C.muted} keyboardType="numbers-and-punctuation"
+    style={{color:C.text,textAlign:'center',padding:12,borderColor:C.stroke,borderWidth:1,borderRadius:12,backgroundColor:C.surface2}}/>
+    <View style={{flexDirection:'row-reverse',gap:9}}>
+     <View style={{flex:1}}><Action label="حفظ التاريخ" disabled={working} onPress={saveDueDate}/></View>
+     <View style={{flex:1}}><Action label="إلغاء" secondary onPress={()=>setDateEditing(false)}/></View>
+    </View></>:<View style={{flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center'}}>
+     <T color={C.muted}>{dueDate||'غير محدد'}</T>
+     <Pressable onPress={()=>setDateEditing(true)} style={{flexDirection:'row-reverse',gap:5,alignItems:'center'}}>
+      <Icon name="calendar-edit" color={C.blue} size={17}/><T color={C.blue} size={12}>تعديل</T>
+     </Pressable>
+    </View>}
   </Card>:null}
   {data&&type==='orders'&&/^pending$/i.test(status)?<Card style={{gap:12}}>
    <T weight="800">إدارة الطلب</T>
