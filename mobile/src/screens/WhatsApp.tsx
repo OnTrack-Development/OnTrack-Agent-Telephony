@@ -97,9 +97,9 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   try{
    const dir=validateAdminDirectory(directory,session.baseUrl);
    const target=existingWhatsAppInboxUrl(session.baseUrl,dir);
+   await saveAdminDirectory(session,dir); // Save chosen folder even if browser cannot launch.
    // Android default browser retains its own authenticated WHMCS cookies.
    await Linking.openURL(target);
-   await saveAdminDirectory(session,dir);
   }catch(e){
    if(active.current)setError(e instanceof Error?e.message:'تعذر فتح Inbox الحالي');
   }finally{if(active.current)setOpeningBrowser(false);}
@@ -161,7 +161,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  return <View style={{gap:14,paddingBottom:24}}>
   {selected?<Pressable onPress={close} style={{flexDirection:'row-reverse',gap:8,paddingVertical:8}}><Icon name="arrow-right" color={C.green}/><T color={C.green}>المحادثات</T></Pressable>:null}
   <Header title={selected?.display_name||'واتساب'} subtitle={selected?.phone||'محادثات العملاء'} right={<Icon name="whatsapp" size={29} color={C.green}/>}/>
-  {error?<Card style={{gap:10}}><T size={12} color={C.orange}>{error}</T><Action secondary label="إعادة المحاولة" disabled={busy} onPress={()=>void (connected?refresh():connect())}/></Card>:null}
+  {error?<Card style={{gap:10}}><T size={12} color={C.orange}>{error}</T><Action secondary label="إعادة المحاولة" disabled={busy} onPress={()=>void (connected?refresh():session?.mode==='admin'?connectSaved():openBrowser())}/></Card>:null}
   {!connected?<Card style={{gap:15}}>
    <View style={{flexDirection:'row-reverse',alignItems:'center',gap:9}}>
     <Icon name="shield-check-outline" color={C.green} size={27}/>
