@@ -8,7 +8,8 @@ import type {ClientSummary,ClientTab,ClientTabResult,ProfileField} from '../lib/
 const tabs:{id:ClientTab;name:string}[]=[
  {id:'overview',name:'الملخص'},{id:'services',name:'الخدمات'},{id:'domains',name:'الدومينات'},
  {id:'invoices',name:'الفواتير'},{id:'tickets',name:'التذاكر'},{id:'orders',name:'الطلبات'},
- {id:'contacts',name:'جهات الاتصال'},{id:'emails',name:'البريد المرسل'}
+ {id:'contacts',name:'جهات الاتصال'},{id:'emails',name:'البريد المرسل'},
+ {id:'quotes',name:'عروض الأسعار'},{id:'transactions',name:'المعاملات المالية'}
 ];
 const text=(x:unknown)=>x===null||x===undefined?'':typeof x==='object'?JSON.stringify(x):String(x).trim();
 const forbidden=/password|secret|token|private.?key|auth|كلمة.?المرور|^message$|^body$|^headers$/i;
@@ -28,6 +29,8 @@ function recordTitle(tab:ClientTab,row:Record<string,unknown>){
  if(tab==='tickets')return text(row.title||row.subject||'تذكرة')+' #'+text(row.tid||row.id);
  if(tab==='orders')return 'طلب #'+text(row.id);
  if(tab==='emails')return text(row.subject)||'رسالة بريد #'+text(row.id);
+ if(tab==='quotes')return text(row.subject)||'عرض سعر #'+text(row.id);
+ if(tab==='transactions')return 'معاملة #'+text(row.id);
  return [text(row.firstname),text(row.lastname)].filter(Boolean).join(' ')||text(row.email)||'جهة اتصال';
 }
 function recordSubtitle(tab:ClientTab,row:Record<string,unknown>){
@@ -37,6 +40,8 @@ function recordSubtitle(tab:ClientTab,row:Record<string,unknown>){
  if(tab==='tickets')return [text(row.status),text(row.deptname),text(row.lastreply)].filter(Boolean).join(' • ');
  if(tab==='orders')return [text(row.status),text(row.date),text(row.amount)].filter(Boolean).join(' • ');
  if(tab==='emails')return [text(row.date),text(row.to),text(row.sender)].filter(Boolean).join(' • ');
+ if(tab==='quotes')return [text(row.stage),text(row.total),text(row.datecreated)].filter(Boolean).join(' • ');
+ if(tab==='transactions')return [text(row.date),text(row.amountin),text(row.gateway)].filter(Boolean).join(' • ');
  return [text(row.email),text(row.phonenumber)].filter(Boolean).join(' • ');
 }
 export function ClientProfile({session,client,onBack}:{session:Session;client:Client;onBack:()=>void}){
