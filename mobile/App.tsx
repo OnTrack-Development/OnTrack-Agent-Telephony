@@ -51,7 +51,7 @@ function CommandApp(){
  backRef.current=()=>{
   if(detail){setDetail(null);return true;}
   if(page!=='home'){setPage(history[history.length-1]??'home');setHistory(h=>h.slice(0,-1));return true;}
-  Alert.alert('تأكيد الخروج','هل تريد إغلاق OnTrack Command؟',[{text:'إلغاء',style:'cancel'},{text:'خروج',style:'destructive',onPress:()=>BackHandler.exitApp()}]);
+  Alert.alert('تأكيد الخروج','هل تريد إغلاق WHMCS؟',[{text:'إلغاء',style:'cancel'},{text:'خروج',style:'destructive',onPress:()=>BackHandler.exitApp()}]);
   return true;
  };
  useEffect(()=>{const sub=BackHandler.addEventListener('hardwareBackPress',()=>backRef.current());return()=>sub.remove();},[]);
@@ -106,7 +106,7 @@ function CommandApp(){
  };
  const currentTab=nav.some(n=>n.page===page)?page:'more';
  return <View style={{flex:1,backgroundColor:C.bg}}><StatusBar barStyle="light-content" translucent={false} backgroundColor={C.bg}/>
-  <View style={{flexDirection:'row-reverse',paddingHorizontal:19,paddingTop:10,paddingBottom:9,justifyContent:'space-between',alignItems:'center',borderBottomWidth:1,borderBottomColor:C.stroke}}><T weight="900" size={12} color={C.red}>ONTRACK / COMMAND</T><View style={{flexDirection:'row-reverse',gap:8,alignItems:'center'}}><Icon name={demo?'flask-outline':'shield-check'} color={demo?C.orange:C.green} size={16}/><T size={10} color={C.muted}>{demo?'DEMO':lastSync?`API • ${lastSync}`:'WHMCS API'}</T></View></View>
+  <View style={{flexDirection:'row-reverse',paddingHorizontal:19,paddingTop:10,paddingBottom:9,justifyContent:'space-between',alignItems:'center',borderBottomWidth:1,borderBottomColor:C.stroke}}><T weight="900" size={12} color={C.red}>WHMCS</T><View style={{flexDirection:'row-reverse',gap:8,alignItems:'center'}}><Icon name={demo?'flask-outline':'shield-check'} color={demo?C.orange:C.green} size={16}/><T size={10} color={C.muted}>{demo?'DEMO':lastSync?`API • ${lastSync}`:'WHMCS API'}</T></View></View>
   {Object.keys(errors).length>0&&!demo?<Pressable style={{backgroundColor:'#483820',padding:9}} onPress={()=>navigate('settings')}><T color={C.orange} size={11}>بعض الأقسام غير متاحة لصلاحيات API الحالية — التفاصيل في الإعدادات</T></Pressable>:null}
   {error?<Pressable style={{backgroundColor:'#47212A',padding:11}} onPress={()=>session&&refresh(session)}><T color={C.orange} size={12}>تعذر التحديث: {error} — اضغط لإعادة المحاولة</T></Pressable>:null}
   <ScrollView key={page} contentContainerStyle={{padding:18,paddingBottom:35}} refreshControl={<RefreshControl refreshing={loading} tintColor={C.red} onRefresh={()=>session?void refresh(session):undefined}/>} keyboardShouldPersistTaps="handled">{body()}</ScrollView>

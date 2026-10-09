@@ -3,8 +3,8 @@ import {Alert,AppState,DeviceEventEmitter,Modal,NativeModules,Platform,Pressable
 import {C} from '../theme';
 import {Action,Icon,T} from './UI';
 
-const CURRENT_VERSION='0.2.4';
-const CURRENT_VERSION_CODE=5;
+const CURRENT_VERSION='0.2.5';
+const CURRENT_VERSION_CODE=6;
 const UPDATE_API='https://agent.ontrackegy.com/api/app/latest.php';
 const HOST='https://agent.ontrackegy.com/downloads/';
 const INTERVAL=600000;
@@ -23,7 +23,7 @@ interface Progress {written:number;total:number}
 
 export function validUpdate(value:Latest):Update|null {
  const version=value.version_name||'';
- const target=HOST+'OnTrack-Command-v'+version+'-ARM64-release-signed.apk';
+ const target=HOST+'WHMCS-v'+version+'-ARM64-release-signed.apk';
  const sha=value.sha256||'';
  if(value.ok!==true || value.app_id!=='com.ontrackdevelopment.command'
   || !/^\d+\.\d+\.\d+$/.test(version)
@@ -86,7 +86,7 @@ export function UpdateGate(){
  <View style={{backgroundColor:C.surface,padding:22,borderRadius:22,gap:14,borderWidth:1,borderColor:C.stroke}}>
  <Icon name="cellphone-arrow-down" color={C.red} size={31}/>
  <T size={21} weight="900">تحديث جديد متاح</T>
- <T size={13} color={C.muted}>OnTrack Command v{update.version} • {(update.size/1048576).toFixed(1)} MiB</T>
+ <T size={13} color={C.muted}>WHMCS v{update.version} • {(update.size/1048576).toFixed(1)} MiB</T>
  {busy?<T size={13} color={C.red}>جاري التحميل والتحقق من الملف: {percent}%</T>:null}
  <T color={C.muted} size={12}>التحميل من سيرفر OnTrack داخل التطبيق؛ عند اكتماله هتظهر شاشة تثبيت أندرويد مباشرة، بدون مدير التحميلات.</T>
  <Action label={busy?`تحميل التحديث ${percent}%`:'تحديث الآن'} disabled={busy} icon="download" onPress={()=>{void install();}}/>

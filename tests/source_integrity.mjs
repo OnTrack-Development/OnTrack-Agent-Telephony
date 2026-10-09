@@ -23,8 +23,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.2.4');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,5);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.2.5');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,6);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 console.log('PASS: source integrity plus ticket external ID, pagination, safe areas, Android Back, version increment and demo isolation');
 
@@ -36,3 +36,9 @@ const nativeUpdate=get('mobile/native/android/CommandUpdateModule.java');
 assert.ok(nativeUpdate.includes('FileProvider.getUriForFile'));
 assert.ok(nativeUpdate.includes('APK SHA256 mismatch'));
 console.log('PASS: native website APK downloader, checksum verification, Android installer');
+
+assert.equal(JSON.parse(get('mobile/app.json')).expo.name,'WHMCS');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.package,'com.ontrackdevelopment.command');
+assert.ok(get('mobile/src/components/UpdateGate.tsx').includes('WHMCS-v'));
+assert.ok(get('mobile/native/android/CommandUpdateModule.java').includes('WHMCS-v'));
+console.log('PASS: WHMCS identity and icon config, stable Android package and updates');

@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "OnTrack Command",
-    "slug": "ontrack-command",
-    "scheme": "ontrackcommand",
-    "version": "0.2.4",
+    "name": "WHMCS",
+    "slug": "whmcs-admin",
+    "scheme": "whmcsadmin",
+    "version": "0.2.5",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -15,7 +15,11 @@
       "package": "com.ontrackdevelopment.command",
       "edgeToEdgeEnabled": true,
       "permissions": [],
-      "versionCode": 5
+      "versionCode": 6,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#081322"
+      }
     },
     "ios": {
       "bundleIdentifier": "com.ontrackdevelopment.command",
@@ -23,6 +27,7 @@
     },
     "plugins": [
       "expo-secure-store"
-    ]
+    ],
+    "icon": "./assets/icon.png"
   }
 }

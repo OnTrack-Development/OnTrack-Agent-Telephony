@@ -48,7 +48,7 @@ public final class CommandUpdateModule extends ReactContextBaseJavaModule implem
 
     @ReactMethod public void downloadAndInstall(String link, String checksum, String version, Promise promise) {
         if (downloading) { promise.reject("BUSY", "Update download is already running"); return; }
-        final String fileName = "OnTrack-Command-v" + version + "-ARM64-release-signed.apk";
+        final String fileName = "WHMCS-v" + version + "-ARM64-release-signed.apk";
         final Uri remote = Uri.parse(link);
         if (!version.matches("[0-9]+\\.[0-9]+\\.[0-9]+")
            || !checksum.matches("(?i)[0-9a-f]{64}")
