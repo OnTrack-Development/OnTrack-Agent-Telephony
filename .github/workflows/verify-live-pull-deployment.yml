@@ -1,0 +1,45 @@
+name: Verify Live GitHub Pull Deployment
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-live-pull-deployment.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - name: Verify website picked up remote GitHub commit without manual upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://agent.ontrackegy.com'
+          MARK='github-pull-20261009-verified'
+          echo 'Checking server-side GitHub pull; the updater polls at most every 180 seconds.'
+          for i in $(seq 1 24); do
+            rm -f /tmp/whmcs_live_update.html
+            if curl --fail --silent --show-error --location --connect-timeout 8 --max-time 35 \
+                -H 'Cache-Control: no-cache' "$BASE/update.php?check=$i" -o /tmp/whmcs_live_update.html; then
+              if grep -Fq "$MARK" /tmp/whmcs_live_update.html; then
+                echo "PASS: Unattended GitHub pull deployed the commit to live website (try=$i)."
+                curl --fail --silent --show-error --location --connect-timeout 8 --max-time 25 \
+                  -H 'Cache-Control: no-cache' "$BASE/api/app/latest.php" > /tmp/whmcs_meta.json
+                python3 - <<'PY'
+          import json
+          a=json.load(open('/tmp/whmcs_meta.json'))
+          assert a['ok'] and a['version_name']=='0.2.7' and a['version_code']==8,a
+          print('PASS: WHMCS update API retains version 0.2.7 build 8')
+          PY
+                exit 0
+              fi
+              echo "WAIT: deployment marker not on live server, attempt $i."
+            else
+              echo "WAIT: website fetch failed, attempt $i."
+            fi
+            sleep 20
+          done
+          echo "::error::The live server never pulled the committed marker from GitHub within 8 minutes."
+          exit 1
