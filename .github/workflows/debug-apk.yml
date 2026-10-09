@@ -29,7 +29,15 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - name: Prepare Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKMANAGER" ]; then
+            "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+          fi
       - name: Install JavaScript dependencies
         working-directory: mobile
         run: npm install --no-audit --no-fund
