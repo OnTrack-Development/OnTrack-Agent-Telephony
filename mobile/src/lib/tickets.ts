@@ -32,7 +32,7 @@ export function mapTicket(x:any):Ticket {
  };
 }
 const total=(d:any):number|null=>d?.totalresults!==undefined&&Number.isFinite(Number(d.totalresults))?Number(d.totalresults):null;
-export async function fetchTicketQueue(session:Session,kind:QueueKind,start=0,limit=40):Promise<TicketBatch> {
+export async function fetchTicketQueue(session:Session,kind:QueueKind,start=0,limit=50):Promise<TicketBatch> {
  const statuses:Record<QueueKind,string>={assigned:'My Flagged Tickets',awaiting:'Awaiting Reply',allActive:'All Active Tickets',answered:'Answered',closed:'Closed',all:''};
  const res=await callApi(session,'GetTickets',{status:statuses[kind]||undefined,limitstart:start,limitnum:limit});
  if(!res.ok)return {ok:false,tickets:[],total:null,error:res.error};
