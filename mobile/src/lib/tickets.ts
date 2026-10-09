@@ -59,9 +59,11 @@ function attachmentNames(value:any):string[] {
  * The official WHMCS GetTicket endpoint does not guarantee these values. */
 export function parseTicketCustomFields(input:any):TicketCustomField[] {
  const source=Array.isArray(input)?input:input?.customfield??input?.field??input;
- const items=Array.isArray(source)?source:(source&&typeof source==='object'?Object.entries(source).map(([key,value])=>{
-  return value&&typeof value==='object'?{id:key,...value}:{id:key,name:key,value};
- }):[]);
+ const items=Array.isArray(source)?source:
+  source&&typeof source==='object'&&('value' in source||'fieldvalue' in source)?[source]:
+  source&&typeof source==='object'?Object.entries(source).map(([key,value])=>
+   value&&typeof value==='object'?{id:key,...value}:{id:key,name:key,value}
+  ):[];
  return items.map((field:any,index:number)=>({
   id:str(field.id??field.fieldid??index),
   name:str(field.name??field.fieldname??field.label??field.title??('حقل '+(index+1))).trim(),
