@@ -74,7 +74,11 @@ async function callApiUncached<T=any>(session:Session,action:string,params:Recor
 }
 // Cache only read-only calls, scoped to each authenticated session (never shared across users).
 export async function callApi<T=any>(session:Session,action:string,params:Record<string,string|number|boolean|undefined>={}):Promise<ApiResult<T>>{
- if(!readActions.has(action))return callApiUncached<T>(session,action,params);
+ if(!readActions.has(action)){
+  const result=await callApiUncached<T>(session,action,params);
+  if(result.ok)cache.delete(session); // A successful write invalidates ticket/status reads.
+  return result;
+ }
  const key=action+'|'+JSON.stringify(params);
  let items=cache.get(session);
  if(!items){items=new Map();cache.set(session,items);}
