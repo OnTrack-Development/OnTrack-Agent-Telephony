@@ -138,7 +138,43 @@ export async function loadOverview(session:Session):Promise<{state:DemoState,err
  return {state,errors,capabilities,totals};
 }
 export async function getTicketThread(session:Session,id:number):Promise<ApiResult<any>>{return callApi(session,'GetTicket',{ticketid:id});}
-export async function replyToTicket(session:Session,id:number,message:string):Promise<ApiResult<any>>{
- if(!Number.isSafeInteger(id)||id<1||!message.trim()||message.length>30000)return {ok:false,error:'رقم التذكرة أو نص الرد غير صالح'};
- return callApi(session,'AddTicketReply',{ticketid:id,message:message.trim()});
+export interface TicketReplyIdentity {
+ clientId:number;contactId:number;name:string;email:string;
+}
+/** Preserve sender ownership. External API identifiers are not admin usernames. */
+export function buildReplyParams(
+ session:Session,id:number,message:string,identity:TicketReplyIdentity
+):{ok:true;params:Record<string,string|number>}|{ok:false;error:string}{
+ if(!Number.isSafeInteger(id)||id<1||!message.trim()||message.length>30000)
+  return {ok:false,error:'رقم التذكرة أو نص الرد غير صالح'};
+ const params:Record<string,string|number>={ticketid:id,message:message.trim()};
+ const owner=Number(identity.clientId)||0,contact=Number(identity.contactId)||0;
+ if(Number.isSafeInteger(owner)&&owner>0){
+  params.clientid=owner;
+  if(Number.isSafeInteger(contact)&&contact>0)params.contactid=contact;
+ }else{
+  const name=(identity.name||'').trim(),email=(identity.email||'').trim();
+  if(!name||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))
+   return {ok:false,error:'لا يمكن إرسال الرد: التذكرة لزائر ولا تحتوي على اسم وإيميل صالحين. راجع بيانات صاحب التذكرة في WHMCS.'};
+  params.name=name;
+  params.email=email;
+ }
+ if(session.mode==='admin'&&session.username.trim())params.adminusername=session.username.trim();
+ return {ok:true,params};
+}
+export async function replyToTicket(
+ session:Session,id:number,message:string,owner?:TicketReplyIdentity
+):Promise<ApiResult<any>>{
+ let identity=owner;
+ if(!identity){
+  const info=await callApi(session,'GetTicket',{ticketid:id});
+  if(!info.ok||!info.data)return {ok:false,error:info.error||'لا يمكن التأكد من صاحب التذكرة'};
+  const d=info.data as any;
+  identity={clientId:Number(d.userid||d.clientid)||0,
+   contactId:Number(d.contactid)||0,name:String(d.requestor_name||d.name||''),
+   email:String(d.requestor_email||d.email||'')};
+ }
+ const built=buildReplyParams(session,id,message,identity);
+ if(!built.ok)return {ok:false,error:built.error};
+ return callApi(session,'AddTicketReply',built.params);
 }
