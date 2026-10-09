@@ -11,7 +11,7 @@ let nextRequestAt=0;
 let rateLimitedUntil=0;
 let consecutive429=0;
 let gate:Promise<void>=Promise.resolve();
-const readActions=new Set(['GetTickets','GetTicket','GetAdminDetails','GetSupportStatuses','GetClients','GetInvoices','GetClientsProducts','GetOrders','GetClientsDomains']);
+const readActions=new Set(['GetTickets','GetTicket','GetAdminDetails','GetSupportStatuses','GetClients','GetClientsDetails','GetContacts','GetInvoices','GetClientsProducts','GetOrders','GetClientsDomains']);
 const cache=new WeakMap<Session,Map<string,{until:number;promise:Promise<ApiResult<any>>}>>();
 export function getApiRetryAfterMs():number{return Math.max(0,rateLimitedUntil-Date.now());}
 async function waitTurn():Promise<void>{
