@@ -91,7 +91,7 @@ export function RecordDetails({page,item,session,onBack,onChanged}:{
  };
  const saveDueDate=()=>{
   if(!data||!session)return;
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(dueDate.trim())
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dueDate.trim())
    ||Number.isNaN(Date.parse(dueDate.trim()+'T12:00:00Z'))){
     setError('تاريخ الاستحقاق لازم يكون بصيغة YYYY-MM-DD');return;
   }
