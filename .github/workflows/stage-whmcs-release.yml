@@ -101,3 +101,40 @@ jobs:
           git rebase origin/main
           git push origin HEAD:main
           echo "PASS: GitHub site source updated; installed server-side pull updates live website automatically"
+      - name: Prove server pulled signed APK and updater manifest automatically
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://agent.ontrackegy.com'
+          matched=0
+          for i in $(seq 1 30); do
+            if curl -fsSL --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' "$base/api/app/latest.php?deploy_probe=$i" -o /tmp/whmcs-live.json; then
+              if python3 - <<'PY'
+          import json
+          live=json.load(open('/tmp/whmcs-live.json'))
+          meta=json.load(open('web/downloads/latest.json'))
+          assert live['ok'] is True
+          assert live['version_code']==meta['version_code']
+          assert live['version_name']==meta['version_name']
+          assert live['sha256']==meta['sha256']
+          assert live['size_bytes']==meta['size_bytes']
+          PY
+              then
+                matched=1
+                echo "PASS: WHMCS website automatically pulled signed v$RELEASE_VERSION (build $RELEASE_CODE) from GitHub"
+                break
+              fi
+            fi
+            echo "WAIT: live website still syncing GitHub release, attempt $i of 30"
+            sleep 20
+          done
+          test "$matched" -eq 1 || { echo "::error::GitHub release staged but website did not auto-sync within 10 minutes"; exit 1; }
+          curl -fsSL --retry 3 --connect-timeout 8 --max-time 180 "$base/downloads/WHMCS-v$RELEASE_VERSION-ARM64-release-signed.apk" -o /tmp/whmcs-live.apk
+          python3 - <<'PY'
+          import hashlib,pathlib,json
+          meta=json.load(open('web/downloads/latest.json'))
+          apk=pathlib.Path('/tmp/whmcs-live.apk')
+          assert apk.stat().st_size==meta['size_bytes']
+          assert hashlib.sha256(apk.read_bytes()).hexdigest()==meta['sha256']
+          print('PASS: live signed APK downloaded completely with matching SHA256')
+          PY
