@@ -69,5 +69,23 @@ const api=context.exports;
  assert.equal(detail.ok,true);
  assert.equal(detail.detail.number,'241-101');
  assert.equal(detail.detail.messages.length,2);
+ assert.equal(detail.detail.clientId,0);
+ assert.equal(detail.detail.customFieldsProvided,false);
+ assert.equal(detail.detail.customFields.length,0);
+ const enhanced=api.normalizeTicketThread({
+  ticketid:55,tid:'Ticket-55',userid:'72',contactid:'3',requestor_name:'Owner',requestor_email:'owner@example.test',
+  customfields:{customfield:[
+   {id:'17',name:'Server Type',value:'Linux VPS'},
+   {id:'18',name:'Password',value:'must-be-masked'}
+  ]}
+ });
+ assert.equal(enhanced.clientId,72);
+ assert.equal(enhanced.contactId,3);
+ assert.equal(enhanced.email,'owner@example.test');
+ assert.equal(enhanced.customFieldsProvided,true);
+ assert.equal(enhanced.customFields.length,1);
+ assert.equal(enhanced.customFields[0].value,'Linux VPS');
+ const single=api.normalizeTicketThread({ticketid:56,customfields:{customfield:{id:1,name:'Platform',value:'Windows'}}});
+ assert.equal(single.customFields.length,1);
  console.log('PASS: WHMCS ticket queue modes, hidden closed tickets, custom statuses, admin signature and ticket detail');
 })().catch(err=>{console.error(err);process.exit(1);});
