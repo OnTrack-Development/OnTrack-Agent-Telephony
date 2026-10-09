@@ -1,0 +1,11 @@
+Options -Indexes
+<IfModule mod_headers.c>
+Header always set X-Content-Type-Options "nosniff"
+Header always set Referrer-Policy "no-referrer"
+</IfModule>
+RewriteEngine On
+RewriteRule ^(?:app|config|database|storage)(?:/|$) - [F,L]
+RewriteRule ^api/(?:admin|device|media)(?:/|$) - [G,L]
+<FilesMatch "^(?:\.env|composer\.(?:json|lock)|README\.md)$">
+Require all denied
+</FilesMatch>
