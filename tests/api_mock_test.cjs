@@ -2,7 +2,7 @@ const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
 const vm=require('node:vm');
 const fs=require('node:fs');
-const ts=require('/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript');
+const ts=require('../mobile/node_modules/typescript');
 const path=require('node:path');
 let saved={};const packets=[];
 const source=fs.readFileSync(path.join(__dirname,'../mobile/src/lib/api.ts'),'utf8');
