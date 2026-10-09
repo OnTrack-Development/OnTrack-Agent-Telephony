@@ -5,9 +5,12 @@ const str=(v:any)=>v===undefined||v===null?'':String(v);
 const number=(v:any)=>Number(v)||0;
 export type QueueKind='assigned'|'awaiting'|'allActive'|'answered'|'closed'|'all';
 export interface TicketMessage {id:string;message:string;name:string;date:string;admin:boolean;note?:boolean;attachmentNames?:string[]}
-export interface TicketDetail {
+export interface TicketCustomField {id:string;name:string;value:string}
+export interface TicketReplyIdentity {clientId:number;contactId:number;name:string;email:string}
+export interface TicketDetail extends TicketReplyIdentity {
   id:number;number:string;subject:string;customer:string;department:string;
   priority:string;status:string;flag:number;messages:TicketMessage[];notes:TicketMessage[];
+  customFields:TicketCustomField[];customFieldsProvided:boolean;
 }
 export interface OperatorProfile {adminid:number;name:string;signature:string}
 export interface TicketBatch {ok:boolean;tickets:Ticket[];total:number|null;error?:string}
@@ -52,6 +55,20 @@ function attachmentNames(value:any):string[] {
  if(!Array.isArray(value))return [];
  return value.filter((v:any)=>v&&typeof v==='object'&&typeof v.filename==='string').map((v:any)=>String(v.filename));
 }
+/** Some WHMCS installations enhance GetTicket with custom fields.
+ * The official WHMCS GetTicket endpoint does not guarantee these values. */
+export function parseTicketCustomFields(input:any):TicketCustomField[] {
+ const source=Array.isArray(input)?input:input?.customfield??input?.field??input;
+ const items=Array.isArray(source)?source:(source&&typeof source==='object'?Object.entries(source).map(([key,value])=>{
+  return value&&typeof value==='object'?{id:key,...value}:{id:key,name:key,value};
+ }):[]);
+ return items.map((field:any,index:number)=>({
+  id:str(field.id??field.fieldid??index),
+  name:str(field.name??field.fieldname??field.label??field.title??('حقل '+(index+1))).trim(),
+  value:str(field.value??field.fieldvalue??field.val).trim()
+ })).filter(field=>field.name&&field.value&&
+  !/password|secret|private.?key|token|كلمة.?المرور|كود.?سري/i.test(field.name));
+}
 export function normalizeTicketThread(d:any):TicketDetail {
  const base:any=d||{};
  const raw=Array.isArray(base.replies?.reply)?base.replies.reply:base.replies?.reply?[base.replies.reply]:[];
@@ -75,7 +92,13 @@ export function normalizeTicketThread(d:any):TicketDetail {
   id:number(base.ticketid||base.id),number:str(base.tid||base.ticketid),
   subject:str(base.subject),customer:str(base.requestor_name||base.name||base.email),
   department:str(base.deptname),priority:str(base.priority),status:str(base.status),
-  flag:number(base.flag),messages,notes
+  flag:number(base.flag),messages,notes,
+  clientId:number(base.userid||base.clientid),
+  contactId:number(base.contactid),
+  name:str(base.requestor_name||base.name).trim(),
+  email:str(base.requestor_email||base.email).trim(),
+  customFieldsProvided:base.customfields!==undefined||base.ticket_custom_fields!==undefined,
+  customFields:parseTicketCustomFields(base.customfields??base.ticket_custom_fields)
  };
 }
 export async function fetchTicketDetail(session:Session,id:number):Promise<{ok:boolean;detail?:TicketDetail;error?:string}>{
