@@ -20,8 +20,8 @@ function assertWhatsAppNotThrottled(session:Session):void {
 }
 const path='modules/addons/whatsapp_notifications/ajax.php?module=whatsapp_notifications';
 export function whatsappCsrf(html:string):string{
- const direct=html.match(/window\.waCSRFToken\s*=\s*["']([a-f0-9]{64})["']/i);
- const local=html.match(/var\s+token\s*=\s*["']([a-f0-9]{64})["'];\s*window\.waCSRFToken\s*=\s*token/i);
+ const direct=html.match(/window\.waCSRFToken\s*=\s*["']([a-f0-9]{32,128})["']/i);
+ const local=html.match(/var\s+token\s*=\s*["']([a-f0-9]{32,128})["'];\s*window\.waCSRFToken\s*=\s*token/i);
  if(!direct&&!local)throw Error('لم يعرض موديول واتساب رمز الجلسة؛ راجع صلاحية الموظف للموديول.');
  return (direct||local)![1]!;
 }
