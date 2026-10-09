@@ -1,46 +1,57 @@
-name: Stage OnTrack Command APK for website
+name: Stage WHMCS signed APK for website
 on:
   push:
     branches: [command-site-migration]
-    paths:
-      - '.github/workflows/stage-command-website.yml'
-  workflow_dispatch:
+    paths: ['.github/workflows/stage-command-website.yml']
 permissions:
   contents: write
 jobs:
   stage:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
-      - name: Download official signed release into web root
+      - name: Wait for signed WHMCS v0.2.5 release
         shell: bash
         run: |
           set -euo pipefail
-          TAG=command-v0.2.4-20
-          FILE=OnTrack-Command-v0.2.4-ARM64-release-signed.apk
-          gh release download "$TAG" -R OnTrack-Development/OnTrack-Agent-Telephony --pattern "$FILE" --dir /tmp
-          test "$(stat -c%s "/tmp/$FILE")" -eq 27183994
+          TAG="whmcs-v0.2.5-21"
+          for i in $(seq 1 100); do
+            if gh release view "$TAG" -R OnTrack-Development/OnTrack-Agent-Telephony >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for v0.2.5"; exit 1
+      - name: Stage APK for HTTPS website update channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="whmcs-v0.2.5-21"
+          APK="WHMCS-v0.2.5-ARM64-release-signed.apk"
           mkdir -p web/downloads
-          cp "/tmp/$FILE" "web/downloads/$FILE"
-          sha256sum "web/downloads/$FILE"
-          SHA="$(sha256sum "web/downloads/$FILE" | awk '{print $1}')"
+          gh release download "$TAG" -R OnTrack-Development/OnTrack-Agent-Telephony --pattern "$APK" --dir web/downloads
+          BYTES="$(stat -c%s "web/downloads/$APK")"
+          test "$BYTES" -gt 10000000
+          test "$BYTES" -lt 50000000
+          SHA="$(sha256sum "web/downloads/$APK" | awk '{print $1}')"
+          rm -f web/downloads/OnTrack-Command-v*.apk
           cat > web/downloads/latest.json <<EOF
           {
-            "app_id":"com.ontrackdevelopment.command",
-            "version_name":"0.2.4",
-            "version_code":5,
-            "filename":"$FILE",
-            "sha256":"$SHA",
-            "size_bytes":27183994,
-            "release_notes":"v0.2.4: In-app download, SHA-256 verification and Android installer. WHMCS core improvements remain, WhatsApp and AI native integrations still under development.",
-            "published_at":"$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            "app_id": "com.ontrackdevelopment.command",
+            "version_name": "0.2.5",
+            "version_code": 6,
+            "filename": "$APK",
+            "sha256": "$SHA",
+            "size_bytes": $BYTES,
+            "release_notes": "WHMCS v0.2.5: new app name and icon, Android direct installer and website-only update feed.",
+            "published_at": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           }
           EOF
-          git config user.name "OnTrack Command Release Bot"
+          git config user.name "WHMCS Release Bot"
           git config user.email "releases@ontrackegy.com"
-          git add web/downloads/latest.json "web/downloads/$FILE"
-          git commit -m "Stage locally-hosted OnTrack Command v0.2.3 APK [skip ci]"
+          git add -A web/downloads
+          git commit -m "Stage WHMCS v0.2.5 signed APK for agent.ontrackegy.com [skip ci]"
           git push origin HEAD:command-site-migration
