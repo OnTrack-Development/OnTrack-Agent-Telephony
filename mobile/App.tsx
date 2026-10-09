@@ -125,10 +125,10 @@ function CommandApp(){
  const logout=async()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;await signOut();setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
  const reply=async(id:number,text:string,identity?:{clientId:number;contactId:number;name:string;email:string})=>{
   if(demo){setData(d=>({...d,tickets:d.tickets.map(t=>t.id===id?{...t,status:'Answered',message:text}:t)}));Alert.alert('وضع تجريبي','تم تعديل البيانات المحلية فقط.');return true;}
-  if(!session||!caps['tickets.read'])return false;
+  if(!session)return false; // WHMCS enforces actual reply permission; list/read failures aren't reply denials.
   const r=await replyToTicket(session,id,text,identity);
   if(!r.ok){Alert.alert('تعذر إرسال الرد',r.error||'حدث خطأ');return false;}
-  await refresh(session,true);Alert.alert('تم الإرسال','تم تسجيل الرد بنجاح في WHMCS.');return true;
+  setTimeout(()=>void refresh(session,true),3500);Alert.alert('تم الإرسال','تم تسجيل الرد بنجاح في WHMCS.');return true;
  };
  const openTicket=async(id:number)=>{
   if(demo){const t=data.tickets.find(t=>t.id===id);return t?[{id:'sample',message:t.message||'',name:t.customer,date:t.updated,admin:false}]:[];}
