@@ -5,6 +5,7 @@ import type {Session} from '../types';
 import {Action,Card,Empty,Header,Icon,Pill,T} from '../components/UI';
 import {adminSessionReady,checkedAdminUrl,loginAdmin,saveAdminDirectory,savedAdminDirectory,validateAdminDirectory} from '../lib/adminSession';
 import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,getWhatsAppRetryAfterMs} from '../lib/whatsapp';
+import {ingestNotificationSnapshot,whatsAppNotifications} from '../lib/notifications';
 
 /** Browser cookies are distinct from API credentials. Reuse Chrome's *existing*
  * WHMCS administrator session without collecting another admin password. */
@@ -49,6 +50,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     const result=await listConversations(session,search,unreadOnly);
     if(!active.current||stamp!==generation.current||selectedId.current!==null)return;
     setRows(result.conversations);setUnread(result.unread);
+    void ingestNotificationSnapshot(session,'whatsapp',whatsAppNotifications(result.conversations));
    }
    setError('');
   }catch(e){if(stamp===generation.current)report(e);}
@@ -64,7 +66,8 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  const connect=async()=>{
   if(!session)return;
   setBusy(true);setError('');
-  try{await prepareWhatsApp(session);setConnected(true);const list=await listConversations(session);if(active.current){setRows(list.conversations);setUnread(list.unread);}}
+  try{await prepareWhatsApp(session);setConnected(true);const list=await listConversations(session);if(active.current){setRows(list.conversations);setUnread(list.unread);}
+   void ingestNotificationSnapshot(session,'whatsapp',whatsAppNotifications(list.conversations));}
   catch(e){report(e);setConnected(false);}
   finally{if(active.current)setBusy(false);}
  };
@@ -87,6 +90,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     if(active.current)setConnected(true);
     const list=await listConversations(session);
     if(active.current){setRows(list.conversations);setUnread(list.unread);}
+    void ingestNotificationSnapshot(session,'whatsapp',whatsAppNotifications(list.conversations));
    }else if(active.current)setError('مطلوب رمز التحقق بخطوتين من حساب WHMCS المحفوظ.');
   }catch(e){report(e);}
   finally{if(active.current)setBusy(false);}
