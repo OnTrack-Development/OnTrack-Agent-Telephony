@@ -154,7 +154,7 @@ export function buildReplyParams(
   if(Number.isSafeInteger(contact)&&contact>0)params.contactid=contact;
  }else{
   const name=(identity.name||'').trim(),email=(identity.email||'').trim();
-  if(!name||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))
+  if(!name||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
    return {ok:false,error:'لا يمكن إرسال الرد: التذكرة لزائر ولا تحتوي على اسم وإيميل صالحين. راجع بيانات صاحب التذكرة في WHMCS.'};
   params.name=name;
   params.email=email;
