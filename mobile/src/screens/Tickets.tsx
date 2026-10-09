@@ -19,7 +19,7 @@ const showPlain=(input:string)=>input.replace(/<br\s*\/?\s*>/gi,'\n').replace(/<
  .replace(/<[^>]*>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').trim();
 
 export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailChange}:{
- session:Session|null;tickets:Ticket[];onReply:(id:number,text:string)=>Promise<boolean>;
+ session:Session|null;tickets:Ticket[];onReply:(id:number,text:string,identity?:{clientId:number;contactId:number;name:string;email:string})=>Promise<boolean>;
  demo:boolean;onComposerFocus?:()=>void;onDetailChange?:(active:boolean)=>void
 }){
  const [mode,setMode]=useState<QueueKind>('awaiting'),[search,setSearch]=useState('');
@@ -86,7 +86,8 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
   if(demo){
    setDetail({id:ticket.id,number:ticket.number,subject:ticket.subject,customer:ticket.customer,
     department:ticket.department,status:ticket.status,priority:ticket.priority,flag:ticket.flag||0,
-    messages:[{id:'demo',name:ticket.customer,message:ticket.message||'',date:ticket.updated,admin:false}],notes:[]});
+    messages:[{id:'demo',name:ticket.customer,message:ticket.message||'',date:ticket.updated,admin:false}],notes:[],
+    clientId:1,contactId:0,name:ticket.customer,email:'',customFields:[],customFieldsProvided:false});
    setDetailLoading(false);return;
   }
   if(!session){setDetailError('لم يتم ربط WHMCS');setDetailLoading(false);return;}
@@ -122,7 +123,7 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
    {text:'إرسال',onPress:async()=>{
     setSending(true);
     try{
-     const ok=await onReply(selected.id,body);
+     const ok=await onReply(selected.id,body,detail||undefined);
      if(ok){
       setReply('');refresh();
       if(session){
@@ -180,15 +181,25 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
    <Card style={{gap:10}}>
     <T weight="900" size={17}>{detail?.subject||selected.subject}</T>
     <T color={C.muted} size={12}>{detail?.customer||selected.customer}</T>
+    {detail?<View style={{borderWidth:1,borderColor:C.stroke,backgroundColor:C.surface2,borderRadius:12,padding:12,gap:8}}>
+      <View style={{flexDirection:'row-reverse',alignItems:'center',gap:7}}><Icon name="form-textbox" color={C.blue}/><T weight="800" size={13}>الحقول المخصصة للتذكرة</T></View>
+      {detail.customFields.length?detail.customFields.map(field=>
+       <View key={field.id+'-'+field.name} style={{gap:3,borderTopWidth:1,borderTopColor:C.stroke,paddingTop:7}}>
+        <T size={11} color={C.muted}>{field.name}</T><T size={13}>{showPlain(field.value)}</T>
+       </View>):<T size={11} color={C.muted}>{detail.customFieldsProvided?'لا توجد قيم محفوظة في الحقول المخصصة':'واجهة WHMCS API القياسية لا ترجع الحقول المخصصة؛ يلزم ربط قراءة آمن من نفس WHMCS لعرضها.'}</T>}
+     </View>:null}
     <View style={{flexDirection:'row-reverse',gap:7,flexWrap:'wrap'}}>
      <Pill label={detail?.status||selected.status} color={C.blue}/>
      <Pill label={detail?.priority||selected.priority} color={color(detail?.priority||selected.priority)}/>
      {(detail?.flag||selected.flag)?<Pill label={`Assigned #${detail?.flag||selected.flag}`} color={C.orange}/>:null}
     </View>
-    {!demo?<View style={{flexDirection:'row-reverse',gap:9}}>
+    {!demo?<View style={{gap:9}}>
+     <Action secondary compact icon="robot-outline" label="إرجاع التذكرة إلى المساعد AI"
+      disabled={!detail||changing} onPress={()=>Alert.alert('ربط مساعد AI','زر إرجاع التذكرة للـAI ظاهر، لكن إجراء التحويل موجود في موديول AI Support Agent، وليس ضمن WHMCS API القياسي. لن نغيّر حالة التذكرة أو نكتب ملاحظة وهمية قبل ربط الإجراء الحقيقي.')}/>
+     <View style={{flexDirection:'row-reverse',gap:9}}>
      <View style={{flex:1}}><Action secondary compact disabled={!detail||changing} label="تغيير الأولوية" onPress={()=>{setShowPriority(!showPriority);setShowStatus(false);}}/></View>
      <View style={{flex:1}}><Action secondary compact disabled={!detail||changing} label="تغيير الحالة" onPress={()=>{setShowStatus(!showStatus);setShowPriority(false);}}/></View>
-    </View>:null}
+    </View></View>:null}
     {showPriority?<View style={{flexDirection:'row-reverse',flexWrap:'wrap',gap:7}}>{['Low','Medium','High'].map(p=>
      <Pressable key={p} style={{padding:10,backgroundColor:C.surface2,borderRadius:9}} onPress={()=>updateField('priority',p)}><T>{p}</T></Pressable>)}</View>:null}
     {showStatus?<View style={{flexDirection:'row-reverse',flexWrap:'wrap',gap:7}}>{statuses.map(s=>
