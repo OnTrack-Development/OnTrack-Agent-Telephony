@@ -5,7 +5,7 @@ import type {Session} from '../types';
 import {Action,Card,Empty,Header,Icon,Pill,T} from '../components/UI';
 import {AdminAccess} from '../components/AdminAccess';
 import {adminSessionReady} from '../lib/adminSession';
-import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText} from '../lib/whatsapp';
+import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,getWhatsAppRetryAfterMs} from '../lib/whatsapp';
 
 export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{session:Session|null;demo:boolean;onComposerFocus?:()=>void;onDetailChange?:(active:boolean)=>void}){
  const [connected,setConnected]=useState(!!session&&adminSessionReady(session)),[search,setSearch]=useState(''),[unreadOnly,setUnreadOnly]=useState(false);
@@ -24,7 +24,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   if(session&&!adminSessionReady(session)){setConnected(false);setRows([]);setMessages([]);setSelected(null);}
  };
  const refresh=useCallback(async()=>{
-  if(!session||demo||!connected||readInFlight.current||AppState.currentState!=='active')return;
+  if(!session||demo||!connected||readInFlight.current||getWhatsAppRetryAfterMs(session)>0||AppState.currentState!=='active')return;
   const stamp=generation.current,id=selectedId.current;
   readInFlight.current=true;setBusy(true);
   try{
@@ -85,14 +85,27 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   Alert.alert('إرسال واتساب',`إرسال الرسالة إلى ${selected.display_name} (${selected.phone})؟`,[
    {text:'إلغاء',style:'cancel',onPress:()=>{sendInFlight.current=false;if(active.current)setSending(false);}},
    {text:'إرسال',onPress:async()=>{
+    let accepted=false;
     try{
      await sendWhatsAppText(session,id,text);
-     if(active.current&&stamp===generation.current){setDraft('');setError('');}
-     // Sending is confirmed by the existing module. A later refresh failure does not re-send.
-     const data=await conversationMessages(session,id);
-     if(active.current&&stamp===generation.current){setMessages(prev=>[...prev.filter(m=>!data.messages.some(x=>x.id===m.id)),...data.messages].sort((a,b)=>a.id-b.id));setSelected(data.conversation);setWindowAt(Date.now());}
-    }catch(e){if(stamp===generation.current)report(e);}
-    finally{sendInFlight.current=false;if(active.current)setSending(false);}
+     accepted=true;
+     if(active.current&&stamp===generation.current){
+      setDraft('');setError('');
+      Alert.alert('تم إرسال واتساب','تم قبول الرسالة من موديول واتساب. لا تعِد إرسالها بسبب تأخر تحديث المحادثة.');
+     }
+     // A failed *read* after successful send must NEVER look like a failed send.
+     try{
+      const data=await conversationMessages(session,id);
+      if(active.current&&stamp===generation.current){
+       setMessages(prev=>[...prev.filter(m=>!data.messages.some(x=>x.id===m.id)),...data.messages].sort((a,b)=>a.id-b.id));
+       setSelected(data.conversation);setWindowAt(Date.now());
+      }
+     }catch(_refreshError){
+      if(active.current&&stamp===generation.current)setError('الرسالة اتبعت، لكن تحديث المحادثة فشل مؤقتًا. استخدم تحديث المحادثات فقط؛ لا تُعد الإرسال.');
+     }
+    }catch(e){
+     if(stamp===generation.current&&!accepted)report(e);
+    }finally{sendInFlight.current=false;if(active.current)setSending(false);}
    }}
   ],{cancelable:false});
  };

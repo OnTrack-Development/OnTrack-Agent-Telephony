@@ -4,6 +4,20 @@ export interface WaWindow {open:boolean;expires_at:string|null;remaining_seconds
 export interface WaConversation {id:number;display_name:string;phone:string;client_id:number|null;last_message_preview:string;last_message_at:string;unread_count:number;window:WaWindow}
 export interface WaMessage {id:number;direction:'incoming'|'outgoing';body:string;message_type:string;status:string;timestamp:string;media_filename:string;has_media:boolean;error_text:string}
 const csrf=new WeakMap<Session,{token:string;stamp:string}>();
+const rateLimit=new WeakMap<Session,{until:number;strikes:number}>();
+export function getWhatsAppRetryAfterMs(session:Session):number {
+ return Math.max(0,(rateLimit.get(session)?.until||0)-Date.now());
+}
+function applyRateLimit(session:Session):void {
+ const previous=rateLimit.get(session);
+ const strikes=(previous?.strikes||0)+1;
+ const waitMs=Math.min(300000,60000*Math.pow(2,Math.min(3,strikes-1)));
+ rateLimit.set(session,{until:Date.now()+waitMs,strikes});
+}
+function assertWhatsAppNotThrottled(session:Session):void {
+ const waitMs=getWhatsAppRetryAfterMs(session);
+ if(waitMs>0)throw Error('موديول واتساب أعاد HTTP 429؛ جاري التهدئة. إعادة المحاولة بعد '+Math.ceil(waitMs/1000)+' ثانية.');
+}
 const path='modules/addons/whatsapp_notifications/ajax.php?module=whatsapp_notifications';
 export function whatsappCsrf(html:string):string{
  const direct=html.match(/window\.waCSRFToken\s*=\s*["']([a-f0-9]{64})["']/i);
@@ -15,13 +29,16 @@ export async function prepareWhatsApp(session:Session):Promise<void>{
  csrf.set(session,{token:whatsappCsrf(await adminPage(session,'addonmodules.php?module=whatsapp_notifications&action=chat')),stamp:adminSessionStamp(session)});
 }
 async function call(session:Session,action:'chat_list'|'chat_messages'|'chat_mark_read'|'chat_send',params:Record<string,string|number>={},write=false):Promise<any>{
+ assertWhatsAppNotThrottled(session);
  if(csrf.get(session)?.stamp!==adminSessionStamp(session))await prepareWhatsApp(session);
  const query=new URLSearchParams({ajax_action:action});
  if(!write)Object.entries(params).forEach(([k,v])=>query.set(k,String(v)));
  const result=await adminRequest(session,path+(write?'':'&'+query.toString()),write?'POST':'GET',write?{ajax_action:action,...params}:{},write?{'X-WA-CSRF':csrf.get(session)!.token}:{});
+ if(result.status===429){applyRateLimit(session);assertWhatsAppNotThrottled(session);}
  let json:any;try{json=JSON.parse(result.body);}catch{csrf.delete(session);throw Error('لم يرجع واتساب بيانات صالحة؛ أعد الاتصال.');}
  if(result.status===403){csrf.delete(session);throw Error('انتهت صلاحية رمز واتساب؛ أعد تحميل المحادثات قبل المحاولة.');}
  if(result.status>=400||json.status!=='success')throw Error(String(json.message||(json.window_closed?'نافذة الرد مغلقة؛ يلزم قالب معتمد.':'تعذر تنفيذ طلب واتساب')));
+ rateLimit.delete(session);
  return json;
 }
 export function normalizeConversation(value:any):WaConversation {

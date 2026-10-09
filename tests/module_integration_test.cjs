@@ -11,6 +11,7 @@ const native={resetAll:async()=>{},request:async(key,base,dir,target,method,fiel
  calls.push({key,base,dir,target,method,fields,headers});
  const url=new URL(target,base+'/');let body='',status=200;
  if(scenario==='expired')return {status:401,url:url.toString(),body:'{"status":"error"}'};
+ if(scenario==='wa_429'&&url.pathname.endsWith('ajax.php'))return {status:429,url:url.toString(),body:'Rate Limited'};
  if(url.pathname.endsWith('index.php'))body=loginHtml;
  else if(url.pathname.endsWith('dologin.php')){assert.equal(fields.token,'login-token');assert.equal(fields.username,'staff');assert.equal(fields.password,'staff-pass');body=scenario==='otp'?'<form action="twofa.php"><input type="hidden" name="token" value="otp-token"><input name="code"></form>':'<a href="logout.php">Sign out</a>';}
  else if(url.pathname.endsWith('twofa.php')){assert.equal(fields.code,'123456');assert.equal(fields.token,'otp-token');body='<a href="logout.php">Sign out</a>';}
@@ -74,6 +75,16 @@ function load(name){
  apiHandler=async()=>({ok:true,data:{client:{client_id:42,firstname:'Customer',email:'customer@example.test'}}});assert.equal((await create.verifyTicketClient(session,42)).id,42);
  scenario='expired';await assert.rejects(()=>wa.listConversations(session),/انتهت/);assert.equal(admin.adminSessionReady(session),false);
  await admin.resetAdminSessions();assert.equal(admin.adminSessionReady(session),false);
+ scenario='success';
+ const renewed=await admin.loginAdmin(session,'admin','staff','staff-pass');
+ assert.equal(renewed.ready,true);
+ await wa.prepareWhatsApp(session);
+ scenario='wa_429';
+ await assert.rejects(()=>wa.listConversations(session),/429/);
+ assert.ok(wa.getWhatsAppRetryAfterMs(session)>59000);
+ const requestsBefore=calls.length;
+ await assert.rejects(()=>wa.listConversations(session),/429/);
+ assert.equal(calls.length,requestsBefore,'429 cooldown must avoid additional network requests');
  assert.ok(calls.every(c=>c.base===session.baseUrl));
  console.log('PASS: native admin login and OTP, same-origin routes, session expiry/logout, existing WhatsApp CSRF/read/send/window handling, mismatched conversation rejection, real per-ticket AI nonce, custom fields, AI snapshot and verified new-ticket ownership');
 })().catch(e=>{console.error(e);process.exit(1)});
