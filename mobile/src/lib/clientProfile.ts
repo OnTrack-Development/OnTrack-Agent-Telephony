@@ -1,7 +1,7 @@
 import {callApi,listOf} from './api';
 import type {ApiResult,Client,Session} from '../types';
 
-export type ClientTab='overview'|'services'|'domains'|'invoices'|'tickets'|'orders'|'contacts';
+export type ClientTab='overview'|'services'|'domains'|'invoices'|'tickets'|'orders'|'contacts'|'emails';
 export interface ProfileField {label:string;value:string}
 export interface ClientSummary {
  id:number;title:string;status:string;fields:ProfileField[];billing:ProfileField[];
@@ -17,7 +17,7 @@ const allowedCustom=(name:string)=>!/password|secret|auth|token|private.?key|ك�
 export function normalizeClientDetails(response:any,fallback:Client):ClientSummary {
  const d=(response?.client||response||{}) as Record<string,any>;
  const stats=(response?.stats||d.stats||{}) as Record<string,unknown>;
- const userId=number(d.id||d.userid||fallback.id);
+ const userId=number(d.id||d.userid||d.client_id);
  if(userId!==fallback.id)throw new Error('WHMCS أرجع بيانات عميل مختلف عن المطلوب');
  const title=[str(d.firstname),str(d.lastname)].filter(Boolean).join(' ')||fallback.name;
  const standard=mapFields(d,[
@@ -31,14 +31,19 @@ export function normalizeClientDetails(response:any,fallback:Client):ClientSumma
  const billing=mapFields(stats,[
   ['numdueinvoices','الفواتير المستحقة'],['dueinvoicesbalance','قيمة الفواتير المستحقة'],
   ['numpaidinvoices','الفواتير المدفوعة'],['paidinvoicesamount','إجمالي المدفوع'],
-  ['numunpaidinvoices','الفواتير غير المسددة'],['numcancelledinvoices','الفواتير الملغاة'],
-  ['numrefundedinvoices','الفواتير المستردة'],['creditbalance','رصيد العميل'],
+  ['numunpaidinvoices','الفواتير غير المسددة'],['unpaidinvoicesamount','إجمالي غير المسدد'],['numoverdueinvoices','الفواتير المتأخرة'],['overdueinvoicesbalance','قيمة الفواتير المتأخرة'],['numcancelledinvoices','الفواتير الملغاة'],['cancelledinvoicesamount','قيمة الملغاة'],
+  ['numrefundedinvoices','الفواتير المستردة'],['refundedinvoicesamount','إجمالي المسترد'],['creditbalance','رصيد العميل'],['expenses','مصروفات العميل'],
   ['grossRevenue','إجمالي الإيرادات'],['income','الدخل']
  ]);
  const services=mapFields(stats,[
   ['productsnumactive','الخدمات النشطة'],['productsnumtotal','إجمالي الخدمات'],
-  ['domainsnumactive','الدومينات النشطة'],['domainsnumtotal','إجمالي الدومينات'],
-  ['numtickets','إجمالي التذاكر'],['numactivetickets','التذاكر المفتوحة']
+  ['productsnumactivehosting','الاستضافات النشطة'],['productsnumhosting','إجمالي استضافات المواقع'],
+  ['productsnumactivereseller','الريسلر النشط'],['productsnumreseller','إجمالي الريسلر'],
+  ['productsnumactiveservers','السيرفرات النشطة'],['productsnumservers','إجمالي السيرفرات'],
+  ['productsnumactiveother','الخدمات الأخرى النشطة'],['productsnumother','إجمالي الخدمات الأخرى'],
+  ['numactivedomains','الدومينات النشطة'],['numdomains','إجمالي الدومينات'],
+  ['numtickets','إجمالي التذاكر'],['numactivetickets','التذاكر المفتوحة'],
+  ['numacceptedquotes','عروض الأسعار المقبولة'],['numquotes','عروض الأسعار'],['numaffiliatesignups','إحالات الأفلييت']
  ]);
  const other=mapFields(d,[
   ['status','حالة الحساب'],['marketing_emails_opt_in','رسائل التسويق'],
@@ -58,7 +63,8 @@ const tabs:Record<Exclude<ClientTab,'overview'>,{action:string;args:(id:number)=
  invoices:{action:'GetInvoices',args:userid=>({userid,limitnum:35}),root:'invoices',singular:'invoice'},
  tickets:{action:'GetTickets',args:clientid=>({clientid,limitnum:35}),root:'tickets',singular:'ticket'},
  orders:{action:'GetOrders',args:userid=>({userid,limitnum:35}),root:'orders',singular:'order'},
- contacts:{action:'GetContacts',args:userid=>({userid,limitnum:35}),root:'contacts',singular:'contact'}
+ contacts:{action:'GetContacts',args:userid=>({userid,limitnum:35}),root:'contacts',singular:'contact'},
+ emails:{action:'GetEmails',args:clientid=>({clientid,limitnum:35}),root:'emails',singular:'email'}
 };
 export async function fetchClientSummary(session:Session,client:Client):Promise<ApiResult<ClientSummary>>{
  const r=await callApi(session,'GetClientsDetails',{clientid:client.id,stats:true});
@@ -75,8 +81,8 @@ export async function fetchClientTab(session:Session,clientId:number,tab:Exclude
  const records=listOf(d,t.root,t.singular) as Record<string,unknown>[];
  const checked=records.filter(row=>{
   const owner=number(row.userid||row.clientid);
-  return owner===0||owner===clientId;
+  return owner===clientId; // Do not display records without verified ownership.
  });
- if(checked.length!==records.length)return {ok:false,error:'WHMCS أرجع سجلات تخص عميلًا آخر، وتم منع عرضها'};
+ if(checked.length!==records.length)return {ok:false,error:'تعذر التحقق من ملكية بعض سجلات WHMCS لهذا العميل؛ تم منع عرضها حفاظًا على خصوصية العملاء'};
  return {ok:true,data:{records:checked,total:Number.isFinite(Number(d.totalresults))?Number(d.totalresults):null}};
 }
