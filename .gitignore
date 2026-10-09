@@ -14,3 +14,7 @@
 **/*.p12
 **/*.p8
 **/credentials.json
+
+!mobile/native/android/
+!mobile/native/android/*.java
+!mobile/native/android/*.xml

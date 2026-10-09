@@ -6,7 +6,7 @@ root = Path(__file__).resolve().parents[1] / "android" / "app" / "src" / "main"
 source = Path(__file__).resolve().parents[1] / "native" / "android"
 java_dir = root / "java" / "com" / "ontrackdevelopment" / "command" / "update"
 java_dir.mkdir(parents=True, exist_ok=True)
-for name in ("CommandUpdateModule.java", "CommandUpdatePackage.java"):
+for name in ("CommandUpdateModule.java", "CommandUpdatePackage.java", "CommandAdminSessionModule.java"):
     (java_dir / name).write_bytes((source / name).read_bytes())
 xml_dir = root / "res" / "xml"
 xml_dir.mkdir(parents=True, exist_ok=True)

@@ -16,6 +16,7 @@ import {WhatsApp} from './src/screens/WhatsApp';
 import {AiOps} from './src/screens/AiOps';
 import {Settings} from './src/screens/Settings';
 import {Explorer} from './src/screens/Explorer';
+import {resetAdminSessions} from './src/lib/adminSession';
 const empty:DemoState={tickets:[],clients:[],invoices:[],services:[],orders:[],domains:[],chats:[],agents:[],queue:[]};
 const nav:{page:Page,label:string,icon:string}[]=[
  {page:'home',label:'الرئيسية',icon:'view-dashboard-outline'},
@@ -137,7 +138,7 @@ function CommandApp(){
    if(!result.ok||!result.data){Alert.alert('WHMCS رفض الاتصال',result.error||'تحقق من بيانات API والصلاحيات');return;}
    lastRefreshAt.current={};setSession(result.data);setDemo(false);setHistory([]);setPage('home');await refresh(result.data,true,'tickets');
  };
- const logout=async()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;await signOut();setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
+ const logout=async()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;await resetAdminSessions();await signOut();setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
  const reply=async(id:number,text:string,identity?:{clientId:number;contactId:number;name:string;email:string})=>{
   if(demo){setData(d=>({...d,tickets:d.tickets.map(t=>t.id===id?{...t,status:'Answered',message:text}:t)}));Alert.alert('وضع تجريبي','تم تعديل البيانات المحلية فقط.');return true;}
   if(!session)return false; // WHMCS enforces actual reply permission; list/read failures aren't reply denials.
@@ -156,17 +157,13 @@ function CommandApp(){
   const initial={id:`initial-${id}`,message:String(ticket.message||''),name:String(ticket.name||ticket.email||''),date:String(ticket.date||''),admin:false};
   return [initial,...arr.map((m:any,i:number)=>({id:String(m.id||i),message:String(m.message||''),name:String(m.name||m.admin||''),date:String(m.date||''),admin:!!m.admin}))].filter(x=>x.message);
  };
- const sendWhatsApp=async(id:string,text:string)=>{
-   if(demo){setData(d=>({...d,chats:d.chats.map(c=>c.id===id?{...c,last:text,messages:[...c.messages,{id:`local-${Date.now()}`,from:'agent',body:text,at:'الآن'}]}:c)}));Alert.alert('تجريبي','لم تُرسل أي رسالة حقيقية');return true;}
-   Alert.alert('غير متاح','لا يوجد API موثق لموديول الواتساب في الكود المتاح؛ لن نرسل إلى مسار مفترض.');return false;
- };
  if(initializing)return <View style={{flex:1,backgroundColor:C.bg,justifyContent:'center',alignItems:'center'}}><ActivityIndicator color={C.red} size="large"/></View>;
  if(!session&&!demo)return <Connect onPair={connect} onDemo={()=>{setDemo(true);setData(JSON.parse(JSON.stringify(seed)));setCaps({'tickets.read':true,'tickets.reply':true,'whatsapp.read':true,'whatsapp.send':true,'ai.read':true});setPage('home');}}/>;
  const body=()=>{
   if(page==='home')return <Home data={data} demo={demo} navigate={navigate} capabilities={caps} totals={totals}/>;
   if(page==='tickets')return <Tickets session={session} tickets={data.tickets} reloadSignal={ticketReload} onReply={reply} demo={demo} onComposerFocus={revealComposer} onDetailChange={setTicketDetailOpen}/>;
-  if(page==='whatsapp')return <WhatsApp session={session} chats={data.chats} demo={demo} enabled={!!caps['whatsapp.read']} canSend={demo||!!caps['whatsapp.send']} onSend={sendWhatsApp}/>;
-  if(page==='ai')return <AiOps agents={data.agents} queue={data.queue} connected={!!caps['ai.read']} demo={demo}/>;
+  if(page==='whatsapp')return <WhatsApp session={session} demo={demo} onComposerFocus={revealComposer} onDetailChange={setTicketDetailOpen}/>;
+  if(page==='ai')return <AiOps agents={data.agents} queue={data.queue} session={session} demo={demo}/>;
   if(page==='more')return <View><T size={26} weight="900">كل الأقسام</T><T color={C.muted} style={{marginBottom:20}}>إدارة WHMCS والموديولات من مكان واحد</T><View style={{flexDirection:'row-reverse',flexWrap:'wrap',gap:12}}>{menu.map(m=><Pressable key={m.page} onPress={()=>navigate(m.page)} style={{width:'47%',padding:17,backgroundColor:C.surface,borderWidth:1,borderColor:C.stroke,borderRadius:18,gap:10}}><Icon name={m.icon} size={25} color={C.red}/><T weight="800" size={15}>{m.label}</T><Icon name="arrow-left" size={17} color={C.muted}/></Pressable>)}</View></View>;
   if(page==='settings')return <Settings session={session} demo={demo} onLogout={logout} capabilities={caps} errors={errors}/>;
   if(page==='explorer')return demo?<View><T color={C.orange}>دليل API يحتاج ربط WHMCS حقيقي (غير متاح في الديمو).</T></View>:session?<Explorer session={session} onDetails={(title,lines)=>setDetail({title,lines})}/>:null;
@@ -181,7 +178,7 @@ function CommandApp(){
    <ScrollView ref={pageScroll} key={page} keyboardDismissMode={Platform.OS==='ios'?'interactive':'on-drag'} keyboardShouldPersistTaps="handled"
     automaticallyAdjustKeyboardInsets={Platform.OS==='ios'}
      onContentSizeChange={()=>{if(composerFocused.current&&keyboardVisible)pageScroll.current?.scrollToEnd({animated:true});}}
-    contentContainerStyle={{padding:18,paddingBottom:keyboardVisible&&ticketDetailOpen?Math.max(160,insets.bottom+90):Math.max(35,insets.bottom+24)}}
+    contentContainerStyle={{padding:18,paddingBottom:keyboardVisible?Math.max(160,insets.bottom+90):Math.max(35,insets.bottom+24)}}
     refreshControl={<RefreshControl refreshing={loading} tintColor={C.red} onRefresh={()=>page==='tickets'?setTicketReload(x=>x+1):session?void refresh(session,true):undefined}/>}>
     {body()}
    </ScrollView>

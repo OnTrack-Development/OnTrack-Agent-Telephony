@@ -11,3 +11,7 @@ android/
 ios/
 dist/
 web-build/
+
+!native/android/
+!native/android/*.java
+!native/android/*.xml

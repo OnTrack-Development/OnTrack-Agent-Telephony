@@ -3,6 +3,10 @@ import {ActivityIndicator,Alert,BackHandler,Pressable,ScrollView,TextInput,View}
 import type {Session,Ticket} from '../types';
 import {getApiRetryAfterMs} from '../lib/api';
 import {C} from '../theme';
+import {AdminAccess} from '../components/AdminAccess';
+import {adminSessionReady} from '../lib/adminSession';
+import {TicketAdminData,readTicketAdmin,returnTicketToAi} from '../lib/ticketAdmin';
+import {NewTicket} from '../components/NewTicket';
 import {Action,Card,Divider,Header,Icon,Pill,T} from '../components/UI';
 import {QueueKind,OperatorProfile,TicketDetail,TicketBatch,changeTicket,fetchOperatorProfile,
  fetchSupportStatuses,fetchTicketDetail,fetchTicketQueue,isActionable,isClosed,
@@ -32,9 +36,11 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
  const [changing,setChanging]=useState(false),[statuses,setStatuses]=useState<string[]>(['Open','Customer-Reply','Answered','Closed']);
  const [showStatus,setShowStatus]=useState(false),[showPriority,setShowPriority]=useState(false);
  const [reloadCounter,setReloadCounter]=useState(0);
+ const [adminData,setAdminData]=useState<TicketAdminData|null>(null),[adminError,setAdminError]=useState(''),[newTicket,setNewTicket]=useState(false);
+ const aiBusy=useRef(false);
  const selectionGeneration=useRef(0);
  const queueRequestGeneration=useRef({assigned:0,general:0});
- const close=()=>{selectionGeneration.current++;setSelected(null);setDetail(null);setReply('');setDetailError('');setShowPriority(false);setShowStatus(false);};
+ const close=()=>{selectionGeneration.current++;setSelected(null);setDetail(null);setReply('');setDetailError('');setShowPriority(false);setShowStatus(false);setAdminData(null);setAdminError('');};
  useEffect(()=>{onDetailChange?.(selected!==null);return()=>onDetailChange?.(false);},[selected!==null]);
  useEffect(()=>{
   if(!selected)return;
@@ -82,7 +88,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
  const refresh=()=>setReloadCounter(n=>n+1);
  const open=async(ticket:Ticket)=>{
   const generation=++selectionGeneration.current;
-  setSelected(ticket);setDetail(null);setDetailLoading(true);setDetailError('');setReply('');
+  setSelected(ticket);setDetail(null);setAdminData(null);setAdminError('');setDetailLoading(true);setDetailError('');setReply('');
   if(demo){
    setDetail({id:ticket.id,number:ticket.number,subject:ticket.subject,customer:ticket.customer,
     department:ticket.department,status:ticket.status,priority:ticket.priority,flag:ticket.flag||0,
@@ -94,8 +100,27 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
   const result=await fetchTicketDetail(session,ticket.id);
   if(generation!==selectionGeneration.current)return;
   setDetailLoading(false);
-  if(result.ok&&result.detail)setDetail(result.detail);
+  if(result.ok&&result.detail){setDetail(result.detail);if(adminSessionReady(session))void loadAdmin(ticket.id);}
   else setDetailError(result.error||'تعذر فتح التذكرة');
+ };
+ const loadAdmin=async(id:number)=>{
+  if(!session)return;
+  const stamp=selectionGeneration.current;setAdminError('');
+  try{const data=await readTicketAdmin(session,id);if(stamp===selectionGeneration.current)setAdminData(data);}
+  catch(e){if(stamp===selectionGeneration.current){setAdminData(null);setAdminError(e instanceof Error?e.message:'تعذر قراءة أدوات التذكرة');}}
+ };
+ const returnToAi=()=>{
+  if(!session||!selected||!adminData?.aiNonce||aiBusy.current)return;
+  const id=selected.id,stamp=selectionGeneration.current;aiBusy.current=true;setChanging(true);
+  Alert.alert('إرجاع للـAI','سيتم إلغاء المتابعة البشرية لهذه التذكرة وإعادتها إلى المساعد الذكي. متابعة؟',[
+   {text:'إلغاء',style:'cancel',onPress:()=>{aiBusy.current=false;setChanging(false);}},
+   {text:'تأكيد',onPress:async()=>{
+    try{const message=await returnTicketToAi(session,id);refresh();
+     if(stamp===selectionGeneration.current){Alert.alert('تمت الإعادة',message);await loadAdmin(id);const result=await fetchTicketDetail(session,id);if(stamp===selectionGeneration.current&&result.ok&&result.detail)setDetail(result.detail);}
+    }catch(e){if(stamp===selectionGeneration.current)Alert.alert('تعذر الإرجاع',e instanceof Error?e.message:'رفض الموديول العملية');}
+    finally{aiBusy.current=false;setChanging(false);}
+   }}
+  ],{cancelable:false});
  };
  const updateField=(field:'priority'|'status',value:string)=>{
   if(!selected||!session||changing||demo)return;
@@ -183,10 +208,10 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
     <T color={C.muted} size={12}>{detail?.customer||selected.customer}</T>
     {detail?<View style={{borderWidth:1,borderColor:C.stroke,backgroundColor:C.surface2,borderRadius:12,padding:12,gap:8}}>
       <View style={{flexDirection:'row-reverse',alignItems:'center',gap:7}}><Icon name="form-textbox" color={C.blue}/><T weight="800" size={13}>الحقول المخصصة للتذكرة</T></View>
-      {detail.customFields.length?detail.customFields.map(field=>
+      {(adminData?.customFields||detail.customFields).length?(adminData?.customFields||detail.customFields).map(field=>
        <View key={field.id+'-'+field.name} style={{gap:3,borderTopWidth:1,borderTopColor:C.stroke,paddingTop:7}}>
         <T size={11} color={C.muted}>{field.name}</T><T size={13}>{showPlain(field.value)}</T>
-       </View>):<T size={11} color={C.muted}>{detail.customFieldsProvided?'لا توجد قيم محفوظة في الحقول المخصصة':'واجهة WHMCS API القياسية لا ترجع الحقول المخصصة؛ يلزم ربط قراءة آمن من نفس WHMCS لعرضها.'}</T>}
+       </View>):<T size={11} color={C.muted}>{adminData||detail.customFieldsProvided?'لا توجد قيم محفوظة في الحقول المخصصة':'سجّل دخول الإدارة أدناه لعرض الحقول المخصصة.'}</T>}
      </View>:null}
     <View style={{flexDirection:'row-reverse',gap:7,flexWrap:'wrap'}}>
      <Pill label={detail?.status||selected.status} color={C.blue}/>
@@ -194,8 +219,11 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
      {(detail?.flag||selected.flag)?<Pill label={`Assigned #${detail?.flag||selected.flag}`} color={C.orange}/>:null}
     </View>
     {!demo?<View style={{gap:9}}>
+     {session&&!adminSessionReady(session)?<AdminAccess key={adminError} session={session} onReady={()=>void loadAdmin(selected.id)}/>:null}
+     {adminError?<T size={12} color={C.orange}>{adminError}</T>:null}
      <Action secondary compact icon="robot-outline" label="إرجاع التذكرة إلى المساعد AI"
-      disabled={!detail||changing} onPress={()=>Alert.alert('ربط مساعد AI','زر إرجاع التذكرة للـAI ظاهر، لكن إجراء التحويل موجود في موديول AI Support Agent، وليس ضمن WHMCS API القياسي. لن نغيّر حالة التذكرة أو نكتب ملاحظة وهمية قبل ربط الإجراء الحقيقي.')}/>
+      disabled={!detail||changing||!adminData?.aiNonce} onPress={returnToAi}/>
+     {session&&adminSessionReady(session)&&!adminData?.aiNonce?<T size={11} color={C.muted}>إجراء الإرجاع غير متاح لهذه التذكرة في الموديول الحالي.</T>:null}
      <View style={{flexDirection:'row-reverse',gap:9}}>
      <View style={{flex:1}}><Action secondary compact disabled={!detail||changing} label="تغيير الأولوية" onPress={()=>{setShowPriority(!showPriority);setShowStatus(false);}}/></View>
      <View style={{flex:1}}><Action secondary compact disabled={!detail||changing} label="تغيير الحالة" onPress={()=>{setShowStatus(!showStatus);setShowPriority(false);}}/></View>
@@ -239,8 +267,10 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
    </Card>
   </View>;
  }
+ if(newTicket&&session)return <NewTicket session={session} onCancel={()=>setNewTicket(false)} onCreated={ticket=>{setNewTicket(false);refresh();void open(ticket);}} onComposerFocus={onComposerFocus}/>;
  return <View style={{paddingBottom:20}}>
   <Header title="مركز التذاكر" subtitle="التذاكر المسندة أولًا ثم التذاكر التي تحتاج ردًا"/>
+  {!demo?<View style={{marginBottom:14}}><Action label="إضافة تذكرة" icon="plus" onPress={()=>setNewTicket(true)}/></View>:null}
   <View style={{backgroundColor:C.surface,borderColor:C.stroke,borderWidth:1,borderRadius:13,flexDirection:'row-reverse',alignItems:'center',paddingHorizontal:12,marginBottom:14}}>
    <Icon name="magnify" color={C.muted}/><TextInput value={search} onChangeText={setSearch} placeholder="بحث في التذاكر المحمّلة..." placeholderTextColor={C.muted}
     style={{flex:1,color:C.text,height:47,textAlign:'right',paddingHorizontal:9}}/>

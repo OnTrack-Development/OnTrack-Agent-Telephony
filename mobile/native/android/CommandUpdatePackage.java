@@ -10,6 +10,7 @@ public final class CommandUpdatePackage implements ReactPackage {
   @Override public List<NativeModule> createNativeModules(ReactApplicationContext ctx) {
     List<NativeModule> modules = new ArrayList<>();
     modules.add(new CommandUpdateModule(ctx));
+    modules.add(new CommandAdminSessionModule(ctx));
     return modules;
   }
   @Override public List<ViewManager> createViewManagers(ReactApplicationContext ctx) {

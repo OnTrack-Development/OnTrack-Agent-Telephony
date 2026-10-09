@@ -40,33 +40,21 @@ jobs:
           fi
       - name: Install JavaScript dependencies
         working-directory: mobile
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Unit tests and typecheck
         working-directory: mobile
-        run: npm run typecheck && npm run test:source && node ../tests/ticket_workflow_test.cjs && node ../tests/api_mock_test.cjs && node ../tests/client_profile_test.cjs && node ../tests/directory_ui_test.cjs
+        run: npm run typecheck && npm run test:source && node ../tests/ticket_workflow_test.cjs && node ../tests/api_mock_test.cjs && node ../tests/client_profile_test.cjs && node ../tests/directory_ui_test.cjs && node ../tests/module_integration_test.cjs && python3 ../tests/build_workflow_test.py && python3 ../tests/native_admin_routes_test.py
       - name: Generate native Android project
         working-directory: mobile
-        run: npx expo prebuild --platform android --no-install --non-interactive
+        run: CI=1 npx expo prebuild --platform android --no-install
       - name: Install native OnTrack update manager after Expo prebuild
         run: python3 mobile/scripts/prepare_native_update.py
-      - name: Select GitHub runner preinstalled Android NDK
+      - name: Select installed Android NDK
         shell: bash
         run: |
           set -euo pipefail
           test -f "$ANDROID_HOME/ndk/27.3.13750724/source.properties"
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          p=Path("mobile/android/build.gradle")
-          lines=p.read_text().splitlines(keepends=True)
-          matches=[i for i,line in enumerate(lines) if re.match(r'^\s*ndkVersion\s*=',line)]
-          assert len(matches)==1, f'Expected one ndkVersion assignment, got {len(matches)}'
-          i=matches[0]
-          old=lines[i]
-          new=re.sub(r'\d{2}\.\d+\.\d+', '27.3.13750724', old)
-          if old==new:
-              # A dynamically resolved version must explicitly select the installed SDK NDK.
-              new=re.sub(r'^([ \t]*ndkVersion[ \t]*=).*
+          python3 mobile/scripts/select_android_ndk.py mobile/android/build.gradle 27.3.13750724
       - name: Build debug to initialize React Native and Gradle codegen
         working-directory: mobile/android
         run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon --stacktrace
@@ -143,7 +131,7 @@ jobs:
           test "$BYTES" -lt 73304381
       - uses: actions/upload-artifact@v4
         with:
-          name: WHMCS-v0.3.4-ARM64-signed
+          name: WHMCS-v0.3.5-ARM64-signed
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Publish GitHub Release with APK and ZIP
@@ -154,114 +142,12 @@ jobs:
           set -euo pipefail
           mkdir -p out
           APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-          cp "$APK" out/WHMCS-v0.3.4-ARM64-release-signed.apk
-          (cd out && zip -9 WHMCS-v0.3.4-ARM64-release-signed.zip WHMCS-v0.3.4-ARM64-release-signed.apk)
+          cp "$APK" out/WHMCS-v0.3.5-ARM64-release-signed.apk
+          (cd out && zip -9 WHMCS-v0.3.5-ARM64-release-signed.zip WHMCS-v0.3.5-ARM64-release-signed.apk)
           BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v0.3.4: compact and readable customer services, invoices and orders; focused records, owner-aware details, invoice/service notes editing and confirmed pending-order actions. Full client profile and existing WhatsApp module are unchanged; no new hosting module is installed. Signed ARM64 APK size: ${BYTES} bytes."
-          gh release create "whmcs-v0.3.4-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
+          NOTES="WHMCS v0.3.5: native WhatsApp conversations and confirmed text replies using the existing admin session and CSRF; real return-to-AI action, ticket custom fields, new-ticket creation and repaired Android build. Existing client/services/invoices/order screens preserved; no WHMCS module changes. Signed ARM64 APK size: ${BYTES} bytes."
+          gh release create "whmcs-v0.3.5-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
-            --title "WHMCS v0.3.4 (Android build 15)" \
-            --notes "$NOTES"
-          echo "Signed APK published; website release staging starts automatically after successful workflow completion."
-,r'\g<1> "27.3.13750724"',old.rstrip('\n'))+'\n'
-          lines[i]=new
-          p.write_text(''.join(lines))
-          assert '27.3.13750724' in lines[i]
-          print('PASS: pinned build.gradle to installed NDK 27.3; original:',old.strip())
-          PY
-      - name: Build debug to initialize React Native and Gradle codegen
-        working-directory: mobile/android
-        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon --stacktrace
-      - name: Restore existing encrypted release key
-        if: env.ANDROID_SIGNING_PASSWORD != ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p mobile/android/signing
-          git show origin/backup/telephony-server-before-command-2026-10-09:android/signing/ontrack-release.jks.enc.b64 > mobile/android/signing/release.enc.b64
-          openssl enc -d -aes-256-cbc -pbkdf2 -a -A \
-            -in mobile/android/signing/release.enc.b64 -out mobile/android/signing/release.jks \
-            -pass env:ANDROID_SIGNING_PASSWORD
-          chmod 600 mobile/android/signing/release.jks
-      - name: Configure persistent release signing
-        if: env.ANDROID_SIGNING_PASSWORD != ''
-        shell: bash
-        run: |
-          cat >> mobile/android/app/build.gradle <<'GRADLE'
-          android {
-              signingConfigs {
-                  ontrackCommandRelease {
-                      storeFile file("../signing/release.jks")
-                      storePassword System.getenv("ANDROID_SIGNING_PASSWORD")
-                      keyAlias "ontrack-telephony"
-                      keyPassword System.getenv("ANDROID_SIGNING_PASSWORD")
-                  }
-              }
-              buildTypes {
-                  release { signingConfig signingConfigs.ontrackCommandRelease }
-              }
-          }
-          GRADLE
-      - name: Build production-signed APK
-        if: env.ANDROID_SIGNING_PASSWORD != ''
-        working-directory: mobile/android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace --info
-      - name: Strip other CPU ABIs and re-sign with existing release key
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-          test -s "$APK"
-          UNIV_SIZE="$(stat -c%s "$APK")"
-          cp "$APK" "${APK%.apk}-universal-backup.apk"
-          zip -qd "$APK" 'lib/armeabi-v7a/*' 'lib/x86/*' 'lib/x86_64/*' || true
-          if unzip -Z1 "$APK" | grep -qE '^lib/(armeabi-v7a|x86|x86_64)/'; then
-            echo "Failed to strip non-ARM64 libraries"; exit 1
-          fi
-          if ! unzip -Z1 "$APK" | grep -q '^lib/arm64-v8a/'; then
-            echo "ARM64 native libraries missing"; exit 1
-          fi
-          BUILD_TOOLS="$(dirname "$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)")"
-          "$BUILD_TOOLS/zipalign" -f -p 4 "$APK" "${APK%.apk}-aligned.apk"
-          "$BUILD_TOOLS/apksigner" sign \
-            --ks mobile/android/signing/release.jks \
-            --ks-key-alias ontrack-telephony \
-            --ks-pass env:ANDROID_SIGNING_PASSWORD \
-            --key-pass env:ANDROID_SIGNING_PASSWORD \
-            --out "${APK%.apk}-arm64-signed.apk" "${APK%.apk}-aligned.apk"
-          mv "${APK%.apk}-arm64-signed.apk" "$APK"
-          echo "Universal APK bytes: $UNIV_SIZE"
-          echo "ARM64 APK bytes: $(stat -c%s "$APK")"
-      - name: Verify APK signatures
-        shell: bash
-        run: |
-          set -euo pipefail
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
-          APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-          test -s "$APK"
-          "$APKSIGNER" verify --verbose --print-certs "$APK"
-          sha256sum "$APK"
-          BYTES="$(stat -c%s "$APK")"
-          test "$BYTES" -lt 73304381
-      - uses: actions/upload-artifact@v4
-        with:
-          name: WHMCS-v0.3.4-ARM64-signed
-          path: mobile/android/app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: error
-      - name: Publish GitHub Release with APK and ZIP
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mkdir -p out
-          APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-          cp "$APK" out/WHMCS-v0.3.4-ARM64-release-signed.apk
-          (cd out && zip -9 WHMCS-v0.3.4-ARM64-release-signed.zip WHMCS-v0.3.4-ARM64-release-signed.apk)
-          BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v0.3.4: compact and readable customer services, invoices and orders; focused records, owner-aware details, invoice/service notes editing and confirmed pending-order actions. Full client profile and existing WhatsApp module are unchanged; no new hosting module is installed. Signed ARM64 APK size: ${BYTES} bytes."
-          gh release create "whmcs-v0.3.4-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
-            --target "$GITHUB_SHA" \
-            --title "WHMCS v0.3.4 (Android build 15)" \
+            --title "WHMCS v0.3.5 (Android build 16)" \
             --notes "$NOTES"
           echo "Signed APK published; website release staging starts automatically after successful workflow completion."
