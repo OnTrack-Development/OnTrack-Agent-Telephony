@@ -25,7 +25,7 @@ const str=(x:any)=>x===undefined||x===null?'':String(x).trim();
 const statusColor=(status:string)=>/^(active|paid|accepted)$/i.test(status)?C.green:
  /^(unpaid|pending|overdue|suspended|expiring)$/i.test(status)?C.orange:
  /^(fraud|cancelled|terminated|closed|expired)$/i.test(status)?C.red:C.muted;
-const show=(page:Page,status:string,filter:Filter)=>{
+export const matchesRecordStatus=(page:Page,status:string,filter:Filter)=>{
  if(filter==='all')return true;
  if(filter==='paid')return /^(paid|active|accepted)$/i.test(status);
  if(filter==='closed')return /^(cancelled|terminated|closed|expired|inactive)$/i.test(status);
@@ -74,7 +74,7 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
  const records=useMemo(()=>cfg?(data[cfg.key] as any[]):[],[cfg?.key,data]);
  const shown=records.filter((r:any)=>{
   const details=listRecordSummary(page,r);
-  return show(page,str(r.status),filter) &&
+  return matchesRecordStatus(page,str(r.status),filter) &&
    [details.title,details.primary,details.secondary,str(r.id)].some(x=>x.toLowerCase().includes(q.trim().toLowerCase()));
  });
  if(!cfg)return null;
