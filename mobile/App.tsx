@@ -36,8 +36,23 @@ function CommandApp(){
  const insets=useSafeAreaInsets();
  const pageScroll=useRef<ScrollView>(null);
  const [keyboardVisible,setKeyboardVisible]=useState(false),[ticketDetailOpen,setTicketDetailOpen]=useState(false);
- useEffect(()=>{const show=Keyboard.addListener('keyboardDidShow',()=>setKeyboardVisible(true));const hide=Keyboard.addListener('keyboardDidHide',()=>setKeyboardVisible(false));return()=>{show.remove();hide.remove();};},[]);
- const revealComposer=()=>{setTimeout(()=>pageScroll.current?.scrollToEnd({animated:true}),260);};
+
+ const composerFocused=useRef(false);
+ const revealComposer=()=>{
+  composerFocused.current=true;
+  setTimeout(()=>pageScroll.current?.scrollToEnd({animated:true}),140);
+  setTimeout(()=>pageScroll.current?.scrollToEnd({animated:true}),430);
+ };
+ useEffect(()=>{
+  const shown=Keyboard.addListener('keyboardDidShow',()=>{
+   setKeyboardVisible(true);
+   if(composerFocused.current)setTimeout(()=>pageScroll.current?.scrollToEnd({animated:true}),70);
+  });
+  const hidden=Keyboard.addListener('keyboardDidHide',()=>{
+   setKeyboardVisible(false);composerFocused.current=false;
+  });
+  return()=>{shown.remove();hidden.remove();};
+ },[]);
  const [initializing,setInitializing]=useState(true),[session,setSession]=useState<Session|null>(null),[demo,setDemo]=useState(false);
  const [data,setData]=useState<DemoState>(empty),[page,setPage]=useState<Page>('home'),[loading,setLoading]=useState(false);
  const [error,setError]=useState(''),[errors,setErrors]=useState<Record<string,string>>({}),[caps,setCaps]=useState<Record<string,boolean>>({}),[totals,setTotals]=useState<Record<string,number|null>>({}),[moreBusy,setMoreBusy]=useState(false),[lastSync,setLastSync]=useState(''),[history,setHistory]=useState<Page[]>([]),[detail,setDetail]=useState<{title:string,lines:[string,string][]}|null>(null);
@@ -148,9 +163,10 @@ function CommandApp(){
   {Object.keys(errors).length>0&&!demo?<Pressable style={{backgroundColor:'#483820',padding:9}} onPress={()=>{if(session)void refresh(session,true);}}><T color={C.orange} size={11}>{Object.values(errors).some(x=>/429/.test(x))?'WHMCS HTTP 429 — جاري انتظار السيرفر وإعادة المحاولة تلقائيًا':'تعذر تحميل بعض البيانات — اضغط لإعادة المحاولة'}</T></Pressable>:null}
   {error?<Pressable style={{backgroundColor:'#47212A',padding:11}} onPress={()=>session&&refresh(session)}><T color={C.orange} size={12}>تعذر التحديث: {error} — اضغط لإعادة المحاولة</T></Pressable>:null}
   <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}>
-   <ScrollView ref={pageScroll} key={page} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled"
+   <ScrollView ref={pageScroll} key={page} keyboardDismissMode={Platform.OS==='ios'?'interactive':'on-drag'} keyboardShouldPersistTaps="handled"
     automaticallyAdjustKeyboardInsets={Platform.OS==='ios'}
-    contentContainerStyle={{padding:18,paddingBottom:keyboardVisible?30:Math.max(35,insets.bottom+24)}}
+     onContentSizeChange={()=>{if(composerFocused.current&&keyboardVisible)pageScroll.current?.scrollToEnd({animated:true});}}
+    contentContainerStyle={{padding:18,paddingBottom:keyboardVisible&&ticketDetailOpen?Math.max(160,insets.bottom+90):Math.max(35,insets.bottom+24)}}
     refreshControl={<RefreshControl refreshing={loading} tintColor={C.red} onRefresh={()=>session?void refresh(session):undefined}/>}>
     {body()}
    </ScrollView>
