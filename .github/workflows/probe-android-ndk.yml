@@ -1,0 +1,20 @@
+name: Probe Android NDK on GitHub Runner
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/probe-android-ndk.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: List installed SDK and NDK versions
+        shell: bash
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls -ld "$ANDROID_HOME"/ndk/* 2>/dev/null || true
+          ls -la "$ANDROID_HOME"/ndk 2>/dev/null || true
+          find "$ANDROID_HOME"/ndk -maxdepth 2 -name source.properties -print 2>/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed 2>/dev/null | grep -E 'ndk;|cmake;' || true
