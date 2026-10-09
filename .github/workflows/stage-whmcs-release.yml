@@ -1,5 +1,8 @@
 name: Stage Latest Signed WHMCS APK to Live Website
 on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/stage-whmcs-release.yml']
   workflow_run:
     workflows: [Build WHMCS Compact ARM64 APK]
     types: [completed]
