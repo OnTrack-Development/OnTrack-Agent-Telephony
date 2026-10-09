@@ -1,10 +1,10 @@
 {
-  "app_id":"com.ontrackdevelopment.command",
-  "version_name":"0.2.4",
-  "version_code":5,
-  "filename":"OnTrack-Command-v0.2.4-ARM64-release-signed.apk",
-  "sha256":"a7036d2a432f92d3a2aa4155c4b4b12c865c5fc3282d774287a886afa171c2a4",
-  "size_bytes":27183994,
-  "release_notes":"v0.2.4: In-app download, SHA-256 verification and Android installer. WHMCS core improvements remain, WhatsApp and AI native integrations still under development.",
-  "published_at":"2026-10-09T03:41:23Z"
+  "app_id": "com.ontrackdevelopment.command",
+  "version_name": "0.2.5",
+  "version_code": 6,
+  "filename": "WHMCS-v0.2.5-ARM64-release-signed.apk",
+  "sha256": "98daa2676294dba568be6a9a87ddab1315c0af24bb88444dd87894041da14c19",
+  "size_bytes": 27593991,
+  "release_notes": "WHMCS v0.2.5: new app name and icon, Android direct installer and website-only update feed.",
+  "published_at": "2026-10-09T04:04:18Z"
 }
