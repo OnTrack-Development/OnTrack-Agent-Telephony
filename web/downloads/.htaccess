@@ -1,2 +1,13 @@
 Options -Indexes
 AddType application/vnd.android.package-archive .apk
+AddType application/zip .zip
+<IfModule mod_headers.c>
+<FilesMatch "\.apk$">
+Header set Content-Disposition "attachment"
+Header set X-Content-Type-Options "nosniff"
+Header set Cache-Control "public, max-age=31536000, immutable"
+</FilesMatch>
+<FilesMatch "^latest\.json$">
+Header set Cache-Control "no-store"
+</FilesMatch>
+</IfModule>

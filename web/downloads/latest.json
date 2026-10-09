@@ -1,10 +1,10 @@
 {
-  "version_code": 25,
-  "version_name": "0.7.1",
-  "filename": "OnTrack-AI-Phone-v0.7.1.apk",
-  "sha256": "adfd6aeb8a57759465ad2f9875fbc7fc7029e151de1d7df021b7f04c9178492a",
-  "size_bytes": 14192625,
-  "published_at": "2026-10-08T21:53:02Z",
-  "release_notes": "OnTrack AI Phone v0.7.1: app updater now compares the OnTrack platform with the public GitHub release channel and automatically uses the newest signed APK, so stale shared-host metadata no longer hides updates.",
-  "signing_certificate_sha256": "61:EE:0C:F7:0A:AE:92:39:E0:96:D4:42:2D:3D:4C:3B:2D:B4:D7:67:D6:FF:B6:1A:48:66:81:2C:08:EC:7B:02"
+  "app_id": "com.ontrackdevelopment.command",
+  "version_name": "0.2.5",
+  "version_code": 6,
+  "filename": "WHMCS-v0.2.5-ARM64-release-signed.apk",
+  "sha256": "98daa2676294dba568be6a9a87ddab1315c0af24bb88444dd87894041da14c19",
+  "size_bytes": 27593991,
+  "release_notes": "WHMCS v0.2.5: new app name and icon, Android direct installer and website-only update feed.",
+  "published_at": "2026-10-09T04:04:18Z"
 }

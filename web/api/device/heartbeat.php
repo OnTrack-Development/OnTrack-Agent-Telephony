@@ -1,2 +1,0 @@
-<?php
-require __DIR__ . '/../../app/bootstrap.php';$d=current_device();$in=json_input();$s=db()->prepare("UPDATE devices SET status='online',last_seen_at=?,phone_number=COALESCE(NULLIF(?,''),phone_number),app_version=COALESCE(NULLIF(?,''),app_version) WHERE id=?");$s->execute([now_utc(),normalize_phone((string)($in['phone_number']??'')),(string)($in['app_version']??''),$d['id']]);json_response(['ok'=>true,'server_time'=>now_utc()]);
