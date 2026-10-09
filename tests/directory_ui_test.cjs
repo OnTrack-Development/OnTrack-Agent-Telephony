@@ -31,6 +31,6 @@ const order=listRecordSummary('orders',{id:7,product:'VPS',created:'2026-10-09'}
 assert.equal(order.title,'طلب #7');
 assert.equal(order.primary,'VPS • 2026-10-09');
 const detail=fs.readFileSync(path.join(__dirname,'../mobile/src/screens/RecordDetails.tsx'),'utf8');
-for(const token of ["GetInvoice","GetClientsProducts","GetOrders","UpdateInvoice","UpdateClientProduct","AcceptOrder","CancelOrder","autosetup:false","sendemail:false","detailIdentityMatches","confirm('قبول الطلب'"])assert.ok(detail.includes(token),token);
+for(const token of ["GetInvoice","GetClientsProducts","GetOrders","UpdateInvoice","UpdateClientProduct","AcceptOrder","CancelOrder","autosetup:0","sendemail:0","detailIdentityMatches","confirm('قبول الطلب'"])assert.ok(detail.includes(token),token);
 assert.ok(!detail.includes('Object.entries(read)'),'No raw all-fields dump');
 console.log('PASS: compact invoice/service/order lists, status filters, WHMCS detail identity and explicit confirmed management');
