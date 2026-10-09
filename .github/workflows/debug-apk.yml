@@ -49,18 +49,13 @@ jobs:
         run: npx expo prebuild --platform android --no-install --non-interactive
       - name: Install native OnTrack update manager after Expo prebuild
         run: python3 mobile/scripts/prepare_native_update.py
-      - name: Select preinstalled Android NDK and avoid broken SDK downloads
+      - name: Select GitHub runner preinstalled Android NDK
         shell: bash
         run: |
           set -euo pipefail
-          NDK="27.3.13750724"
-          test -f "$ANDROID_HOME/ndk/$NDK/source.properties"
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          p=Path('mobile/android/build.gradle')
-          code=p.read_text()
-          changed,count=re.subn(r'(?m)^(\s*ndkVersion\s*=\s*).+
+          test -f "$ANDROID_HOME/ndk/27.3.13750724/source.properties"
+          python3 -c 'from pathlib import Path; p=Path("mobile/android/build.gradle"); s=p.read_text(); assert "27.1.12297006" in s, "NDK requirement changed"; p.write_text(s.replace("27.1.12297006","27.3.13750724")); print("PASS: using installed Android NDK 27.3")'
+      - name: Build debug to initialize React Native and Gradle codegen
         working-directory: mobile/android
         run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon --stacktrace
       - name: Restore existing encrypted release key
