@@ -48,6 +48,12 @@ function load(name){
 }
 (async()=>{
  const admin=load('adminSession'),wa=load('whatsapp'),ticket=load('ticketAdmin'),create=load('createTicket'),ai=load('aiSnapshot');
+ const waScreen=fs.readFileSync(path.join(__dirname,'../mobile/src/screens/WhatsApp.tsx'),'utf8');
+ assert.ok(waScreen.includes("if(session.mode==='api')return"),'API mode must never solicit a second WHMCS admin password in the app');
+ assert.ok(waScreen.includes('loginAdmin(session,dir,session.username,session.password)'),'Admin Legacy must use saved credentials silently');
+ assert.ok(waScreen.includes('checkedAdminUrl(baseUrl,dir'),'Browser fallback URL must be checked and same-origin');
+ assert.ok(waScreen.includes('Linking.openURL(target)'),'Reuse browser administrator cookies, not API credentials');
+ assert.ok(!waScreen.includes('CreateSsoToken'),'Client SSO must never impersonate a WHMCS administrator');
  assert.equal(admin.isVerifiedWhatsAppInbox(`<script>window.waCSRFToken = "${csrf}";</script>`),true);
  assert.equal(admin.isVerifiedWhatsAppInbox('<main>No login, no inbox</main>'),false);
  const token32='a'.repeat(32);
