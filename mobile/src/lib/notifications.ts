@@ -71,8 +71,9 @@ export async function ingestNotificationSnapshot(session:Session,category:Notice
  const prev=pending.get(key)||Promise.resolve();
  const update=prev.catch(()=>{}).then(async()=>{
   const state=await readSeen(session);
-  const priorCategory=Object.keys(state).some(x=>x.startsWith(category+':'));
   const now=Date.now();
+  const priorCategory=!!state['__baseline:'+category];
+  state['__baseline:'+category]={revision:'1',lastSeen:now};
   const outgoing:NoticeInput[]=[];
   for(const e of events.slice(0,100)){
    if(e.category!==category||!e.id||!e.revision)continue;
