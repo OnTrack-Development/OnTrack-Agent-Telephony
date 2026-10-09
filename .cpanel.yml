@@ -1,0 +1,18 @@
+---
+# cPanel Git Version Control deployment from the existing GitHub remote.
+# Target: account's primary domain agent.ontrackegy.com.
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/agentontrackegy/public_html
+    - /usr/bin/test "$DEPLOYPATH" = "/home/agentontrackegy/public_html"
+    - /usr/bin/test -d "$DEPLOYPATH"
+    - /usr/bin/test -s web/downloads/WHMCS-v0.2.6-ARM64-release-signed.apk
+    - /bin/mkdir -p "$DEPLOYPATH/api/app" "$DEPLOYPATH/assets" "$DEPLOYPATH/downloads"
+    - /bin/cp -f web/index.php "$DEPLOYPATH/index.php"
+    - /bin/cp -f web/.htaccess "$DEPLOYPATH/.htaccess"
+    - /bin/cp -f web/api/app/latest.php "$DEPLOYPATH/api/app/latest.php"
+    - /bin/cp -f web/assets/whmcs-icon.png "$DEPLOYPATH/assets/whmcs-icon.png"
+    - /bin/cp -f web/downloads/.htaccess "$DEPLOYPATH/downloads/.htaccess"
+    - /bin/cp -f web/downloads/WHMCS-v0.2.6-ARM64-release-signed.apk "$DEPLOYPATH/downloads/WHMCS-v0.2.6-ARM64-release-signed.apk"
+    - /bin/cp -f web/downloads/latest.json "$DEPLOYPATH/downloads/latest.json"
+    - /usr/bin/test -s "$DEPLOYPATH/downloads/WHMCS-v0.2.6-ARM64-release-signed.apk"
