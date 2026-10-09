@@ -83,4 +83,6 @@ jobs:
           git config user.email "releases@ontrackegy.com"
           git add -A web/downloads downloads
           git commit -m 'Stage signed WHMCS v0.2.7 APK and website deployment archive [skip ci]'
+          git fetch origin main
+          git rebase origin/main
           git push origin HEAD:main
