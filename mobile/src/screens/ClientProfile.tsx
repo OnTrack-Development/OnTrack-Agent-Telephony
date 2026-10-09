@@ -8,10 +8,10 @@ import type {ClientSummary,ClientTab,ClientTabResult,ProfileField} from '../lib/
 const tabs:{id:ClientTab;name:string}[]=[
  {id:'overview',name:'الملخص'},{id:'services',name:'الخدمات'},{id:'domains',name:'الدومينات'},
  {id:'invoices',name:'الفواتير'},{id:'tickets',name:'التذاكر'},{id:'orders',name:'الطلبات'},
- {id:'contacts',name:'جهات الاتصال'}
+ {id:'contacts',name:'جهات الاتصال'},{id:'emails',name:'البريد المرسل'}
 ];
 const text=(x:unknown)=>x===null||x===undefined?'':typeof x==='object'?JSON.stringify(x):String(x).trim();
-const forbidden=/password|secret|token|private.?key|auth|كلمة.?المرور/i;
+const forbidden=/password|secret|token|private.?key|auth|كلمة.?المرور|^message$|^body$|^headers$/i;
 function DataSection({title,fields}:{title:string,fields:ProfileField[]}){
  return <Card style={{gap:9,marginBottom:13}}>
   <T weight="800" size={16}>{title}</T>
@@ -27,6 +27,7 @@ function recordTitle(tab:ClientTab,row:Record<string,unknown>){
  if(tab==='invoices')return 'فاتورة #'+text(row.invoicenum||row.id);
  if(tab==='tickets')return text(row.title||row.subject||'تذكرة')+' #'+text(row.tid||row.id);
  if(tab==='orders')return 'طلب #'+text(row.id);
+ if(tab==='emails')return text(row.subject)||'رسالة بريد #'+text(row.id);
  return [text(row.firstname),text(row.lastname)].filter(Boolean).join(' ')||text(row.email)||'جهة اتصال';
 }
 function recordSubtitle(tab:ClientTab,row:Record<string,unknown>){
@@ -35,6 +36,7 @@ function recordSubtitle(tab:ClientTab,row:Record<string,unknown>){
  if(tab==='invoices')return [text(row.total),text(row.currency),text(row.status),text(row.duedate)].filter(Boolean).join(' • ');
  if(tab==='tickets')return [text(row.status),text(row.deptname),text(row.lastreply)].filter(Boolean).join(' • ');
  if(tab==='orders')return [text(row.status),text(row.date),text(row.amount)].filter(Boolean).join(' • ');
+ if(tab==='emails')return [text(row.date),text(row.to),text(row.sender)].filter(Boolean).join(' • ');
  return [text(row.email),text(row.phonenumber)].filter(Boolean).join(' • ');
 }
 export function ClientProfile({session,client,onBack}:{session:Session;client:Client;onBack:()=>void}){
@@ -93,7 +95,7 @@ export function ClientProfile({session,client,onBack}:{session:Session;client:Cl
    <T size={12} color={C.muted}>{selected.total===null?selected.records.length+' سجل محمّل':selected.records.length+' من '+selected.total}</T>
    {selected.records.map((item,i)=> {
     const pairs=Object.entries(item).filter(([key,value])=>!forbidden.test(key)&&value!==null&&value!==undefined&&typeof value!=='object')
-     .slice(0,30).map(([label,value])=>({label,value:text(value)})).filter(v=>v.value);
+     .slice(0,30).map(([label,value])=>({label,value:text(value).slice(0,300)})).filter(v=>v.value);
     return <Card key={String(item.id||i)} style={{gap:7}}>
      <T weight="800">{recordTitle(tab,item)}</T><T size={12} color={C.muted}>{recordSubtitle(tab,item)}</T>
      {pairs.map(field=><View key={field.label} style={{flexDirection:'row-reverse',gap:9}}>
