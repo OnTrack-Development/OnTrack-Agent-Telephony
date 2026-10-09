@@ -159,10 +159,10 @@ export function RecordDetails({page,item,session,onBack,onChanged}:{
    <T size={12} color={C.muted}>تنفيذ الإجراءات يتطلب تأكيدًا، وصلاحية API فعلية. قبول الطلب هنا لا يشغّل التفعيل الآلي أو إرسال رسائل ترحيب.</T>
    <Action disabled={working} icon="check-circle-outline" label="قبول الطلب"
     onPress={()=>confirm('قبول الطلب',`هل تريد قبول الطلب #${item.id}؟ لن يتم تفعيل الخدمة آليًا.`,
-     ()=>void doAction('AcceptOrder',{orderid:item.id,autosetup:false,sendemail:false,sendregistrar:false},'تم قبول الطلب.'))}/>
+     ()=>void doAction('AcceptOrder',{orderid:item.id,autosetup:0,sendemail:0,sendregistrar:0},'تم قبول الطلب.'))}/>
    <Action disabled={working} secondary icon="close-circle-outline" label="إلغاء الطلب"
     onPress={()=>confirm('إلغاء طلب معلّق',`تأكيد إلغاء الطلب #${item.id} داخل WHMCS؟`,
-     ()=>void doAction('CancelOrder',{orderid:item.id,cancelsub:false},'تم إلغاء الطلب.'))}/>
+     ()=>void doAction('CancelOrder',{orderid:item.id,cancelsub:0},'تم إلغاء الطلب.'))}/>
   </Card>:null}
   {!data&&!busy&&!error?<Card><T color={C.muted}>البيانات التفصيلية غير متاحة.</T></Card>:null}
  </View>;
