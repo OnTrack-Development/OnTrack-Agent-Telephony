@@ -105,7 +105,7 @@ export function isVerifiedWhatsAppInbox(html:string):boolean {
 export function whatsappAccessDiagnostic(html:string,url:string,directory:string):string {
  const plain=htmlText(html).slice(0,15000);
  if(/(?:you do not have permission|permission denied|access denied|unauthori[sz]ed|not authori[sz]ed|ليس لديك صلاحية|غير مصرح|لا تملك صلاحية)/i.test(plain))
-  return 'WHMCS رفض الوصول لموديول واتساب. راجع صلاحية الموديول ضمن Administrator Roles، حتى لو الدور اسمه Administrator.';
+  return 'WHMCS رفض الوصول لموديول واتساب. راجع صلاحية موديول واتساب ضمن Administrator Roles، حتى لو الدور اسمه Administrator.';
  if(/(?:addon not found|module not found|not activated|addon module is not active|الموديول غير مفعل|الإضافة غير مفعلة)/i.test(plain))
   return 'صفحة إضافة واتساب غير متاحة داخل WHMCS. تحقق إن الموديول الأصلي مفعل.';
  if(!url.includes('/'+directory+'/addonmodules.php'))
