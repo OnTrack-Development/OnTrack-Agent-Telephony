@@ -33,6 +33,7 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
  const [showStatus,setShowStatus]=useState(false),[showPriority,setShowPriority]=useState(false);
  const [reloadCounter,setReloadCounter]=useState(0);
  const selectionGeneration=useRef(0);
+ const queueRequestGeneration=useRef({assigned:0,general:0});
  const close=()=>{selectionGeneration.current++;setSelected(null);setDetail(null);setReply('');setDetailError('');setShowPriority(false);setShowStatus(false);};
  useEffect(()=>{onDetailChange?.(selected!==null);return()=>onDetailChange?.(false);},[selected!==null]);
  useEffect(()=>{
@@ -51,14 +52,16 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
   const selectedQueue=which==='assigned'?'assigned':mode;
   const setter=which==='assigned'?setAssigned:setGeneral;
   if(!session||demo)return;
+  const requestGeneration=++queueRequestGeneration.current[which];
   setter(prev=>({...prev,loading:true,error:offset?prev.error:''}));
   let response:TicketBatch;
-  try{response=await fetchTicketQueue(session,selectedQueue,offset,40);}
+  try{response=await fetchTicketQueue(session,selectedQueue,offset,50);}
   catch(e){response={ok:false,tickets:[],total:null,error:e instanceof Error?e.message:'فشل تحميل التذاكر'};}
+  if(requestGeneration!==queueRequestGeneration.current[which])return;
   setter(prev=>{
    if(!response.ok)return {...prev,loading:false,error:response.error||'تعذر القراءة'};
    const mapped=offset===0?response.tickets:[...prev.rows,...response.tickets.filter(x=>!prev.rows.some(t=>t.id===x.id))];
-   return {rows:mapped,total:response.total,offset:offset+40,error:'',loading:false};
+   return {rows:mapped,total:response.total,offset:offset+50,error:'',loading:false};
   });
  },[session,mode,demo]);
  useEffect(()=>{
