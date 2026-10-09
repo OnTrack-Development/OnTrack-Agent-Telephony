@@ -1,0 +1,41 @@
+name: Diagnose WHMCS Admin Login Form (Public Only)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/diagnose-whmcs-login.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Probe public admin login form without credentials
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import requests, re, html
+          from html.parser import HTMLParser
+          class Forms(HTMLParser):
+           def __init__(self):super().__init__();self.forms=[];self.inside=False
+           def handle_starttag(self,t,attributes):
+            d=dict(attributes)
+            if t=='form':self.inside=True;self.forms.append({'method':d.get('method','GET'),'action_path':d.get('action','')[:100].split('?')[0],'inputs':[]})
+            if t=='input' and self.inside:self.forms[-1]['inputs'].append((d.get('name',''),d.get('type','text')))
+           def handle_endtag(self,t):
+            if t=='form':self.inside=False
+          root='https://services.ontrackegy.com'
+          for path in ('/on/','/on/index.php','/on/login.php','/on/addonmodules.php?module=whatsapp_notifications&action=chat'):
+           try:
+            r=requests.get(root+path,timeout=16,allow_redirects=True,headers={'Accept':'text/html','User-Agent':'Mozilla/5.0 (Android) AppleWebKit/537.36 Chrome/130 Safari/537.36'})
+            title=re.search(r'<title[^>]*>(.*?)</title>',r.text,re.I|re.S)
+            f=Forms();f.feed(r.text)
+            final=r.url.replace(root,'')
+            # Do not expose hidden field values, cookies, username or passwords.
+            print('PATH',path,'STATUS',r.status_code,'FINAL',final[:120],'BYTES',len(r.content),'TITLE',html.unescape(re.sub('<[^>]+>','',title.group(1))).strip()[:80] if title else None,
+                  'FORM_SHAPES',[(x['method'],x['action_path'],x['inputs'][:12]) for x in f.forms[:3]],
+                  'CAPTCHA',bool(re.search('captcha|cloudflare|cf-chl|turnstile',r.text,re.I)),
+                  'LOGIN_FIELDS',bool(re.search('name=["\\\'](?:username|password)["\\\']',r.text,re.I)))
+           except Exception as e:print('PATH',path,'ERROR',type(e).__name__)
+          PY
