@@ -1,0 +1,39 @@
+name: Verify Live WHMCS Site
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/verify-live-whmcs.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check public site release and old files
+        shell: bash
+        run: |
+          set +e
+          echo '=== DNS ==='
+          getent ahostsv4 agent.ontrackegy.com | head -3
+          echo '=== Root ==='
+          curl -sS -L --connect-timeout 8 --max-time 22 -o /tmp/rootbody -w 'ROOT_HTTP=%{http_code} ROOT_URL=%{url_effective} ROOT_BYTES=%{size_download}\n' https://agent.ontrackegy.com/
+          echo 'ROOT_TITLE:'
+          grep -ioE '<title[^>]*>[^<]+' /tmp/rootbody | head -2
+          echo 'ROOT_WHMSC_MENTIONS:'
+          grep -oi WHMCS /tmp/rootbody | wc -l
+          echo 'ROOT_OLD_TELEPHONY_MENTIONS:'
+          grep -Eoi 'OnTrack AI Phone|Call History|Telephony' /tmp/rootbody | head -5
+          echo '=== WHMCS manifest ==='
+          curl -sS --connect-timeout 8 --max-time 22 -o /tmp/manifest -w 'MANIFEST_HTTP=%{http_code} MANIFEST_BYTES=%{size_download}\n' https://agent.ontrackegy.com/api/app/latest.php
+          head -c 1100 /tmp/manifest
+          echo
+          echo '=== Latest JSON ==='
+          curl -sS --connect-timeout 8 --max-time 22 -o /tmp/latest -w 'LATEST_HTTP=%{http_code} LATEST_BYTES=%{size_download}\n' https://agent.ontrackegy.com/downloads/latest.json
+          head -c 1100 /tmp/latest
+          echo
+          echo '=== APK headers ==='
+          curl -sSI --connect-timeout 8 --max-time 22 -w 'APK_HTTP=%{http_code} APK_SIZE=%{size_download}\n' https://agent.ontrackegy.com/downloads/WHMCS-v0.2.6-ARM64-release-signed.apk | grep -Ei '^HTTP/|^content-length:|^content-type:|^location:|^APK_HTTP'
+          echo '=== Old login page ==='
+          curl -sS --connect-timeout 8 --max-time 22 -o /dev/null -w 'OLD_LOGIN_HTTP=%{http_code}\n' https://agent.ontrackegy.com/login.php
