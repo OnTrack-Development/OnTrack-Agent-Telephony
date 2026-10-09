@@ -2,11 +2,11 @@ import type {DemoState} from '../types';
 // Fictional sample records. NEVER use demo contents as real WHMCS data.
 export const seed: DemoState = {
   tickets: [
-    {id:8421,subject:'الموقع مش بيفتح من الصبح',customer:'شركة ألفا الرقمية',department:'الدعم الفني',priority:'High',status:'Awaiting Reply',updated:'منذ 5 دقائق',message:'صفحة الموقع بتظهر Error 503، ياريت حد يراجعها.'},
-    {id:8419,subject:'استفسار بخصوص تجديد الريسلر',customer:'أحمد مصطفى',department:'المبيعات',priority:'Medium',status:'In Progress',updated:'منذ 18 دقيقة',message:'محتاج أعرف تجديد خطة الريسلر السنوية.'},
-    {id:8415,subject:'مطلوب مراجعة فاتورة',customer:'شركة المدار',department:'الحسابات',priority:'High',status:'Awaiting Reply',updated:'منذ 42 دقيقة',message:'هل تم تسجيل التحويل البنكي؟'},
-    {id:8408,subject:'تفعيل شهادة SSL',customer:'سارة خالد',department:'الدعم الفني',priority:'Low',status:'Answered',updated:'منذ ساعة',message:'شهادة الحماية محتاجة تجديد.'},
-    {id:8398,subject:'رفع حد مساحة البريد',customer:'شركة النور',department:'الدعم الفني',priority:'Medium',status:'In Progress',updated:'منذ ساعتين',message:'ممكن نزود مساحة الإيميل؟'}
+    {id:8421,number:'8421',subject:'الموقع مش بيفتح من الصبح',customer:'شركة ألفا الرقمية',department:'الدعم الفني',priority:'High',status:'Awaiting Reply',updated:'منذ 5 دقائق',message:'صفحة الموقع بتظهر Error 503، ياريت حد يراجعها.'},
+    {id:8419,number:'8419',subject:'استفسار بخصوص تجديد الريسلر',customer:'أحمد مصطفى',department:'المبيعات',priority:'Medium',status:'In Progress',updated:'منذ 18 دقيقة',message:'محتاج أعرف تجديد خطة الريسلر السنوية.'},
+    {id:8415,number:'8415',subject:'مطلوب مراجعة فاتورة',customer:'شركة المدار',department:'الحسابات',priority:'High',status:'Awaiting Reply',updated:'منذ 42 دقيقة',message:'هل تم تسجيل التحويل البنكي؟'},
+    {id:8408,number:'8408',subject:'تفعيل شهادة SSL',customer:'سارة خالد',department:'الدعم الفني',priority:'Low',status:'Answered',updated:'منذ ساعة',message:'شهادة الحماية محتاجة تجديد.'},
+    {id:8398,number:'8398',subject:'رفع حد مساحة البريد',customer:'شركة النور',department:'الدعم الفني',priority:'Medium',status:'In Progress',updated:'منذ ساعتين',message:'ممكن نزود مساحة الإيميل؟'}
   ],
   clients: [
     {id:217,name:'شركة ألفا الرقمية',email:'admin@alpha.example',status:'Active',services:3,initials:'أد'},
