@@ -9,6 +9,11 @@ with tempfile.TemporaryDirectory() as folder:
   p.write_text('android {\n    ndkVersion = '+value+'\n}\n')
   subprocess.run(['python3',str(script),str(p),'27.3.13750724'],check=True,stdout=subprocess.DEVNULL)
   assert 'ndkVersion = "27.3.13750724"' in p.read_text()
+ p.write_text('buildscript { }\napply plugin: \"expo-root-project\"\napply plugin: \"com.facebook.react.rootproject\"\n')
+ subprocess.run(['python3',str(script),str(p),'27.3.13750724'],check=True,stdout=subprocess.DEVNULL)
+ assert p.read_text().index('ext.ndkVersion = \"27.3.13750724\"')<p.read_text().index('apply plugin: \"expo-root-project\"')
+ subprocess.run(['python3',str(script),str(p),'27.3.13750724'],check=True,stdout=subprocess.DEVNULL)
+ assert p.read_text().count('ext.ndkVersion =')==1
  p.write_text('android {}\n')
  assert subprocess.run(['python3',str(script),str(p),'27.3.13750724'],capture_output=True).returncode!=0
 workflow=(root/'.github/workflows/debug-apk.yml').read_text()
