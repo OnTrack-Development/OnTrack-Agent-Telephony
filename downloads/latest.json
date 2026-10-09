@@ -1,0 +1,11 @@
+{
+  "app_id": "com.ontrackdevelopment.command",
+  "version_name": "0.2.6",
+  "version_code": 7,
+  "filename": "WHMCS-v0.2.6-ARM64-release-signed.apk",
+  "sha256": "1496733a14b0bc065a2d6ce6d5662bb4a8b5e84bcd1903ad12429568259331de",
+  "size_bytes": 27618567,
+  "download_url": "https://github.com/OnTrack-Development/OnTrack-Agent-Telephony/releases/download/whmcs-v0.2.6-22/WHMCS-v0.2.6-ARM64-release-signed.apk",
+  "release_notes": "WHMCS v0.2.6: assigned-first ticket queues, keyboard-safe reply editor, administrator signatures, filters, priority and status controls.",
+  "published_at": "2026-10-09T04:29:37Z"
+}
