@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.5",
-  "version_code": 16,
-  "filename": "WHMCS-v0.3.5-ARM64-release-signed.apk",
-  "sha256": "8c63df97648e012790250355d1f6caf7390fbbc4664e0d07248ad4a10a849274",
-  "size_bytes": 27757831,
-  "release_notes": "WHMCS v0.3.5: improved ticket workflow, closed-status filters, keyboard-safe replies, operator signature, rate-limit recovery.",
-  "published_at": "2026-10-09T20:40:25Z"
+  "version_name": "0.3.7",
+  "version_code": 18,
+  "filename": "WHMCS-v0.3.7-ARM64-release-signed.apk",
+  "sha256": "fffb02d841e530412f85eb16befee5726188eda6202d12e6fb21417937e23530",
+  "size_bytes": 27761927,
+  "release_notes": "WHMCS v0.3.7: improved ticket workflow, closed-status filters, keyboard-safe replies, operator signature, rate-limit recovery.",
+  "published_at": "2026-10-09T21:20:37Z"
 }
