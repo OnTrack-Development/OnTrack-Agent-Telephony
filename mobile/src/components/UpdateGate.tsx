@@ -14,7 +14,7 @@ type Update = {version: string; downloadUrl: string; size: number; notes: string
 const INSTALLED_VERSION = '0.2.2'; // Must match mobile/app.json; checked by CI.
 const API = 'https://api.github.com/repos/OnTrack-Development/OnTrack-Agent-Telephony/releases?per_page=15';
 const RELEASE_DOWNLOAD_PREFIX = 'https://github.com/OnTrack-Development/OnTrack-Agent-Telephony/releases/download/';
-const CHECK_INTERVAL_MS = 60 * 60 * 1000;
+const CHECK_INTERVAL_MS = 10 * 60 * 1000;
 
 // A release is eligible only if it belongs to the Command app, carries a signed APK,
 // and has a strictly higher semantic version than the installed Android package.
@@ -92,7 +92,10 @@ export function UpdateGate() {
     const sub = AppState.addEventListener('change', status => {
       if (status === 'active') void check();
     });
-    return () => { mounted = false; sub.remove(); };
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') void check();
+    }, CHECK_INTERVAL_MS);
+    return () => { mounted = false; sub.remove(); clearInterval(timer); };
   }, []);
 
   const download = async () => {

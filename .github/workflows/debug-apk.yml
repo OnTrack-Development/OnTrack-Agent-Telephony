@@ -47,6 +47,9 @@ jobs:
       - name: Generate native Android project
         working-directory: mobile
         run: npx expo prebuild --platform android --no-install --non-interactive
+      - name: Build debug to initialize React Native and Gradle codegen
+        working-directory: mobile/android
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon --stacktrace
       - name: Optimize Release for ARM64
         shell: bash
         run: |
