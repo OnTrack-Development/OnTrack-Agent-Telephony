@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.9",
-  "version_code": 20,
-  "filename": "WHMCS-v0.3.9-ARM64-release-signed.apk",
-  "sha256": "50db691f5a1cd05a7cfe5f8605a183f70945d8c0966d561f7d952bbbefaf2900",
-  "size_bytes": 27766023,
-  "release_notes": "WHMCS v0.3.9: improved ticket workflow, closed-status filters, keyboard-safe replies, operator signature, rate-limit recovery.",
-  "published_at": "2026-10-09T22:10:59Z"
+  "version_name": "0.3.10",
+  "version_code": 21,
+  "filename": "WHMCS-v0.3.10-ARM64-release-signed.apk",
+  "sha256": "24aaca6ca8ff18cdc6b702dc3914578c4ac902ef93b376a7f4fcb3d661ae9e0c",
+  "size_bytes": 27774215,
+  "release_notes": "WHMCS v0.3.10: WhatsApp now reuses your existing WHMCS browser session in API mode, with no second app login; Admin Legacy credentials are reused when already saved.",
+  "published_at": "2026-10-09T22:33:57Z"
 }
