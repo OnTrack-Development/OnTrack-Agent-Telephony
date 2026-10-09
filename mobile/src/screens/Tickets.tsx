@@ -1,4 +1,4 @@
-import React,{useCallback,useEffect,useState} from 'react';
+import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,Alert,BackHandler,Pressable,ScrollView,TextInput,View} from 'react-native';
 import type {Session,Ticket} from '../types';
 import {getApiRetryAfterMs} from '../lib/api';
@@ -6,7 +6,7 @@ import {C} from '../theme';
 import {Action,Card,Divider,Header,Icon,Pill,T} from '../components/UI';
 import {QueueKind,OperatorProfile,TicketDetail,TicketBatch,changeTicket,fetchOperatorProfile,
  fetchSupportStatuses,fetchTicketDetail,fetchTicketQueue,isActionable,isClosed,
- priorityColor,replyWithSignature,signatureText} from '../lib/tickets';
+ priorityColor,replyWithSignature,signatureText,ticketMatchesQueue} from '../lib/tickets';
 
 type Collection={rows:Ticket[],total:number|null,offset:number,error:string,loading:boolean};
 const empty=():Collection=>({rows:[],total:null,offset:0,error:'',loading:false});
@@ -32,7 +32,8 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
  const [changing,setChanging]=useState(false),[statuses,setStatuses]=useState<string[]>(['Open','Customer-Reply','Answered','Closed']);
  const [showStatus,setShowStatus]=useState(false),[showPriority,setShowPriority]=useState(false);
  const [reloadCounter,setReloadCounter]=useState(0);
- const close=()=>{setSelected(null);setDetail(null);setReply('');setDetailError('');setShowPriority(false);setShowStatus(false);};
+ const selectionGeneration=useRef(0);
+ const close=()=>{selectionGeneration.current++;setSelected(null);setDetail(null);setReply('');setDetailError('');setShowPriority(false);setShowStatus(false);};
  useEffect(()=>{onDetailChange?.(selected!==null);return()=>onDetailChange?.(false);},[selected!==null]);
  useEffect(()=>{
   if(!selected)return;
@@ -63,12 +64,12 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
  useEffect(()=>{
   if(demo){
    setAssigned({...empty(),rows:tickets.filter(t=>(t.flag||0)>0&&isActionable(t.status))});
-   setGeneral({...empty(),rows:tickets.filter(t=>mode==='awaiting'?isActionable(t.status):
-       mode==='closed'?isClosed(t.status):mode==='answered'?t.status.toLowerCase()==='answered':true)});
+   setGeneral({...empty(),rows:tickets.filter(t=>ticketMatchesQueue(t.status,mode))});
    return;
   }
   // Keep previous rows until fresh data is received; a 429 cannot clear the screen.
-  void load('assigned',0);void load('general',0);
+  if(mode==='awaiting'||mode==='allActive')void load('assigned',0);
+  void load('general',0);
  },[session?.baseUrl,session?.mode,session?.username,session?.identifier,mode,demo,reloadCounter]);
  useEffect(()=>{
   if(demo||!session||![assigned.error,general.error].some(x=>/429|اتصال|network|timeout/i.test(x)))return;
@@ -77,6 +78,7 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
  },[assigned.error,general.error,session,demo]);
  const refresh=()=>setReloadCounter(n=>n+1);
  const open=async(ticket:Ticket)=>{
+  const generation=++selectionGeneration.current;
   setSelected(ticket);setDetail(null);setDetailLoading(true);setDetailError('');setReply('');
   if(demo){
    setDetail({id:ticket.id,number:ticket.number,subject:ticket.subject,customer:ticket.customer,
@@ -86,6 +88,7 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
   }
   if(!session){setDetailError('لم يتم ربط WHMCS');setDetailLoading(false);return;}
   const result=await fetchTicketDetail(session,ticket.id);
+  if(generation!==selectionGeneration.current)return;
   setDetailLoading(false);
   if(result.ok&&result.detail)setDetail(result.detail);
   else setDetailError(result.error||'تعذر فتح التذكرة');
@@ -129,12 +132,10 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
   ]);
  };
  const filter=(xs:Ticket[])=>xs.filter(t=>`${t.number} ${t.subject} ${t.customer} ${t.priority} ${t.status}`.toLowerCase().includes(search.trim().toLowerCase()));
- const assignedShown=filter(assigned.rows).filter(t=>isActionable(t.status));
+ const showAssigned=mode==='awaiting'||mode==='allActive';
+ const assignedShown=showAssigned?filter(assigned.rows).filter(t=>isActionable(t.status)):[];
  const assignedIds=new Set(assignedShown.map(x=>x.id));
- const generalShown=filter(general.rows).filter(t=>
-  mode==='awaiting'?isActionable(t.status)&&!assignedIds.has(t.id):
-  mode==='closed'?isClosed(t.status):mode==='answered'?t.status.toLowerCase()==='answered':true
- ).filter(t=>!assignedIds.has(t.id));
+ const generalShown=filter(general.rows).filter(t=>ticketMatchesQueue(t.status,mode)&&!assignedIds.has(t.id));
  const row=(ticket:Ticket)=>{
   return <Pressable key={ticket.id} onPress={()=>void open(ticket)} style={{paddingVertical:13,borderBottomWidth:1,borderBottomColor:C.stroke,gap:7}}>
    <View style={{flexDirection:'row-reverse',alignItems:'center',gap:10}}>
@@ -207,6 +208,7 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
    <Card style={{marginTop:18,gap:13}}>
     <T weight="900" size={17}>الرد على العميل</T>
     <TextInput multiline numberOfLines={5} value={reply} onChangeText={setReply}
+     blurOnSubmit={false} scrollEnabled keyboardType="default"
      placeholder="اكتب ردك هنا..." placeholderTextColor={C.muted}
      onFocus={()=>onComposerFocus?.()}
      style={{backgroundColor:C.surface2,color:C.text,padding:15,borderRadius:13,
@@ -233,7 +235,7 @@ export function Tickets({session,tickets,onReply,demo,onComposerFocus,onDetailCh
    {sections.map(x=><Pressable key={x.id} onPress={()=>setMode(x.id)} style={{backgroundColor:mode===x.id?C.red:C.surface2,paddingVertical:10,paddingHorizontal:14,borderRadius:13,borderWidth:1,borderColor:mode===x.id?C.red:C.stroke}}>
     <T size={12} weight="800">{x.label}</T></Pressable>)}
   </ScrollView>
-  {section('التذاكر المسندة إليّ • Assigned',assigned,assignedShown,'assigned')}
+  {showAssigned?section('التذاكر المسندة إليّ • Assigned',assigned,assignedShown,'assigned'):null}
   {section(mode==='awaiting'?'تذاكر مفتوحة تنتظر الرد':'تذاكر • '+(sections.find(s=>s.id===mode)?.label||''),general,generalShown,'general')}
   <View style={{marginTop:15}}><Action secondary label="تحديث القائمتين" icon="refresh" onPress={refresh}/></View>
  </View>;
