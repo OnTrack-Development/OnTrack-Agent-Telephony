@@ -23,8 +23,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.2.9');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,10);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.0');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,11);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 console.log('PASS: source integrity plus ticket external ID, pagination, safe areas, Android Back, version increment and demo isolation');
 
