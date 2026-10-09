@@ -1,12 +1,5 @@
-// EAS project ID is injected at build time. No tokens or keystore secrets in app.
+// Versioning and APK updates are handled by the signed GitHub release channel.
+// No expo-updates runtime and no GitHub credentials embedded inside the APK.
 const manifest = require('./app.json').expo;
 const id = process.env.EAS_PROJECT_ID || undefined;
-module.exports = {
-  expo: {
-    ...manifest,
-    ...(id ? {
-      extra: {eas: {projectId: id}},
-      updates: {...manifest.updates, url: `https://u.expo.dev/${id}`}
-    } : {})
-  }
-};
+module.exports = {expo: {...manifest, ...(id ? {extra: {eas: {projectId: id}}} : {})}};

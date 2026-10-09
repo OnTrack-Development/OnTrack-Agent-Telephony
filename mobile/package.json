@@ -11,13 +11,11 @@
     "doctor": "expo-doctor",
     "build:apk": "eas build --platform android --profile preview",
     "build:play": "eas build --platform android --profile production",
-    "update:production": "eas update --channel production --environment production",
     "test:source": "node ../tests/source_integrity.mjs"
   },
   "dependencies": {
     "expo": "~57.0.23",
     "expo-secure-store": "~57.0.4",
-    "expo-updates": "~57.0.23",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "@expo/vector-icons": "^15.0.3",

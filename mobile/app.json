@@ -22,12 +22,7 @@
       "supportsTablet": true
     },
     "plugins": [
-      "expo-secure-store",
-      "expo-updates"
-    ],
-    "updates": {
-      "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
-    }
+      "expo-secure-store"
+    ]
   }
 }

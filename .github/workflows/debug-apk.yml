@@ -102,7 +102,7 @@ jobs:
       - name: Build production-signed APK
         if: env.ANDROID_SIGNING_PASSWORD != ''
         working-directory: mobile/android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: ./gradlew assembleRelease --no-daemon --stacktrace --info
       - name: Verify APK signatures
         shell: bash
         run: |
