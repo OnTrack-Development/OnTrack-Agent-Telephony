@@ -70,7 +70,7 @@ export async function loadOverview(session:Session):Promise<{state:DemoState,err
   if(key==='domains')state.domains=listOf(data,'domains','domain').map((x):Domain=>({id:n(x.id),name:s(x.domainname||x.domain),customer:s(x.userid),expiry:s(x.expirydate||x.nextduedate),status:strStatus(x.status)}));
  }
  // A successful read does NOT imply write permission. Explicit user confirmation and server API role enforce writes.
- capabilities['tickets.reply']=capabilities['tickets.read'];
+ capabilities['tickets.reply']=capabilities['tickets.read']===true;
  return {state,errors,capabilities};
 }
 export async function getTicketThread(session:Session,id:number):Promise<ApiResult<any>>{return callApi(session,'GetTicket',{ticketid:id});}
