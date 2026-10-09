@@ -1,5 +1,5 @@
 import React, {useMemo,useState} from 'react';
-import {View} from 'react-native';
+import {ActivityIndicator,View} from 'react-native';
 import {C} from '../theme';
 import type {DemoState,Page} from '../types';
 import {Action,Avatar,Card,Empty,Header,ItemRow,Pill,Search,T} from '../components/UI';
@@ -18,7 +18,7 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore}: 
  const filtered=records.filter(record=>JSON.stringify(record).toLowerCase().includes(q.toLowerCase()));
  if(!c)return null;
  return <View><Header title={c.title} subtitle={c.subtitle}/><Search value={q} onChange={setQ} placeholder={`بحث في ${c.title}...`}/><T size={11} color={C.muted} style={{marginBottom:12}}>{error?'تعذر القراءة':total!=null?`${records.length} محمّل من ${total}`:`${records.length} سجل محمّل`} • {q?'بحث داخل المحمّل':'من WHMCS'}</T>
- {error?<T color={C.orange} style={{marginBottom:12}}>{error}</T>:null}<Card style={{paddingVertical:4}}>{filtered.length?filtered.map((r:any,i:number)=>{
+ {loading?<ActivityIndicator color={C.red} style={{marginBottom:10}}/>:null}{error?<T color={C.orange} style={{marginBottom:12}}>{error}</T>:null}<Card style={{paddingVertical:4}}>{filtered.length?filtered.map((r:any,i:number)=>{
  const title=page==='invoices'?`فاتورة #${r.id}`:page==='orders'?`طلب #${r.id}`:String(r.name||r.domain||r.customer||`${c.title} #${r.id}`);
  const description=page==='invoices'?`#${r.id} • ${r.amount} ${r.currency} • ${r.due}`:page==='services'?`${r.plan} • ${r.customer}`:page==='orders'?`${r.product} • ${r.amount}`:page==='clients'?r.email:`${r.customer} • ${r.expiry}`;
  const pairs=Object.entries(r).filter(([k])=>k!=='initials').map(([k,v])=>[k,String(v)] as [string,string]);
