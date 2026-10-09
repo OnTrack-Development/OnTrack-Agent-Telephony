@@ -14,9 +14,9 @@ const native={resetAll:async()=>{},request:async(key,base,dir,target,method,fiel
  if(scenario==='wa_429'&&url.pathname.endsWith('ajax.php'))return {status:429,url:url.toString(),body:'Rate Limited'};
  if(url.pathname.endsWith('/admin/')){status=404;body='Not Found';}
  else if(url.pathname.endsWith('index.php'))body=loginHtml;
- else if(url.pathname.endsWith('dologin.php')){assert.equal(fields.token,'login-token');assert.equal(fields.username,'staff');assert.equal(fields.password,'staff-pass');body=scenario==='otp'?'<form action="twofa.php"><input type="hidden" name="token" value="otp-token"><input name="code"></form>':'<a href="logout.php">Sign out</a>';}
+ else if(url.pathname.endsWith('dologin.php')){assert.equal(fields.token,'login-token');assert.equal(fields.username,'staff');assert.equal(fields.password,'staff-pass');body=scenario==='otp'?'<form action="twofa.php"><input type="hidden" name="token" value="otp-token"><input name="code"></form>':scenario==='no_logout'?'<main id="dashboard">WHMCS dashboard with no logout link</main>':'<a href="logout.php">Sign out</a>';}
  else if(url.pathname.endsWith('twofa.php')){assert.equal(fields.code,'123456');assert.equal(fields.token,'otp-token');body='<a href="logout.php">Sign out</a>';}
- else if(url.pathname.endsWith('addonmodules.php'))body=url.searchParams.get('module')==='whatsapp_notifications'?`<script>var token = "${csrf}"; window.waCSRFToken = token;</script>`:`<script>{"snapshot_url":"../modules/addons/ai_support_agent/admin_snapshot.php?events=100&token=${snapshot}"}</script>`;
+ else if(url.pathname.endsWith('addonmodules.php'))body=scenario==='no_wa_permission'?'<section>Unauthorized WHMCS addon access</section>':url.searchParams.get('module')==='whatsapp_notifications'?`<script>var token = "${csrf}"; window.waCSRFToken = token;</script>`:`<script>{"snapshot_url":"../modules/addons/ai_support_agent/admin_snapshot.php?events=100&token=${snapshot}"}</script>`;
  else if(url.pathname.endsWith('supporttickets.php')){
   if(method==='POST'){assert.equal(fields.ai_ticket_action,'return_to_ai');assert.equal(fields.ticketid,101);assert.equal(fields.ai_ticket_nonce,nonce);assert.equal(fields.token,'ticket-csrf');body='{"ok":true,"message":"Returned by module"}';}else body=ticketHtml;
  }else if(url.pathname.endsWith('admin_snapshot.php')){
@@ -48,6 +48,8 @@ function load(name){
 }
 (async()=>{
  const admin=load('adminSession'),wa=load('whatsapp'),ticket=load('ticketAdmin'),create=load('createTicket'),ai=load('aiSnapshot');
+ assert.equal(admin.isVerifiedWhatsAppInbox(`<script>window.waCSRFToken = "${csrf}";</script>`),true);
+ assert.equal(admin.isVerifiedWhatsAppInbox('<main>No login, no inbox</main>'),false);
  assert.throws(()=>admin.checkedAdminUrl(session.baseUrl,'admin','https://attacker.test/admin/dologin.php'));
  assert.throws(()=>admin.checkedAdminUrl(session.baseUrl,'admin','admin/addonmodules.php?module=other'));
  assert.throws(()=>admin.checkedAdminUrl(session.baseUrl,'admin','admin/../clientarea.php'));
@@ -70,6 +72,20 @@ function load(name){
  assert.ok(calls.some(c=>c.target==='admin/index.php'&&c.method==='GET'),'Try fallback login page on 404');
  assert.equal(admin.adminSessionReady(session),false);
  scenario='success';const second=await admin.loginAdmin(session,'admin','staff','staff-pass','123456');assert.equal(second.ready,true);assert.ok(!saved.some(x=>x.v.includes('staff-pass')));
+ // Regression: WHMCS dashboard may be logged in without rendering "logout.php".
+ await admin.resetAdminSessions();
+ scenario='no_logout';
+ const noLogout=await admin.loginAdmin(session,'admin','staff','staff-pass');
+ assert.equal(noLogout.ready,true);
+ assert.equal(admin.adminSessionReady(session),true);
+ assert.ok(calls.some(x=>x.target.includes('addonmodules.php?module=whatsapp_notifications&action=chat')),
+   'Authentication is verified by protected WhatsApp Inbox, not the logout link');
+ await admin.resetAdminSessions();
+ scenario='no_wa_permission';
+ await assert.rejects(()=>admin.loginAdmin(session,'admin','staff','staff-pass'),/صلاحية موديول واتساب|توثيق جلسة واتساب/);
+ assert.equal(admin.adminSessionReady(session),false);
+ scenario='success';
+ assert.equal((await admin.loginAdmin(session,'admin','staff','staff-pass')).ready,true);
  await wa.prepareWhatsApp(session);const list=await wa.listConversations(session,'Customer',true);assert.equal(list.unread,2);assert.equal(list.conversations[0].id,3);
  const query=new URL(calls.at(-1).target,session.baseUrl+'/');assert.equal(query.searchParams.get('ajax_action'),'chat_list');assert.equal(query.searchParams.get('unread_only'),'1');
  const thread=await wa.conversationMessages(session,3);assert.equal(thread.messages[0].body,'hello');
