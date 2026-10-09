@@ -1,4 +1,4 @@
-# Stage the newest validated release (including v0.3.1) and verify its hosting-side GitHub pull.
+# Stage the latest signed Android release and verify the live site's GitHub-pull deployment.
 name: Stage Latest Signed WHMCS APK to Live Website
 on:
   push:
