@@ -1,0 +1,55 @@
+name: Detect Existing Direct Hosting Deployment
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/check-direct-host-connection.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    env:
+      SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY || secrets.SSH_PRIVATE_KEY || secrets.SFTP_PRIVATE_KEY }}
+      FTP_HOST: ${{ secrets.FTP_SERVER || secrets.FTP_HOST || secrets.FTPS_HOST || secrets.DEPLOY_FTP_HOST }}
+      FTP_USER: ${{ secrets.FTP_USERNAME || secrets.FTP_USER || secrets.FTPS_USER || secrets.DEPLOY_FTP_USER }}
+      FTP_PASS: ${{ secrets.FTP_PASSWORD || secrets.FTP_PASS || secrets.FTPS_PASSWORD || secrets.DEPLOY_FTP_PASSWORD }}
+      FTP_DIR: ${{ secrets.FTP_SERVER_DIR || secrets.FTP_TARGET_DIR || secrets.FTP_REMOTE_DIR || secrets.DEPLOY_FTP_PATH }}
+      SFTP_HOST: ${{ secrets.SFTP_HOST || secrets.DEPLOY_SFTP_HOST }}
+      SFTP_USER: ${{ secrets.SFTP_USERNAME || secrets.SFTP_USER || secrets.DEPLOY_SFTP_USER }}
+      SFTP_PASS: ${{ secrets.SFTP_PASSWORD || secrets.DEPLOY_SFTP_PASSWORD }}
+      SFTP_DIR: ${{ secrets.SFTP_TARGET_DIR || secrets.SFTP_REMOTE_DIR || secrets.DEPLOY_SFTP_PATH }}
+      REMOTE_GIT: ${{ secrets.DEPLOY_GIT_REMOTE || vars.DEPLOY_GIT_REMOTE || vars.SERVER_GIT_REMOTE }}
+    steps:
+      - name: Check repo-provided deployment options without disclosing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          present() { if [ -n "$1" ]; then printf 'CONFIGURED'; else printf 'NOT_CONFIGURED'; fi; }
+          echo "SSH_PRIVATE_KEY=$(present "$SSH_KEY")"
+          echo "FTPS_HOST=$(present "$FTP_HOST")"
+          echo "FTPS_LOGIN=$(present "$FTP_USER")"
+          echo "FTPS_PASSWORD=$(present "$FTP_PASS")"
+          echo "FTPS_DOCUMENT_ROOT=$(present "$FTP_DIR")"
+          echo "SFTP_HOST=$(present "$SFTP_HOST")"
+          echo "SFTP_LOGIN=$(present "$SFTP_USER")"
+          echo "SFTP_PASSWORD=$(present "$SFTP_PASS")"
+          echo "SFTP_DOCUMENT_ROOT=$(present "$SFTP_DIR")"
+          echo "SERVER_GIT_REMOTE=$(present "$REMOTE_GIT")"
+          if [ -n "$SSH_KEY" ] || { [ -n "$FTP_HOST" ] && [ -n "$FTP_USER" ] && [ -n "$FTP_PASS" ] && [ -n "$FTP_DIR" ]; } || { [ -n "$SFTP_HOST" ] && [ -n "$SFTP_USER" ] && [ -n "$SFTP_PASS" ] && [ -n "$SFTP_DIR" ]; } || [ -n "$REMOTE_GIT" ]; then
+            echo 'DEPLOY_OPTION_AVAILABLE=yes'
+          else
+            echo 'DEPLOY_OPTION_AVAILABLE=no'
+          fi
+      - name: Verify live release independently
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' https://agent.ontrackegy.com/api/app/latest.php -o /tmp/live.json
+          python3 - <<'PY'
+          import json
+          a=json.load(open('/tmp/live.json'))
+          print('LIVE_SITE_VERSION='+str(a.get('version_name')))
+          print('LIVE_SITE_BUILD='+str(a.get('version_code')))
+          PY
