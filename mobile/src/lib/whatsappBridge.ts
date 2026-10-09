@@ -68,7 +68,7 @@ const normalizeMessage=(m:any):ChatMessage=>({
 });
 export async function getWhatsAppInbox(session:Session):Promise<WaResult<Chat[]>>{
  const r=await authorized<{chats:any[]}>(session,'whatsapp.read',{});
- if(!r.ok)return r as WaResult<Chat[]>;
+ if(!r.ok)return {ok:false,error:r.error,code:r.code};
  const chats=(r.data?.chats||[]).map(c=>({
   id:s(c.id),name:s(c.name)||s(c.phone),phone:s(c.phone),last:s(c.last),
   time:s(c.time),unread:n(c.unread),messages:Array.isArray(c.messages)?c.messages.map(normalizeMessage):[]
@@ -78,7 +78,7 @@ export async function getWhatsAppInbox(session:Session):Promise<WaResult<Chat[]>
 export async function getWhatsAppThread(session:Session,id:string):Promise<WaResult<ChatMessage[]>>{
  if(!/^[0-9]{1,12}$/.test(id))return {ok:false,error:'رقم المحادثة غير صالح'};
  const r=await authorized<{messages:any[]}>(session,'whatsapp.get',{conversation_id:Number(id)});
- if(!r.ok)return r as WaResult<ChatMessage[]>;
+ if(!r.ok)return {ok:false,error:r.error,code:r.code};
  return {ok:true,data:(r.data?.messages||[]).map(normalizeMessage)};
 }
 export async function sendWhatsAppText(session:Session,id:string,text:string):Promise<WaResult<{sent:boolean;messageId:string}>>{
