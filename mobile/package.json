@@ -1,7 +1,7 @@
 {
   "name": "ontrack-command-mobile",
   "private": true,
-  "version": "0.3.12",
+  "version": "0.3.13",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
@@ -16,6 +16,7 @@
   "dependencies": {
     "expo": "~57.0.23",
     "expo-secure-store": "~57.0.4",
+    "expo-notifications": "~57.0.18",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "@expo/vector-icons": "^15.0.3",

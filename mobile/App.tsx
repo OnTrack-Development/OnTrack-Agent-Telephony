@@ -16,7 +16,10 @@ import {WhatsApp} from './src/screens/WhatsApp';
 import {AiOps} from './src/screens/AiOps';
 import {Settings} from './src/screens/Settings';
 import {Explorer} from './src/screens/Explorer';
-import {resetAdminSessions} from './src/lib/adminSession';
+import {resetAdminSessions,adminSessionReady} from './src/lib/adminSession';
+import * as Notifications from 'expo-notifications';
+import {enableDeviceNotifications,ingestNotificationSnapshot,whmcsSectionNotifications,whatsAppNotifications} from './src/lib/notifications';
+import {listConversations,getWhatsAppRetryAfterMs} from './src/lib/whatsapp';
 const empty:DemoState={tickets:[],clients:[],invoices:[],services:[],orders:[],domains:[],chats:[],agents:[],queue:[]};
 const nav:{page:Page,label:string,icon:string}[]=[
  {page:'home',label:'الرئيسية',icon:'view-dashboard-outline'},
@@ -96,6 +99,10 @@ function CommandApp(){
    setErrors(prev=>{const next={...prev};delete next[wanted];return {...next,...result.errors};});
    setTotals(prev=>({...prev,...Object.fromEntries(Object.entries(result.totals).filter(([key])=>result.capabilities[key+'.read']))}));
    setLastSync(new Date().toLocaleTimeString('ar-EG'));setError('');
+   if(result.capabilities[wanted+'.read']){
+    const rows=(result.state as any)[wanted]||[];
+    void ingestNotificationSnapshot(s,wanted,whmcsSectionNotifications(wanted,rows));
+   }
    if(Object.values(result.errors).some(e=>/429|اتصال|network|timeout/i.test(e))){
     if(retryTimer.current)clearTimeout(retryTimer.current);
     retryTimer.current=setTimeout(()=>{retryTimer.current=null;void refresh(s,true,wanted);},Math.max(60000,getApiRetryAfterMs()+4000));
@@ -112,10 +119,57 @@ function CommandApp(){
  useEffect(()=>{if(!session||demo)return;const listener=AppState.addEventListener('change',s=>{if(s==='active')void refresh(session);});return()=>listener.remove();},[session,demo,refresh]);
  useEffect(()=>{
   if(!session||demo)return;
+  let disposed=false;
+  void enableDeviceNotifications().catch(()=>{});
+  const sections:SectionKey[]=['tickets','invoices','orders','services','domains'];
+  let index=0,busy=false;
+  // One WHMCS read every 100 s, rotating sections, to avoid concurrent polling / HTTP 429.
+  const tick=async()=>{
+   if(disposed||busy||AppState.currentState!=='active'||getApiRetryAfterMs()>0)return;
+   busy=true;
+   const section=sections[index++%sections.length]!;
+   try{
+    const result=await loadPage(session,section,0,30);
+    if(result.ok&&!disposed)
+     await ingestNotificationSnapshot(session,section,whmcsSectionNotifications(section,result.records));
+   }catch{}finally{busy=false;}
+  };
+  const timer=setInterval(()=>void tick(),100000);
+  const foreground=AppState.addEventListener('change',state=>{
+   if(state==='active')void tick();
+  });
+  return()=>{disposed=true;clearInterval(timer);foreground.remove();};
+ },[session,demo]);
+ useEffect(()=>{
+  if(!session||demo)return;
+  let destroyed=false,reading=false;
+  const poll=async()=>{
+   if(destroyed||reading||AppState.currentState!=='active'
+      ||!adminSessionReady(session)||getWhatsAppRetryAfterMs(session)>0)return;
+   reading=true;
+   try{
+    const r=await listConversations(session);
+    if(!destroyed)await ingestNotificationSnapshot(session,'whatsapp',whatsAppNotifications(r.conversations));
+   }catch{}finally{reading=false;}
+  };
+  const timer=setInterval(()=>void poll(),120000);
+  return()=>{destroyed=true;clearInterval(timer);};
+ },[session,demo]);
+ useEffect(()=>{
+  if(!session||demo)return;
   if(['clients','invoices','services','orders','domains'].includes(page))
    void refresh(session,false,page as SectionKey);
  },[session,page,demo,refresh]);
  const navigate=(p:Page)=>{if(p!==page){setHistory(h=>[...h,page].slice(-20));setPage(p);}setDetail(null);};
+ useEffect(()=>{
+  const sub=Notifications.addNotificationResponseReceivedListener(response=>{
+   const target=response.notification.request.content.data?.section;
+   const pageName=target==='whatsapp'||target==='tickets'||target==='invoices'||target==='orders'
+    ||target==='services'||target==='domains'?target:null;
+   if(pageName)navigate(pageName);
+  });
+  return()=>sub.remove();
+ },[page]);
  const backRef=useRef<()=>boolean>(()=>false);
  backRef.current=()=>{
   if(detail){setDetail(null);return true;}
