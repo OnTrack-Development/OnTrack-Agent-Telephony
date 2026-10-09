@@ -1,4 +1,4 @@
-name: Build OnTrack Command APK
+name: Build OnTrack Command Compact ARM64 APK
 on:
   push:
     branches: [ontrack-command-native]
@@ -47,9 +47,18 @@ jobs:
       - name: Generate native Android project
         working-directory: mobile
         run: npx expo prebuild --platform android --no-install --non-interactive
-      - name: Build signed debug APK
-        working-directory: mobile/android
-        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Optimize Release for ARM64
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Keep the same Android package / signing cert. Package one target ABI only.
+          cat >> mobile/android/gradle.properties <<'PROPS'
+          reactNativeArchitectures=arm64-v8a
+          android.enableProguardInReleaseBuilds=true
+          android.enableShrinkResourcesInReleaseBuilds=true
+          PROPS
+          # The generated Gradle project is rebuilt each CI run; no source-module changes.
+          chmod +x mobile/android/gradlew
       - name: Restore existing encrypted release key
         if: env.ANDROID_SIGNING_PASSWORD != ''
         shell: bash
@@ -67,6 +76,9 @@ jobs:
         run: |
           cat >> mobile/android/app/build.gradle <<'GRADLE'
           android {
+              defaultConfig {
+                  ndk { abiFilters 'arm64-v8a' }
+              }
               signingConfigs {
                   ontrackCommandRelease {
                       storeFile file("../signing/release.jks")
@@ -76,7 +88,11 @@ jobs:
                   }
               }
               buildTypes {
-                  release { signingConfig signingConfigs.ontrackCommandRelease }
+                  release {
+                      signingConfig signingConfigs.ontrackCommandRelease
+                      minifyEnabled true
+                      shrinkResources true
+                  }
               }
           }
           GRADLE
@@ -89,16 +105,18 @@ jobs:
         run: |
           set -euo pipefail
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
-          "$APKSIGNER" verify --verbose mobile/android/app/build/outputs/apk/debug/app-debug.apk
-          if test -f mobile/android/app/build/outputs/apk/release/app-release.apk; then
-            "$APKSIGNER" verify --verbose mobile/android/app/build/outputs/apk/release/app-release.apk
-          fi
+          APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          echo "APK bytes: $(stat -c%s "$APK")"
+          sha256sum "$APK"
+          # Enforce a real size improvement versus v0.2.0 (73,304,381 bytes).
+          BYTES="$(stat -c%s "$APK")"
+          test "$BYTES" -lt 73304381
       - uses: actions/upload-artifact@v4
         with:
-          name: OnTrack-Command-Android-APKs
-          path: |
-            mobile/android/app/build/outputs/apk/debug/app-debug.apk
-            mobile/android/app/build/outputs/apk/release/app-release.apk
+          name: OnTrack-Command-v0.2.1-ARM64-signed
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Publish GitHub Release
         shell: bash
@@ -107,13 +125,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          if test -f mobile/android/app/build/outputs/apk/release/app-release.apk; then
-            cp mobile/android/app/build/outputs/apk/release/app-release.apk out/OnTrack-Command-v0.2.0-release-signed.apk
-            NOTES='Signed production Android release; protected by preconfigured repository keystore secret.'
-          else
-            cp mobile/android/app/build/outputs/apk/debug/app-debug.apk out/OnTrack-Command-v0.2.0-debug-signed.apk
-            NOTES='Development build signed with the Android debug key. NOT a production signing key.'
-          fi
-          gh release create "command-v0.2.0-${GITHUB_RUN_NUMBER}" out/*.apk \
-            --title "OnTrack Command v0.2.0 (build ${GITHUB_RUN_NUMBER})" \
+          APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
+          cp "$APK" out/OnTrack-Command-v0.2.1-ARM64-release-signed.apk
+          BYTES="$(stat -c%s "$APK")"
+          SAVED="$((73304381-BYTES))"
+          NOTES="Signed ARM64-only Android release, R8 minified and resources shrunk. APK bytes: ${BYTES}; saving: ${SAVED} bytes versus the 73,304,381-byte v0.2.0 release. Uses the same signing keystore/package ID for in-place upgrades; requires an ARM64 Android phone."
+          gh release create "command-v0.2.1-${GITHUB_RUN_NUMBER}" out/*.apk \
+            --title "OnTrack Command v0.2.1 ARM64 Compact (build ${GITHUB_RUN_NUMBER})" \
             --notes "$NOTES"
