@@ -36,6 +36,8 @@ assert.ok(updateCode.includes('whmcs-check-update'));
 assert.ok(get('mobile/src/screens/Settings.tsx').includes('فحص التحديثات'));
 assert.ok(code.includes('getApiRetryAfterMs'));
 assert.ok(code.includes('REQUEST_SPACING_MS'));
+assert.ok(code.includes('loadOverview(session:Session,keys:SectionKey[]'));
+assert.ok(get('mobile/App.tsx').includes('minHeight:60'));
 assert.ok(code.includes('response.status===429'));
 assert.ok(!updateCode.includes('Linking.openURL'));
 const nativeUpdate=get('mobile/native/android/CommandUpdateModule.java');
