@@ -1,21 +1,35 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
-import {ActivityIndicator,Alert,AppState,BackHandler,Pressable,TextInput,View} from 'react-native';
+import {ActivityIndicator,Alert,AppState,BackHandler,Linking,Pressable,TextInput,View} from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import {C} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Empty,Header,Icon,Pill,T} from '../components/UI';
 import {AdminAccess} from '../components/AdminAccess';
-import {adminSessionReady} from '../lib/adminSession';
+import {adminSessionReady,checkedAdminUrl,loginAdmin,savedAdminDirectory,validateAdminDirectory} from '../lib/adminSession';
+import {validateBaseUrl} from '../lib/api';
 import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,getWhatsAppRetryAfterMs} from '../lib/whatsapp';
 
+/** Browser cookies are distinct from API credentials. Reuse Chrome's *existing*
+ * WHMCS administrator session without collecting another admin password. */
+export function existingWhatsAppInboxUrl(baseUrl:string,directory:string):string {
+ const dir=validateAdminDirectory(directory,baseUrl);
+ return checkedAdminUrl(baseUrl,dir,dir+'/addonmodules.php?module=whatsapp_notifications&action=chat');
+}
 export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{session:Session|null;demo:boolean;onComposerFocus?:()=>void;onDetailChange?:(active:boolean)=>void}){
  const [connected,setConnected]=useState(!!session&&adminSessionReady(session)),[search,setSearch]=useState(''),[unreadOnly,setUnreadOnly]=useState(false);
  const [rows,setRows]=useState<WaConversation[]>([]),[unread,setUnread]=useState(0),[selected,setSelected]=useState<WaConversation|null>(null);
  const [messages,setMessages]=useState<WaMessage[]>([]),[draft,setDraft]=useState(''),[busy,setBusy]=useState(false),[sending,setSending]=useState(false),[error,setError]=useState('');
  const [older,setOlder]=useState(true),[loadingOlder,setLoadingOlder]=useState(false),[windowAt,setWindowAt]=useState(Date.now()),[now,setNow]=useState(Date.now());
+ const [directory,setDirectory]=useState('admin'),[openingBrowser,setOpeningBrowser]=useState(false);
+ const nativeLoginAttempt=useRef<Session|null>(null);
  const generation=useRef(0),readInFlight=useRef(false),sendInFlight=useRef(false),active=useRef(true),selectedId=useRef<number|null>(null);
  selectedId.current=selected?.id||null;
  const close=()=>{generation.current++;setSelected(null);setMessages([]);setDraft('');setError('');};
  useEffect(()=>{active.current=true;return()=>{active.current=false;generation.current++;};},[]);
+ useEffect(()=>{let mounted=true;
+  if(session)void savedAdminDirectory(session).then(dir=>{if(mounted)setDirectory(dir);}).catch(()=>{});
+  return()=>{mounted=false;};
+ },[session]);
  useEffect(()=>{onDetailChange?.(!!selected);return()=>onDetailChange?.(false);},[!!selected]);
  useEffect(()=>{if(!selected)return;const sub=BackHandler.addEventListener('hardwareBackPress',()=>{close();return true;});return()=>sub.remove();},[!!selected]);
  const report=(e:unknown)=>{
@@ -56,6 +70,37 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   try{await prepareWhatsApp(session);setConnected(true);const list=await listConversations(session);if(active.current){setRows(list.conversations);setUnread(list.unread);}}
   catch(e){report(e);setConnected(false);}
   finally{if(active.current)setBusy(false);}
+ };
+ // If main WHMCS connection was saved using Admin Legacy credentials, reuse
+ // that SAME saved account without asking for an additional login form.
+ // API identifier/secret alone never authenticates an administrator browser.
+ useEffect(()=>{
+  if(!session||demo||session.mode!=='admin'||!session.username||!session.password
+   ||connected||nativeLoginAttempt.current===session)return;
+  nativeLoginAttempt.current=session;
+  void(async()=>{
+   try{
+    const dir=await savedAdminDirectory(session);
+    const result=await loginAdmin(session,dir,session.username,session.password);
+    if(result.ready){await connect();}
+    else if(active.current)setError('الحساب يطلب رمز تحقق ثنائي؛ أكمل التحقق من حساب WHMCS المحفوظ.');
+   }catch(e){report(e);}
+  })();
+ },[session,connected,demo]);
+ const openBrowser=async()=>{
+  if(!session||openingBrowser)return;
+  setOpeningBrowser(true);setError('');
+  try{
+   const dir=validateAdminDirectory(directory,session.baseUrl);
+   const target=existingWhatsAppInboxUrl(session.baseUrl,dir);
+   // Android default browser retains its own authenticated WHMCS cookies.
+   await Linking.openURL(target);
+   await SecureStore.setItemAsync('whmcs-existing-whatsapp-admin-directory-v1|'+validateBaseUrl(session.baseUrl),dir,{
+    keychainAccessible:SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY
+   });
+  }catch(e){
+   if(active.current)setError(e instanceof Error?e.message:'تعذر فتح Inbox الحالي');
+  }finally{if(active.current)setOpeningBrowser(false);}
  };
  const open=async(conversation:WaConversation)=>{
   if(!session||busy)return;
@@ -110,6 +155,30 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   ],{cancelable:false});
  };
  if(!session||demo)return <View><Header title="واتساب" subtitle="محادثات العملاء"/><Empty icon="whatsapp" text="اربط حساب WHMCS لعرض محادثات واتساب الحقيقية"/></View>;
+ if(session.mode==='api')return <View style={{gap:14,paddingBottom:24}}>
+  <Header title="واتساب" subtitle="صندوق المحادثات الحالي" right={<Icon name="whatsapp" size={29} color={C.green}/>}/>
+  <Card style={{gap:13}}>
+   <View style={{flexDirection:'row-reverse',alignItems:'center',gap:9}}>
+    <Icon name="check-decagram-outline" color={C.green} size={27}/>
+    <View style={{flex:1,gap:4}}>
+     <T size={16} weight="800">حساب التطبيق متصل بالفعل</T>
+     <T size={12} color={C.muted}>مش مطلوب منك كتابة اسم المستخدم وكلمة المرور مرة تانية داخل التطبيق.</T>
+    </View>
+   </View>
+   <Action icon="whatsapp" label={openingBrowser?'جارٍ فتح الواتساب...':'فتح المحادثات بجلسة المتصفح الحالية'}
+    disabled={openingBrowser} onPress={()=>void openBrowser()}/>
+   <T size={12} color={C.muted}>بنفتح موديول واتساب الموجود في WHMCS من نفس المتصفح اللي بتستخدمه، وبالتالي لو مسجل دخول الإدارة فيه مش هيطلب تسجيل الدخول من جديد.</T>
+  </Card>
+  <Card style={{gap:9}}>
+   <T size={13} weight="800">مسار إدارة WHMCS</T>
+   <T size={11} color={C.muted}>لو اسم مجلد الإدارة مختلف عن admin، اكتبه هنا أو الصق رابط لوحة الإدارة الحالي مرة واحدة؛ مش كلمة المرور.</T>
+   <TextInput accessibilityLabel="مسار إدارة WHMCS" value={directory} onChangeText={setDirectory}
+    autoCapitalize="none" autoCorrect={false} placeholder="admin" placeholderTextColor={C.muted}
+    style={{color:C.text,textAlign:'left',backgroundColor:C.surface2,padding:12,borderColor:C.stroke,borderWidth:1,borderRadius:11}}/>
+  </Card>
+  {error?<Card><T size={12} color={C.orange}>{error}</T></Card>:null}
+  <T size={11} color={C.muted}>بيانات API المحفوظة بتسمح بالتعامل مع WHMCS API، لكنها مش جلسة دخول الإدارة ولا مفتاح قراءة Inbox. فتح المتصفح بيستخدم جلسة الإدارة الموجودة فيه بدون موديول جديد أو تغيير webhook.</T>
+ </View>;
  return <View style={{gap:14,paddingBottom:24}}>
   {selected?<Pressable onPress={close} style={{flexDirection:'row-reverse',gap:8,paddingVertical:8}}><Icon name="arrow-right" color={C.green}/><T color={C.green}>المحادثات</T></Pressable>:null}
   <Header title={selected?.display_name||'واتساب'} subtitle={selected?.phone||'محادثات العملاء'} right={<Icon name="whatsapp" size={29} color={C.green}/>}/>
