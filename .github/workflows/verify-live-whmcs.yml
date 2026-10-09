@@ -35,17 +35,16 @@ jobs:
           open('/tmp/expected_size','w').write(str(m['size_bytes']))
           print('PASS: live version, manifest and API agree')
           PY
-          curl -fsSI --retry 2 --connect-timeout 8 --max-time 22 "$BASE/downloads/WHMCS-v0.2.7-ARM64-release-signed.apk" > /tmp/apkheaders
+          curl -fsSL --retry 2 --connect-timeout 8 --max-time 120 "$BASE/downloads/WHMCS-v0.2.7-ARM64-release-signed.apk" -o /tmp/whmcs.apk
           python3 - <<'PY'
-          from email.parser import Parser
-          text=open('/tmp/apkheaders').read().replace('\r\n','\n')
-          chunks=[p for p in text.split('\n\n') if p.strip()]
-          headers=Parser().parsestr(chunks[-1])
-          actual=int(headers.get('Content-Length') or -1)
-          expected=int(open('/tmp/expected_size').read())
-          print('APK expected bytes:',expected,'actual:',actual)
-          assert actual==expected, 'APK served with wrong size'
-          print('PASS: live WHMCS v0.2.7 APK is served at correct size')
+          import hashlib,json,pathlib
+          meta=json.load(open('/tmp/meta'))
+          p=pathlib.Path('/tmp/whmcs.apk')
+          digest=hashlib.sha256(p.read_bytes()).hexdigest()
+          print('APK size:',p.stat().st_size, 'SHA256:',digest)
+          assert p.stat().st_size == meta['size_bytes'], 'APK download incomplete'
+          assert digest == meta['sha256'], 'APK SHA256 mismatch'
+          print('PASS: live APK fully downloaded with valid checksum')
           PY
           old="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 12 "$BASE/login.php")"
           echo "Old login.php HTTP: $old"
