@@ -1,9 +1,10 @@
 import React,{useEffect,useState} from 'react';
-import {TextInput,View} from 'react-native';
+import {Alert,Linking,TextInput,View} from 'react-native';
 import {C} from '../theme';
 import {Action,Card,T} from './UI';
 import type {Session} from '../types';
-import {adminSessionReady,loginAdmin,savedAdminDirectory} from '../lib/adminSession';
+import {adminSessionReady,loginAdmin,savedAdminDirectory,validateAdminDirectory} from '../lib/adminSession';
+import {validateBaseUrl} from '../lib/api';
 
 export function AdminAccess({session,onReady}:{session:Session;onReady:()=>void}){
  const [directory,setDirectory]=useState('admin'),[username,setUsername]=useState(session.mode==='admin'?session.username:'');
@@ -20,13 +21,24 @@ export function AdminAccess({session,onReady}:{session:Session;onReady:()=>void}
   }catch(e){setError(e instanceof Error?e.message:'تعذر تسجيل الدخول');}
   finally{setBusy(false);}
  };
+ const checkBrowser=async()=>{
+  try{
+   const dir=validateAdminDirectory(directory,session.baseUrl);
+   const url=validateBaseUrl(session.baseUrl)+'/'+dir+'/';
+   await Linking.openURL(url);
+  }catch(e){
+   Alert.alert('رابط إدارة WHMCS',e instanceof Error?e.message:'تعذر فتح الرابط');
+  }
+ };
  const field={color:C.text,backgroundColor:C.surface2,borderWidth:1,borderColor:C.stroke,borderRadius:12,padding:12,textAlign:'right' as const};
  if(ready&&adminSessionReady(session))return <Card style={{gap:8}}><T size={12} color={C.green}>جلسة الإدارة متصلة</T></Card>;
  return <Card style={{gap:12}}>
   <T size={16} weight="800">تسجيل دخول الإدارة</T>
   <T size={12} color={C.muted}>سجّل دخول الموظف لعرض المحادثات وأدوات التذكرة داخل التطبيق.</T>
   {!needsOtp?<>
-   <TextInput accessibilityLabel="مجلد إدارة WHMCS" placeholder="اسم مجلد الإدارة" placeholderTextColor={C.muted} value={directory} onChangeText={setDirectory} autoCapitalize="none" autoCorrect={false} style={field}/>
+   <TextInput accessibilityLabel="مجلد إدارة WHMCS" placeholder="اسم المجلد أو رابط لوحة الإدارة" placeholderTextColor={C.muted} value={directory} onChangeText={setDirectory} autoCapitalize="none" autoCorrect={false} style={field}/>
+   <T size={12} color={C.muted}>تقدر تكتب اسم المجلد فقط، أو تلصق رابط إدارة WHMCS الكامل من المتصفح. ده غير رابط ويبهوك واتساب.</T>
+   <Action label="اختبار فتح رابط الإدارة بالمتصفح" compact secondary icon="open-in-new" onPress={()=>void checkBrowser()}/>
    <TextInput accessibilityLabel="اسم الموظف" placeholder="اسم الموظف" placeholderTextColor={C.muted} value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} style={field}/>
    <TextInput accessibilityLabel="كلمة المرور" placeholder="كلمة المرور" placeholderTextColor={C.muted} value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" style={field}/>
   </>:<TextInput accessibilityLabel="رمز التحقق" placeholder="رمز التحقق بخطوتين" placeholderTextColor={C.muted} value={otp} onChangeText={setOtp} keyboardType="number-pad" style={field}/>}
