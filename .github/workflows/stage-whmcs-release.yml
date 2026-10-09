@@ -71,7 +71,7 @@ jobs:
            'filename':apkname,
            'sha256':digest,
            'size_bytes':size,
-           'release_notes':f'WHMCS v{version}: improved ticket workflow, closed-status filters, keyboard-safe replies, operator signature, rate-limit recovery.',
+           'release_notes':f'WHMCS v{version}: WhatsApp now reuses your existing WHMCS browser session in API mode, with no second app login; Admin Legacy credentials are reused when already saved.',
            'published_at':datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds').replace('+00:00','Z')
           }
           for folder in ('downloads','web/downloads'):
