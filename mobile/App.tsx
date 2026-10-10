@@ -43,18 +43,28 @@ function CommandApp(){
  const [keyboardVisible,setKeyboardVisible]=useState(false),[ticketDetailOpen,setTicketDetailOpen]=useState(false);
 
  const composerFocused=useRef(false);
- const revealComposer=()=>{
+ const focusedInput=useRef<number|null>(null);
+ // Scroll the focused input into view, not the end of a long ticket thread.
+ const keepComposerVisible=()=>{
+  const scroll=pageScroll.current;
+  if(!scroll)return;
+  if(focusedInput.current!==null)
+   scroll.scrollResponderScrollNativeHandleToKeyboard(focusedInput.current,48,true);
+  else scroll.scrollToEnd({animated:true});
+ };
+ const revealComposer=(nativeInputHandle?:number)=>{
   composerFocused.current=true;
-  setTimeout(()=>pageScroll.current?.scrollToEnd({animated:true}),140);
-  setTimeout(()=>pageScroll.current?.scrollToEnd({animated:true}),430);
+  focusedInput.current=typeof nativeInputHandle==='number'&&nativeInputHandle>0?nativeInputHandle:null;
+  setTimeout(keepComposerVisible,140);
+  setTimeout(keepComposerVisible,430);
  };
  useEffect(()=>{
   const shown=Keyboard.addListener('keyboardDidShow',()=>{
    setKeyboardVisible(true);
-   if(composerFocused.current)setTimeout(()=>pageScroll.current?.scrollToEnd({animated:true}),70);
+   if(composerFocused.current)setTimeout(keepComposerVisible,70);
   });
   const hidden=Keyboard.addListener('keyboardDidHide',()=>{
-   setKeyboardVisible(false);composerFocused.current=false;
+   setKeyboardVisible(false);composerFocused.current=false;focusedInput.current=null;
   });
   return()=>{shown.remove();hidden.remove();};
  },[]);
@@ -231,7 +241,7 @@ function CommandApp(){
   <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}>
    <ScrollView ref={pageScroll} key={page} keyboardDismissMode={Platform.OS==='ios'?'interactive':'on-drag'} keyboardShouldPersistTaps="handled"
     automaticallyAdjustKeyboardInsets={Platform.OS==='ios'}
-     onContentSizeChange={()=>{if(composerFocused.current&&keyboardVisible)pageScroll.current?.scrollToEnd({animated:true});}}
+     onContentSizeChange={()=>{if(composerFocused.current&&keyboardVisible)keepComposerVisible();}}
     contentContainerStyle={{padding:18,paddingBottom:keyboardVisible?Math.max(160,insets.bottom+90):Math.max(35,insets.bottom+24)}}
     refreshControl={<RefreshControl refreshing={loading} tintColor={C.red} onRefresh={()=>page==='tickets'?setTicketReload(x=>x+1):session?void refresh(session,true):undefined}/>}>
     {body()}

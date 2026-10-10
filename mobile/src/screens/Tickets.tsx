@@ -17,14 +17,14 @@ const empty=():Collection=>({rows:[],total:null,offset:0,error:'',loading:false}
 const color=(p:string)=>priorityColor(p)==='urgent'?C.red:priorityColor(p)==='normal'?C.orange:C.green;
 const sections:{id:QueueKind;label:string}[]=[
  {id:'awaiting',label:'مطلوب رد'},{id:'allActive',label:'كل النشطة'},
- {id:'answered',label:'تم الرد'},{id:'closed',label:'مغلقة'},{id:'all',label:'كل التذاكر'}
+ {id:'answered',label:'تم الرد'},{id:'closed',label:'مغلقة'}
 ];
 const showPlain=(input:string)=>input.replace(/<br\s*\/?\s*>/gi,'\n').replace(/<\/p>/gi,'\n')
  .replace(/<[^>]*>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').trim();
 
 export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFocus,onDetailChange}:{
  session:Session|null;tickets:Ticket[];onReply:(id:number,text:string,identity?:{clientId:number;contactId:number;name:string;email:string})=>Promise<boolean>;
- demo:boolean;reloadSignal?:number;onComposerFocus?:()=>void;onDetailChange?:(active:boolean)=>void
+ demo:boolean;reloadSignal?:number;onComposerFocus?:(nativeInputHandle?:number)=>void;onDetailChange?:(active:boolean)=>void
 }){
  const [mode,setMode]=useState<QueueKind>('awaiting'),[search,setSearch]=useState('');
  const [assigned,setAssigned]=useState<Collection>(empty);
@@ -252,7 +252,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
     <TextInput multiline numberOfLines={5} value={reply} onChangeText={setReply}
      blurOnSubmit={false} scrollEnabled keyboardType="default"
      placeholder="اكتب ردك هنا..." placeholderTextColor={C.muted}
-     onFocus={()=>onComposerFocus?.()}
+     onFocus={event=>onComposerFocus?.(event.nativeEvent.target)}
      style={{backgroundColor:C.surface2,color:C.text,padding:15,borderRadius:13,
       textAlign:'right',textAlignVertical:'top',minHeight:132,fontSize:15}}/>
     {sig?<Pressable onPress={()=>setWithSignature(!withSignature)} style={{flexDirection:'row-reverse',gap:10,alignItems:'center'}}>

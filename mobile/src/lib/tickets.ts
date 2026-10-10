@@ -20,7 +20,7 @@ export const isActionable=(status:string)=>!isClosed(status)&&!isAnswered(status
 export const ticketMatchesQueue=(status:string,kind:QueueKind):boolean=>{
  if(kind==='closed')return isClosed(status);
  if(kind==='answered')return isAnswered(status);
- if(kind==='all')return true;
+ if(kind==='all')return !isClosed(status);
  if(kind==='allActive')return !isClosed(status);
  return isActionable(status);
 };
@@ -125,7 +125,8 @@ export function signatureText(input:string):string{
    .replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').trim();
 }
 export function replyWithSignature(message:string,signature:string,enabled:boolean):string {
- const body=message.trim(),tail=signatureText(signature);
- if(!body||!tail||!enabled||body.endsWith(tail))return body;
- return body+'\n\n'+tail;
+ const body=message.trim(),raw=signature.trim(),tail=signatureText(signature);
+ if(!body||!raw||!tail||!enabled||body.endsWith(raw)||body.endsWith(tail))return body;
+ // Preserve the HTML signature saved in WHMCS when sending; preview remains plain text.
+ return body+'\n\n'+raw;
 }

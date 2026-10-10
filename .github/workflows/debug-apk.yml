@@ -131,7 +131,7 @@ jobs:
           test "$BYTES" -lt 73304381
       - uses: actions/upload-artifact@v4
         with:
-          name: WHMCS-v0.3.13-ARM64-signed
+          name: WHMCS-v0.3.14-ARM64-signed
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Publish GitHub Release with APK and ZIP
@@ -142,12 +142,12 @@ jobs:
           set -euo pipefail
           mkdir -p out
           APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-          cp "$APK" out/WHMCS-v0.3.13-ARM64-release-signed.apk
-          (cd out && zip -9 WHMCS-v0.3.13-ARM64-release-signed.zip WHMCS-v0.3.13-ARM64-release-signed.apk)
+          cp "$APK" out/WHMCS-v0.3.14-ARM64-release-signed.apk
+          (cd out && zip -9 WHMCS-v0.3.14-ARM64-release-signed.zip WHMCS-v0.3.14-ARM64-release-signed.apk)
           BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v0.3.13: fix SecureStore key invalid URL delimiters; save selected existing WHMCS admin path; remove duplicate WhatsApp admin login form and reuse existing legacy credentials or authenticated browser session. Existing WhatsApp addon and webhook remain unchanged. Signed ARM64 APK bytes: ${BYTES}."
-          gh release create "whmcs-v0.3.13-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
+          NOTES="WHMCS v0.3.14: keep reply field visible above Android keyboard; retain WHMCS admin signature formatting; show closed tickets only in Closed filter. Existing WhatsApp addon and webhook remain unchanged. Signed ARM64 APK bytes: ${BYTES}."
+          gh release create "whmcs-v0.3.14-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
-            --title "WHMCS v0.3.13 (Android build 24)" \
+            --title "WHMCS v0.3.14 (Android build 25)" \
             --notes "$NOTES"
           echo "Signed APK published; APK release published after successful workflow completion."
