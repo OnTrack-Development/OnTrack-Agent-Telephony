@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.12",
-  "version_code": 23,
-  "filename": "WHMCS-v0.3.12-ARM64-release-signed.apk",
-  "sha256": "9eae7ef123bc5e4e760bc218aaec966554ee90b0db6cd59d049661242d89c1ed",
-  "size_bytes": 27774215,
-  "release_notes": "WHMCS v0.3.12: WhatsApp now reuses your existing WHMCS browser session in API mode, with no second app login; Admin Legacy credentials are reused when already saved.",
-  "published_at": "2026-10-09T23:37:24Z"
+  "version_name": "0.3.13",
+  "version_code": 24,
+  "filename": "WHMCS-v0.3.13-ARM64-release-signed.apk",
+  "sha256": "c14012ed26c1030e92bb79fe79fa52c01ddcfc0f35c7dff241da7df40ad93da6",
+  "size_bytes": 29282317,
+  "release_notes": "WHMCS v0.3.13: native WhatsApp Inbox with existing WHMCS module, deduplicated Android alerts for WhatsApp, tickets, invoices, orders, services, domains and clients while active. Background push requires a server sender.",
+  "published_at": "2026-10-10T00:05:14Z"
 }
