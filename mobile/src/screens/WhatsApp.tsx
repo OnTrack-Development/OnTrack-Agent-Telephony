@@ -21,7 +21,7 @@ export function waClock(timestamp:string):string {
 }
 function waAvatar(name:string):string {
  const parts=String(name||'').trim().split(/\s+/).filter(Boolean);
- return (parts.length>1?parts[0]![0]+parts[1]![0]:(parts[0]||'WA').slice(0,2)).toUpperCase();
+ return (parts.length>1?parts[0]!.charAt(0)+parts[1]!.charAt(0):(parts[0]||'WA').slice(0,2)).toUpperCase();
 }
 export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{session:Session|null;demo:boolean;onComposerFocus?:()=>void;onDetailChange?:(active:boolean)=>void}){
  const [connected,setConnected]=useState(!!session&&adminSessionReady(session)),[search,setSearch]=useState(''),[unreadOnly,setUnreadOnly]=useState(false);
