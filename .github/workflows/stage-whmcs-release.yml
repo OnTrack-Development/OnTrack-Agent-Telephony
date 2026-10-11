@@ -1,5 +1,5 @@
-# Stage signed WHMCS v0.3.12 and subsequent releases; verify exact server-side APK and live manifest.
-# Publish the latest Android version; fallback checks recover missed workflow_run events.
+# Stage latest signed WHMCS release and verify the installed server's exact APK and manifest.
+# Recovery: trigger manually with workflow_dispatch, on workflow updates, or at the periodic reconciliation schedule.
 name: Stage Latest Signed WHMCS APK to Live Website
 on:
   push:
@@ -71,7 +71,7 @@ jobs:
            'filename':apkname,
            'sha256':digest,
            'size_bytes':size,
-           'release_notes':f'WHMCS v{version}: native WhatsApp Inbox with existing WHMCS module, deduplicated Android alerts for WhatsApp, tickets, invoices, orders, services, domains and clients while active. Background push requires a server sender.',
+           'release_notes':(f'WHMCS v{version}: fixes ticket reply keyboard visibility, preserves the WHMCS admin signature, and hides closed tickets unless the Closed filter is selected.' if version=='0.3.14' else f'WHMCS v{version}: native WhatsApp Inbox with existing WHMCS module, deduplicated Android alerts for WhatsApp, tickets, invoices, orders, services, domains and clients while active. Background push requires a server sender.'),
            'published_at':datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds').replace('+00:00','Z')
           }
           for folder in ('downloads','web/downloads'):
