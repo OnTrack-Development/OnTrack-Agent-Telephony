@@ -7,7 +7,7 @@ import {RecordDetails} from './RecordDetails';
 import {InvoiceActions} from '../components/InvoiceActions';
 import {orderTitle} from '../lib/orderManagement';
 import {callApi} from '../lib/api';
-import {Action,Card,Empty,Header,Icon,Pill,Search,T} from '../components/UI';
+import {Action,Card,Empty,Header,Icon,Notice,Pill,Search,T} from '../components/UI';
 
 const config:Record<string,{title:string;subtitle:string;icon:string;key:keyof DemoState}>={
  clients:{title:'العملاء',subtitle:'بيانات العملاء وملفاتهم',icon:'account-group-outline',key:'clients'},
@@ -110,10 +110,14 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
   <Search value={q} onChange={setQ} placeholder={'بحث في '+cfg.title+'...'}/>
   <View style={{flexDirection:'row-reverse',flexWrap:'wrap',gap:8}}>
    {(available[page]||[{label:'الكل',value:'all'}]).map(option=>
-    <Pressable key={option.value} onPress={()=>setFilter(option.value)}
-     style={{paddingVertical:9,paddingHorizontal:15,borderRadius:22,
-      backgroundColor:filter===option.value?C.red:C.surface,borderColor:filter===option.value?C.red:C.stroke,borderWidth:1}}>
-     <T size={12} color={filter===option.value?C.white:C.text} weight="700">{option.label}</T>
+    <Pressable key={option.value} accessibilityRole="button"
+     accessibilityState={{selected:filter===option.value}} onPress={()=>setFilter(option.value)}
+     style={({pressed})=>({minHeight:40,paddingVertical:9,paddingHorizontal:17,borderRadius:13,
+      justifyContent:'center',opacity:pressed?0.78:1,
+      backgroundColor:filter===option.value?C.red+'1A':C.surface,
+      borderColor:filter===option.value?C.red+'88':C.stroke,borderWidth:1})}>
+     <T size={12} color={filter===option.value?C.red:C.muted}
+      weight={filter===option.value?'800':'600'}>{option.label}</T>
     </Pressable>)}
   </View>
   <View style={{flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center'}}>
@@ -132,8 +136,8 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
     <T size={11} color={C.muted}>حدد الفواتير لعرض الإجراءات، أو افتح فاتورة لإدارتها منفردة.</T>}
   </View>:null}
   {loading?<ActivityIndicator color={C.red}/>:null}
-  {error?<Card><T color={C.orange} size={12}>{error}</T></Card>:null}
-  {focusError?<Card><T color={C.orange} size={12}>{focusError}</T></Card>:null}
+  {error?<Notice tone="danger" title="تعذر تحميل السجلات" message={error}/>:null}
+  {focusError?<Notice tone="warning" title="السجل غير متاح" message={focusError}/>:null}
   <View style={{gap:9}}>
    {shown.length?shown.map((r:any)=>{
     const d=listRecordSummary(page,r);
@@ -143,21 +147,33 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
        else onDetails(d.title,[['الاسم',str(r.name)],['البريد',str(r.email)],['الحالة',str(r.status)]]);
       }else setSelected(r);
      }}
-     style={{backgroundColor:C.surface,borderRadius:15,borderWidth:1,borderColor:C.stroke,padding:14,gap:7}}>
-     <View style={{flexDirection:'row-reverse',gap:10,alignItems:'center',justifyContent:'space-between'}}>
-      {page==='invoices'?<Pressable accessibilityLabel={'تحديد فاتورة '+r.id} onPress={event=>{event.stopPropagation();toggleInvoice(Number(r.id));}}
-       style={{padding:7}}><Icon name={invoiceSelection.includes(Number(r.id))?'checkbox-marked':'checkbox-blank-outline'} color={C.red} size={24}/></Pressable>:null}
-      <View style={{flex:1,gap:3}}>
-       <T size={15} weight="800" lines={2}>{d.title}</T>
+     accessibilityRole="button" accessibilityLabel={d.title}
+     style={({pressed})=>({backgroundColor:C.surface,borderRadius:19,borderWidth:1,
+      borderColor:C.stroke,padding:16,gap:13,opacity:pressed?0.77:1})}>
+     <View style={{flexDirection:'row-reverse',gap:12,alignItems:'center'}}>
+      {page==='invoices'?<Pressable accessibilityRole="checkbox"
+       accessibilityState={{checked:invoiceSelection.includes(Number(r.id))}}
+       accessibilityLabel={'تحديد فاتورة '+r.id}
+       onPress={event=>{event.stopPropagation();toggleInvoice(Number(r.id));}}
+       style={{padding:7}}><Icon name={invoiceSelection.includes(Number(r.id))?'checkbox-marked':'checkbox-blank-outline'} color={C.red} size={23}/></Pressable>:null}
+      <View style={{width:43,height:43,borderRadius:14,backgroundColor:C.red+'12',
+       borderWidth:1,borderColor:C.red+'23',justifyContent:'center',alignItems:'center'}}>
+       <Icon name={cfg.icon} color={C.red} size={21}/>
+      </View>
+      <View style={{flex:1,gap:4}}>
+       <T size={14} weight="800" lines={2}>{d.title}</T>
        {d.primary?<T size={12} color={C.muted} lines={2}>{d.primary}</T>:null}
       </View>
-      <Pill label={str(r.status)||'—'} color={statusColor(str(r.status))}/>
      </View>
-     <View style={{flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center'}}>
-      <T size={11} color={C.muted}>{d.secondary}</T>
+     <View style={{flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center',
+      gap:8,borderTopWidth:1,borderTopColor:C.stroke,paddingTop:12}}>
+      <View style={{flex:1,gap:6}}>
+       <Pill label={str(r.status)||'—'} color={statusColor(str(r.status))}/>
+       {d.secondary?<T size={11} color={C.muted} lines={1}>{d.secondary}</T>:null}
+      </View>
       <View style={{flexDirection:'row-reverse',gap:3,alignItems:'center'}}>
-       <T size={12} weight="700" color={C.blue}>{page==='clients'?'الملف':'عرض وإدارة'}</T>
-       <Icon name="chevron-left" size={16} color={C.blue}/>
+       <T size={12} weight="700" color={C.red}>{page==='clients'?'عرض الملف':'التفاصيل'}</T>
+       <Icon name="chevron-left" size={17} color={C.red}/>
       </View>
      </View>
     </Pressable>;

@@ -1,31 +1,97 @@
 import React from 'react';
-import {View,Pressable} from 'react-native';
-import {C,money} from '../theme';
+import {Pressable,View} from 'react-native';
+import {C} from '../theme';
 import type {DemoState,Page} from '../types';
-import {Action,Card,Header,Icon,ItemRow,Metric,Pill,Section,T} from '../components/UI';
-export function Home({data,demo,navigate,capabilities,totals}: {data:DemoState,demo:boolean,navigate:(p:Page)=>void,capabilities:Record<string,boolean>,totals:Record<string,number|null>}) {
- const open=data.tickets.filter(x=>x.status!=='Answered'&&x.status!=='Closed');
- const unpaid=data.invoices.filter(x=>x.status==='Unpaid'||x.status==='Overdue');
- const outstanding=unpaid.reduce((s,i)=>s+i.amount,0);
- const bars=[26,36,28,47,40,61,49,72,65,80,60,91];
- const currencies=[...new Set(unpaid.map(i=>i.currency).filter(Boolean))];
- const unpaidText=!demo&&capabilities['invoices.read']===undefined?'افتح قسم الفواتير للتحميل':!demo&&!capabilities['invoices.read']?'غير متاح':demo?money(outstanding):currencies.length===1?money(outstanding,currencies[0]||''):currencies.length>1?'فواتير بعملات متعددة':`عدد الفواتير: ${unpaid.length}`;
- return <View>
-   <View style={{flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center',marginBottom:19}}><View><T color={C.muted} size={12}>{`مركز التحكم • ${new Date().toLocaleDateString('ar-EG')}`}</T><T size={25} weight="900">أهلًا بيك 👋</T></View><View style={{width:45,height:45,borderRadius:15,backgroundColor:C.redDark,alignItems:'center',justifyContent:'center'}}><Icon name="shield-account" color={C.red} size={28}/></View></View>
-   <Card style={{backgroundColor:'#251925',borderColor:'#542539',padding:18,overflow:'hidden'}}>
-     <View style={{flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center'}}><Pill label={demo?'بيانات تجريبية':'اتصال مباشر'} color={demo?C.orange:C.green} icon="circle-small"/><Icon name="pulse" color={C.red}/></View>
-     <T size={13} color={C.muted} style={{marginTop:12}}>الفواتير غير المسددة (السجلات المحمّلة)</T><T size={29} weight="900">{unpaidText}</T><View style={{marginTop:13,flexDirection:'row-reverse',justifyContent:'space-between'}}><T size={12} color={C.muted}>{!demo&&capabilities['invoices.read']===undefined?'لم تُطلب البيانات بعد':!demo&&!capabilities['invoices.read']?'صلاحية القراءة غير متاحة':`${unpaid.length} فاتورة من المحمّل`}</T><Pressable onPress={()=>navigate('invoices')}><T size={12} color={C.red} weight="800">عرض الفواتير ←</T></Pressable></View>
-   </Card>
-   <Section title="نظرة عامة"/><View style={{flexDirection:'row-reverse',flexWrap:'wrap',gap:10}}>
-      <Metric icon="ticket-confirmation-outline" label="تذاكر منتظرة" value={!demo&&!capabilities['tickets.read']?'—':`${open.length}`} color={C.red} sub="ضمن المحمّل" onPress={()=>navigate('tickets')}/>
-      <Metric icon="account-group-outline" label="العملاء" value={!demo&&!capabilities['clients.read']?'—':`${totals.clients ?? data.clients.length}`} color={C.blue} sub={totals.clients!=null?'إجمالي API':'محمّلة'} onPress={()=>navigate('clients')}/>
-      <Metric icon="server-network" label="الخدمات" value={!demo&&!capabilities['services.read']?'—':`${totals.services ?? data.services.length}`} color={C.green} sub={totals.services!=null?'إجمالي API':'محمّلة'} onPress={()=>navigate('services')}/>
-      <Metric icon="cart-outline" label="طلبات جديدة" value={`${data.orders.filter(o=>o.status==='Pending').length}`} color={C.purple} sub="ضمن المحمّل" onPress={()=>navigate('orders')}/>
+import {Action,Card,Empty,Header,Icon,ItemRow,Metric,Pill,Section,T} from '../components/UI';
+
+export function Home({data,demo,navigate,capabilities,totals}:{
+ data:DemoState;demo:boolean;navigate:(p:Page)=>void;
+ capabilities:Record<string,boolean>;totals:Record<string,number|null>;
+}){
+ const tickets=data.tickets.filter(x=>!['Answered','Closed'].includes(x.status));
+ const pendingOrders=data.orders.filter(x=>x.status==='Pending');
+ const dueInvoices=data.invoices.filter(x=>x.status==='Unpaid'||x.status==='Overdue');
+ const ready=(key:string)=>demo||capabilities[key+'.read']===true;
+ const metric=(key:'clients'|'services'|'orders'|'invoices')=>
+  !ready(key)?'—':String(totals[key]??data[key].length);
+ return <View style={{gap:3,paddingBottom:28}}>
+  <View style={{marginBottom:18,gap:6}}>
+   <View style={{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between'}}>
+    <T color={C.muted} size={12}>المساحة الرئيسية</T>
+    <Pill label={demo?'بيانات تجريبية':'نظام الإدارة'} color={demo?C.orange:C.green} icon="circle-small"/>
    </View>
-   {demo?<Section title="نشاط التحصيل" action="التفاصيل" onPress={()=>navigate('invoices')}/>:null}
-   {demo?<Card style={{paddingBottom:12}}><View style={{flexDirection:'row-reverse',justifyContent:'space-between'}}><View><T weight="800" size={19}>الأداء المالي</T><T size={11} color={C.muted}>رسم توضيحي في الوضع التجريبي</T></View><Pill label="آخر 12 يوم" color={C.blue}/></View><View style={{height:105,flexDirection:'row-reverse',gap:7,alignItems:'flex-end',paddingTop:15}}>{bars.map((n,i)=><View key={i} style={{flex:1,backgroundColor:i===bars.length-1?C.red:C.surface2,borderRadius:6,height:`${n}%`,maxHeight:90}}/>)}</View><View style={{flexDirection:'row-reverse',justifyContent:'space-between',marginTop:9}}><T size={10} color={C.muted}>الأحدث</T><T size={10} color={C.muted}>الأقدم</T></View></Card>:null}
-   <Section title="تذاكر تستحق المتابعة" action="كل التذاكر" onPress={()=>navigate('tickets')}/>
-   <Card>{data.tickets.filter(t=>t.status!=='Answered'&&t.status!=='Closed').slice(0,3).map((t,i)=><View key={t.id}><ItemRow icon="ticket-outline" heading={t.subject} subtitle={`#${t.number} • ${t.customer} • ${t.priority}`} color={t.priority==='High'?C.red:C.blue} onPress={()=>navigate('tickets')} right={<Pill label={t.priority==='High'?'عاجل':'متابعة'} color={t.priority==='High'?C.red:C.orange}/>}/>{i===2?null:null}</View>)}</Card>
-   <Section title="الوصول السريع"/><View style={{flexDirection:'row-reverse',gap:9,marginBottom:20}}><View style={{flex:1}}><Action label="رسائل واتساب" icon="whatsapp" onPress={()=>navigate('whatsapp')}/></View><View style={{flex:1}}><Action label="غرفة AI" icon="robot-outline" secondary onPress={()=>navigate('ai')}/></View></View>
+   <T size={30} weight="900">لوحة القيادة</T>
+   <T color={C.muted} size={13}>نظرة واضحة على العمليات اللي محتاجة متابعتك</T>
+  </View>
+
+  <Pressable accessibilityRole="button" accessibilityLabel="فتح التذاكر التي تنتظر الرد"
+   onPress={()=>navigate('tickets')} style={({pressed})=>({borderRadius:25,backgroundColor:'#232A36',
+    borderWidth:1,borderColor:'#3C4556',padding:21,marginBottom:12,
+    overflow:'hidden',opacity:pressed?0.85:1})}>
+   <View pointerEvents="none" style={{position:'absolute',right:-82,top:-100,
+    width:245,height:245,borderRadius:123,backgroundColor:'#3C242D',
+    borderWidth:1,borderColor:'#573943'}}/>
+   <View pointerEvents="none" style={{position:'absolute',right:7,top:21,
+    width:102,height:102,borderRadius:51,borderWidth:1,borderColor:'#71515B',opacity:0.4}}/>
+   <View style={{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between'}}>
+    <View style={{backgroundColor:C.red+'26',padding:10,borderRadius:13}}>
+     <Icon name="ticket-confirmation-outline" size={23} color="#FF8797"/>
+    </View>
+    <View style={{backgroundColor:'#ffffff12',borderRadius:18,paddingVertical:6,paddingHorizontal:10}}>
+     <T color="#D4DCE6" size={10}>أولوية المتابعة</T>
+    </View>
+   </View>
+   <T size={12} color="#BBC5D1" style={{marginTop:23}}>تذاكر تنتظر التعامل</T>
+   <T size={45} weight="900" style={{textAlign:'right',letterSpacing:-2,marginTop:1}}>
+    {ready('tickets')?String(tickets.length):'—'}
+   </T>
+   <View style={{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between',marginTop:16}}>
+    <T color="#BBC5D1" size={11}>{ready('tickets')?'من التذاكر المحمّلة':'جاري التحقق من صلاحية التذاكر'}</T>
+    <View style={{flexDirection:'row-reverse',alignItems:'center',gap:7}}>
+     <T weight="800" color="#FF8B99" size={12}>عرض التذاكر</T>
+     <Icon name="arrow-left" size={17} color="#FF8B99"/>
+    </View>
+   </View>
+  </Pressable>
+
+  <Section title="ملخص العمليات"/>
+  <View style={{flexDirection:'row-reverse',flexWrap:'wrap',gap:11}}>
+   <Metric icon="account-group-outline" label="العملاء" value={metric('clients')}
+    sub={ready('clients')?(totals.clients!=null?'إجمالي WHMCS':'السجلات المحمّلة'):'غير محمّل'}
+    color={C.blue} onPress={()=>navigate('clients')}/>
+   <Metric icon="server-network" label="الخدمات" value={metric('services')}
+    sub={ready('services')?(totals.services!=null?'إجمالي WHMCS':'السجلات المحمّلة'):'غير محمّل'}
+    color={C.green} onPress={()=>navigate('services')}/>
+   <Metric icon="cart-outline" label="طلبات معلّقة"
+    value={ready('orders')?String(pendingOrders.length):'—'}
+    sub="من السجلات المحمّلة" color={C.orange} onPress={()=>navigate('orders')}/>
+   <Metric icon="receipt-text-outline" label="فواتير مستحقة"
+    value={ready('invoices')?String(dueInvoices.length):'—'}
+    sub="من السجلات المحمّلة" color={C.purple} onPress={()=>navigate('invoices')}/>
+  </View>
+
+  <Section title="وصول سريع"/>
+  <Card style={{paddingHorizontal:16,paddingVertical:2}}>
+   <ItemRow color={C.blue} icon="account-search-outline" heading="دليل العملاء"
+    subtitle="الملفات والخدمات والتذاكر" onPress={()=>navigate('clients')}/>
+   <ItemRow color={C.orange} icon="cart-check" heading="إدارة الطلبات"
+    subtitle="اعتماد الطلبات ومتابعة الخدمات" onPress={()=>navigate('orders')}/>
+   <ItemRow color={C.green} icon="whatsapp" heading="صندوق واتساب"
+    subtitle="رسائل العملاء والرد عليها" onPress={()=>navigate('whatsapp')}/>
+  </Card>
+
+  <Section title="آخر التذاكر" action="عرض الكل" onPress={()=>navigate('tickets')}/>
+  <Card style={{paddingHorizontal:16,paddingVertical:4}}>
+   {tickets.length?tickets.slice(0,4).map(t=><ItemRow key={t.id} icon="ticket-outline"
+    heading={t.subject||'تذكرة #'+t.number} subtitle={'#'+t.number+' • '+t.customer}
+    color={t.priority==='High'?C.orange:C.blue} onPress={()=>navigate('tickets')}
+    right={<Pill label={t.priority==='High'?'عاجلة':'متابعة'}
+     color={t.priority==='High'?C.orange:C.blue}/>}/>):
+    <Empty icon="checkbox-marked-circle-outline"
+     text={ready('tickets')?'لا توجد تذاكر محتاجة رد في البيانات المحمّلة':'افتح التذاكر لتحميل أحدث البيانات'}/>}
+  </Card>
+  <View style={{marginTop:17}}>
+   <T size={11} color={C.muted} style={{textAlign:'center'}}>الأرقام المعروضة تعتمد على البيانات المصرح بقراءتها من WHMCS.</T>
+  </View>
  </View>;
 }

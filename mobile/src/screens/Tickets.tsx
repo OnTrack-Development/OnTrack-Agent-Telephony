@@ -7,7 +7,7 @@ import {C} from '../theme';
 import {adminSessionReady} from '../lib/adminSession';
 import {TicketAdminData,readTicketAdmin,returnTicketToAi} from '../lib/ticketAdmin';
 import {NewTicket} from '../components/NewTicket';
-import {Action,Card,Divider,Header,Icon,Pill,T} from '../components/UI';
+import {Action,Card,Divider,Header,Icon,Notice,Pill,Search,T} from '../components/UI';
 import {QueueKind,OperatorProfile,TicketDetail,TicketBatch,changeTicket,fetchOperatorProfile,
  fetchSupportStatuses,fetchTicketDetail,fetchTicketQueue,isActionable,isClosed,
  priorityColor,replyWithSignature,signatureText,ticketMatchesQueue} from '../lib/tickets';
@@ -192,9 +192,9 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
  const assignedIds=new Set(assignedShown.map(x=>x.id));
  const generalShown=filter(general.rows).filter(t=>ticketMatchesQueue(t.status,mode)&&!assignedIds.has(t.id));
  const row=(ticket:Ticket)=>{
-  return <Pressable key={ticket.id} onPress={()=>void open(ticket)} style={{paddingVertical:13,borderBottomWidth:1,borderBottomColor:C.stroke,gap:7}}>
+  return <Pressable key={ticket.id} onPress={()=>void open(ticket)} accessibilityRole="button" accessibilityLabel={ticket.subject} style={({pressed})=>({paddingVertical:16,borderBottomWidth:1,borderBottomColor:C.stroke,gap:11,opacity:pressed?0.72:1})}>
    <View style={{flexDirection:'row-reverse',alignItems:'center',gap:10}}>
-    <View style={{padding:9,backgroundColor:C.redDark,borderRadius:12}}><Icon name="ticket-outline" color={C.red} size={21}/></View>
+    <View style={{width:43,height:43,alignItems:'center',justifyContent:'center',backgroundColor:C.red+'17',borderRadius:14,borderWidth:1,borderColor:C.red+'30'}}><Icon name="ticket-outline" color={C.red} size={21}/></View>
     <View style={{flex:1,gap:3}}><T weight="800" size={14} lines={2}>{ticket.subject}</T>
      <T color={C.muted} size={11} lines={1}>#{ticket.number} • {ticket.customer}</T></View>
     <Icon name="chevron-left" color={C.muted} size={18}/>
@@ -214,7 +214,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
     <T weight="900" size={18}>{title}</T>
     <Pill label={queue.total===null?`${shown.length} محمّلة`:`${queue.rows.length} من ${queue.total}`} color={which==='assigned'?C.orange:C.blue}/>
    </View>
-   {queue.error?<T color={C.orange} size={12}>{queue.error}</T>:null}
+   {queue.error?<Notice tone="warning" title="تعذر تحميل القائمة" message={queue.error}/>:null}
    <Card style={{paddingVertical:5}}>
     {shown.length?shown.map(row):queue.loading?<ActivityIndicator color={C.red} style={{padding:30}}/>:
     <T color={C.muted} size={12} style={{paddingVertical:17}}>{queue.error?'تعذر تحميل القائمة':'لا توجد تذاكر مطابقة في السجلات المحمّلة'}</T>}
@@ -261,7 +261,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
    </Card>
    <T weight="900" size={17} style={{marginTop:22,marginBottom:11}}>الردود والمحادثة</T>
    {detailLoading?<ActivityIndicator color={C.red}/>:detailError?<T color={C.orange}>{detailError}</T>:null}
-   {detail?.messages.map((m,i)=><Card key={m.id+'-'+i} style={{marginBottom:10,gap:7,backgroundColor:m.admin?C.redDark:C.surface}}>
+   {detail?.messages.map((m,i)=><Card key={m.id+'-'+i} style={{marginBottom:11,gap:11,backgroundColor:m.admin?'#271E29':C.surface,borderColor:m.admin?C.red+'55':C.stroke,borderRadius:19}}>
     <View style={{flexDirection:'row-reverse',justifyContent:'space-between',gap:10}}>
      <T color={m.admin?C.red:C.blue} weight="800">{m.name}{m.admin?' • الإدارة':''}</T>
      <T color={C.muted} size={10}>{m.date}</T>
@@ -278,7 +278,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
     <TextInput multiline value={noteDraft} onChangeText={setNoteDraft}
      onFocus={()=>onComposerFocus?.()} placeholder="ملاحظة لا يراها العميل"
      placeholderTextColor={C.muted}
-     style={{color:C.text,backgroundColor:C.surface2,borderRadius:10,textAlign:'right',minHeight:90,textAlignVertical:'top',padding:12}}/>
+     style={{color:C.text,backgroundColor:C.surface2,borderWidth:1,borderColor:C.stroke,borderRadius:15,textAlign:'right',minHeight:105,textAlignVertical:'top',padding:15}}/>
     <Action compact secondary disabled={changing||!noteDraft.trim()||!detail} label="حفظ الملاحظة" onPress={saveNote}/>
    </Card>:null}
    <Card style={{marginTop:18,gap:13}}>
@@ -288,7 +288,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
      placeholder="اكتب ردك هنا..." placeholderTextColor={C.muted}
      onFocus={event=>onComposerFocus?.(event.nativeEvent.target)}
      style={{backgroundColor:C.surface2,color:C.text,padding:15,borderRadius:13,
-      textAlign:'right',textAlignVertical:'top',minHeight:132,fontSize:15}}/>
+      textAlign:'right',textAlignVertical:'top',minHeight:144,fontSize:15}}/>
     {sig?<Pressable onPress={()=>setWithSignature(!withSignature)} style={{flexDirection:'row-reverse',gap:10,alignItems:'center'}}>
       <Icon name={withSignature?'checkbox-marked':'checkbox-blank-outline'} color={C.red}/>
       <T weight="700">إرفاق توقيع الأدمن من WHMCS</T></Pressable>:null}
@@ -305,13 +305,13 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
  return <View style={{paddingBottom:20}}>
   <Header title="مركز التذاكر" subtitle="التذاكر المسندة أولًا ثم التذاكر التي تحتاج ردًا"/>
   {!demo?<View style={{marginBottom:14}}><Action label="إضافة تذكرة" icon="plus" onPress={()=>setNewTicket(true)}/></View>:null}
-  <View style={{backgroundColor:C.surface,borderColor:C.stroke,borderWidth:1,borderRadius:13,flexDirection:'row-reverse',alignItems:'center',paddingHorizontal:12,marginBottom:14}}>
-   <Icon name="magnify" color={C.muted}/><TextInput value={search} onChangeText={setSearch} placeholder="بحث في التذاكر المحمّلة..." placeholderTextColor={C.muted}
-    style={{flex:1,color:C.text,height:47,textAlign:'right',paddingHorizontal:9}}/>
-  </View>
-  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{flexDirection:'row-reverse',gap:7,paddingBottom:12}}>
-   {sections.map(x=><Pressable key={x.id} onPress={()=>setMode(x.id)} style={{backgroundColor:mode===x.id?C.red:C.surface2,paddingVertical:10,paddingHorizontal:14,borderRadius:13,borderWidth:1,borderColor:mode===x.id?C.red:C.stroke}}>
-    <T size={12} weight="800">{x.label}</T></Pressable>)}
+  <Search value={search} onChange={setSearch} placeholder="ابحث في التذاكر المحمّلة"/>
+  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{flexDirection:'row-reverse',gap:8,paddingBottom:12}}>
+   {sections.map(x=><Pressable accessibilityRole="button" accessibilityState={{selected:mode===x.id}}
+    key={x.id} onPress={()=>setMode(x.id)}
+    style={{backgroundColor:mode===x.id?C.red+'1A':C.surface,paddingVertical:11,
+     paddingHorizontal:15,borderRadius:14,borderWidth:1,borderColor:mode===x.id?C.red+'95':C.stroke}}>
+    <T size={12} color={mode===x.id?C.red:C.muted} weight="800">{x.label}</T></Pressable>)}
   </ScrollView>
   {showAssigned?section('التذاكر المسندة إليّ • Assigned',assigned,assignedShown,'assigned'):null}
   {section(mode==='awaiting'?'تذاكر مفتوحة تنتظر الرد':'تذاكر • '+(sections.find(s=>s.id===mode)?.label||''),general,generalShown,'general')}

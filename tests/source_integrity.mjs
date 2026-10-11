@@ -55,8 +55,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.18');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,29);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.19');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,30);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
@@ -73,6 +73,23 @@ assert.ok(get('mobile/src/lib/notifications.ts').includes('Notifications.getDevi
 assert.ok(get('mobile/src/screens/Settings.tsx').includes('verifyNativeFcmSetup'));
 assert.ok(get('mobile/src/components/Feedback.tsx').includes('export function FeedbackHost'));
 assert.ok(get('mobile/App.tsx').includes('<FeedbackHost/>'));
+const splash=get('mobile/src/components/AnimatedSplash.tsx');
+const app=get('mobile/App.tsx');
+assert.match(splash,/Animated\.sequence/);
+assert.match(splash,/useNativeDriver:true/);
+assert.match(splash,/AccessibilityInfo\.isReduceMotionEnabled/);
+assert.match(splash,/ready\|\|!sequenceFinished/);
+assert.match(splash,/requestAnimationFrame/);
+assert.ok(app.includes('AnimatedSplash ready={!initializing}'));
+assert.ok(app.includes('PageMotion key={page}'));
+assert.ok(!app.includes("if(initializing)return <View"));
+assert.ok(get('mobile/src/components/PageMotion.tsx').includes('AccessibilityInfo.isReduceMotionEnabled'));
+for(const screen of ['Home','Directory','Tickets','WhatsApp','ClientProfile','Connect','Settings']){
+ const filename='mobile/src/screens/'+screen+'.tsx';
+ assert.match(get(filename),/C\.surface|C\.red/);
+}
+console.log('PASS: animated motion launch, reduced-motion support, session gate and shared premium UI');
+
 assert.ok(get('mobile/src/components/UI.tsx').includes('export function Notice'));
 assert.ok(get('mobile/src/components/UI.tsx').includes('accessibilityRole="button"'));
 for(const file of ['mobile/src/screens/Tickets.tsx','mobile/src/screens/Settings.tsx',

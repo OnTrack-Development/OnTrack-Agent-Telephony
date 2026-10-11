@@ -103,8 +103,10 @@ export function ClientProfile({session,client,onBack,onComposerFocus}:{session:S
   </View>
   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{flexDirection:'row-reverse',gap:7,paddingVertical:8}}>
    {tabs.map(x=><Pressable key={x.id} onPress={()=>void select(x.id)}
-    style={{paddingHorizontal:14,paddingVertical:10,backgroundColor:tab===x.id?C.red:C.surface,borderColor:C.stroke,borderWidth:1,borderRadius:12}}>
-    <T weight="700" color={tab===x.id?C.white:C.text}>{x.name}</T>
+    accessibilityRole="button" accessibilityState={{selected:tab===x.id}}
+    style={{paddingHorizontal:15,paddingVertical:11,backgroundColor:tab===x.id?C.red+'1C':C.surface,
+     borderColor:tab===x.id?C.red:C.stroke,borderWidth:1,borderRadius:14}}>
+    <T weight="800" color={tab===x.id?C.red:C.muted} size={12}>{x.name}</T>
    </Pressable>)}
   </ScrollView>
   {busy?<ActivityIndicator color={C.red}/>:null}
@@ -124,7 +126,9 @@ export function ClientProfile({session,client,onBack,onComposerFocus}:{session:S
     return <Pressable key={String(item.id||i)} disabled={!canManage} onPress={()=>{
       if(tab==='tickets'&&canManage)setOpenedTicket(item);
       else if(canManage)setOpened({tab:tab as 'services'|'invoices'|'orders'|'domains',row:item});
-     }} style={{backgroundColor:C.surface,borderWidth:1,borderColor:C.stroke,borderRadius:14,padding:14,gap:7}}>
+     }} accessibilityRole={canManage?'button':'text'} style={({pressed})=>({backgroundColor:C.surface,
+      borderWidth:1,borderColor:C.stroke,borderRadius:19,padding:17,gap:12,
+      opacity:pressed?0.78:1})}>
      <View style={{flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center',gap:9}}>
       <View style={{flex:1,gap:3}}>
        <T weight="800" lines={2}>{recordTitle(tab,item)}</T>
@@ -133,8 +137,8 @@ export function ClientProfile({session,client,onBack,onComposerFocus}:{session:S
       {item.status?<Pill label={text(item.status)} color={C.blue}/>:null}
      </View>
      {canManage?<View style={{flexDirection:'row-reverse',gap:5,alignItems:'center'}}>
-      <T color={C.blue} size={12}>عرض وإدارة</T>
-      <Icon name="chevron-left" color={C.blue} size={17}/>
+      <T color={C.red} weight="700" size={12}>فتح التفاصيل</T>
+      <Icon name="chevron-left" color={C.red} size={17}/>
      </View>:null}
     </Pressable>;
    })}

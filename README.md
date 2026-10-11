@@ -1,6 +1,6 @@
 # WHMCS Native Android App
 
-Current source: **v0.3.18, Android build 29**. Application ID remains `com.ontrackdevelopment.command` for upgrades using the existing release signature.
+Current source: **v0.3.19, Android build 30**. Application ID remains `com.ontrackdevelopment.command` for upgrades using the existing release signature.
 
 - Native React Native screens. No WebView, iframe or external-browser WhatsApp inbox.
 - WHMCS core operations use the existing `includes/api.php` API and server-side API permissions.
@@ -43,3 +43,8 @@ Settings has a native FCM enrollment test that obtains the device's native FCM t
 
 ## v0.3.18 UI consistency
 A custom branded, accessible in-app confirmation and alert modal replaces the system-default Alert.alert on the native screens, preserving all explicit confirmation buttons including destructive operations. Themed actions and forms use consistent corners, spacing, borders and enterprise-dark surfaces; request/retry banners use one reusable Notice component. Changes are visual-only; no WHMCS permission or payment behavior is bypassed. Android device QA is still required.
+
+## v0.3.19 animated splash and cohesive UI
+The static OS splash is now a short first frame; an original React Native native-driver animated launch mark reveals the WHMCS identity, awaits only saved-session restoration, and transitions out to the main interface. Reduced-motion Android accessibility is honored, with no network dependency or fixed artificial loading delay. App routes animate subtly, and shared surface styles plus the home, navigation, directory, tickets, WhatsApp, client profile, connection and settings UI have been redesigned without replacing WHMCS authorization logic. Native Android device review is still required for visual acceptance.
+
+FCM remote notifications remain gated on authenticated WHMCS staff enrollment and **server-only** Firebase credentials. Do not assume that client Firebase config enables background pushes.

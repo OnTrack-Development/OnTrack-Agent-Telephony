@@ -3,13 +3,13 @@
     "name": "WHMCS",
     "slug": "whmcs-admin",
     "scheme": "whmcsadmin",
-    "version": "0.3.18",
+    "version": "0.3.19",
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#080D17",
+    "backgroundColor": "#090D14",
     "newArchEnabled": true,
     "android": {
       "package": "com.ontrackdevelopment.command",
@@ -17,10 +17,10 @@
       "permissions": [
         "POST_NOTIFICATIONS"
       ],
-      "versionCode": 29,
+      "versionCode": 30,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#081322"
+        "backgroundColor": "#090D14"
       },
       "softwareKeyboardLayoutMode": "resize",
       "googleServicesFile": "./google-services.json"
