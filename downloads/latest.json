@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.20",
-  "version_code": 31,
-  "filename": "WHMCS-v0.3.20-ARM64-release-signed.apk",
-  "sha256": "2045390405d0122602a073ef0e3b6278a75d627686b69c793610099d72164022",
-  "size_bytes": 29442660,
-  "release_notes": "WHMCS v0.3.20: biometric or local PIN lock on every launch, default-hidden revenue/unpaid totals from native WHMCS stats, compact finance dashboard, typography-only splash, with the existing WhatsApp integration preserved. Actual module permissions and external FCM server setup must be completed separately.",
-  "published_at": "2026-10-11T06:12:07Z"
+  "version_name": "0.3.21",
+  "version_code": 32,
+  "filename": "WHMCS-v0.3.21-ARM64-release-signed.apk",
+  "sha256": "b13bbaab5ca594467ae33acb22cab4bf5d982330ceed551073f36e8f5d120dcb",
+  "size_bytes": 29450852,
+  "release_notes": "WHMCS v0.3.21: opt-in biometric enrollment after secure PIN, automatic fingerprint unlock with PIN fallback, explicit native WhatsApp administrator authentication and OTP for API-only WHMCS connections. Existing WhatsApp module unchanged; live permission and connectivity checks still required.",
+  "published_at": "2026-10-11T06:21:28Z"
 }
