@@ -213,7 +213,7 @@ assert.ok(get('mobile/App.tsx').includes('shouldLockOnResume('));
 assert.ok(get('mobile/src/screens/Settings.tsx').includes('saveLockPolicy('));
 
 assert.ok(get('mobile/src/lib/whatsapp.ts').includes('whatsAppMediaStatus'));
-assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('v3.4.5'));
+assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('v3.4.6'));
 
 // Authenticated private media and native multipart upload must not use JS FormData or unauthenticated <Image> headers.
 assert.ok(get('mobile/src/lib/whatsapp.ts').includes('FileSystem.downloadAsync(source.uri'));
