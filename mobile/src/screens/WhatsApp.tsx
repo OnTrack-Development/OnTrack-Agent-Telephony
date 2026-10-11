@@ -23,7 +23,6 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  const [needsOtp,setNeedsOtp]=useState(false),[otp,setOtp]=useState('');
  const [adminUser,setAdminUser]=useState(''),[adminPass,setAdminPass]=useState('');
  const [connectStep,setConnectStep]=useState(''),[showLegacy,setShowLegacy]=useState(false);
- const autoAttempt=useRef('');
  const generation=useRef(0),readInFlight=useRef(false),sendInFlight=useRef(false),active=useRef(true),selectedId=useRef<number|null>(null);
  selectedId.current=selected?.id||null;
  const close=()=>{generation.current++;setSelected(null);setMessages([]);setDraft('');setError('');};
