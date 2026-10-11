@@ -4,7 +4,7 @@ import {Alert} from '../components/Feedback';
 import {C} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Empty,Header,Icon,Notice,Pill,Search,T} from '../components/UI';
-import {adminSessionReady,checkedAdminUrl,loginAdmin,saveAdminDirectory,savedAdminDirectory,validateAdminDirectory} from '../lib/adminSession';
+import {adminSessionReady,checkedAdminUrl,loginAdmin,loginWhatsAppWithBrowser,saveAdminDirectory,savedAdminDirectory,validateAdminDirectory} from '../lib/adminSession';
 import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,getWhatsAppRetryAfterMs} from '../lib/whatsapp';
 import {ingestNotificationSnapshot,whatsAppNotifications} from '../lib/notifications';
 
@@ -14,6 +14,15 @@ export function existingWhatsAppInboxUrl(baseUrl:string,directory:string):string
  const dir=validateAdminDirectory(directory,baseUrl);
  return checkedAdminUrl(baseUrl,dir,dir+'/addonmodules.php?module=whatsapp_notifications&action=chat');
 }
+/** Dates from WHMCS are server-local database timestamps; display the clock portion without guessing a timezone. */
+export function waClock(timestamp:string):string {
+ const match=String(timestamp||'').match(/(?:^|[ T])([01]?\d|2[0-3]):([0-5]\d)(?::\d\d)?/);
+ return match?match[1]!.padStart(2,'0')+':'+match[2]!:String(timestamp||'').slice(0,16);
+}
+function waAvatar(name:string):string {
+ const parts=String(name||'').trim().split(/\s+/).filter(Boolean);
+ return (parts.length>1?parts[0]!.charAt(0)+parts[1]!.charAt(0):(parts[0]||'WA').slice(0,2)).toUpperCase();
+}
 export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{session:Session|null;demo:boolean;onComposerFocus?:()=>void;onDetailChange?:(active:boolean)=>void}){
  const [connected,setConnected]=useState(!!session&&adminSessionReady(session)),[search,setSearch]=useState(''),[unreadOnly,setUnreadOnly]=useState(false);
  const [rows,setRows]=useState<WaConversation[]>([]),[unread,setUnread]=useState(0),[selected,setSelected]=useState<WaConversation|null>(null);
@@ -22,8 +31,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  const [directory,setDirectory]=useState('admin'),[directoryLoaded,setDirectoryLoaded]=useState(false),[openingBrowser,setOpeningBrowser]=useState(false);
  const [needsOtp,setNeedsOtp]=useState(false),[otp,setOtp]=useState('');
  const [adminUser,setAdminUser]=useState(''),[adminPass,setAdminPass]=useState('');
- const [connectStep,setConnectStep]=useState('');
- const autoAttempt=useRef('');
+ const [connectStep,setConnectStep]=useState(''),[showLegacy,setShowLegacy]=useState(false);
  const generation=useRef(0),readInFlight=useRef(false),sendInFlight=useRef(false),active=useRef(true),selectedId=useRef<number|null>(null);
  selectedId.current=selected?.id||null;
  const close=()=>{generation.current++;setSelected(null);setMessages([]);setDraft('');setError('');};
@@ -68,6 +76,21 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   return()=>{clearTimeout(timer);clearInterval(poll);resume.remove();};
  },[refresh,selected?.id]);
  useEffect(()=>{if(!selected)return;const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[!!selected]);
+ const connectWithBrowser=async()=>{
+  if(!session||busy||!directoryLoaded)return;
+  setBusy(true);setError('');setConnectStep('افتح تسجيل الدخول داخل التطبيق وأكمل التحقق بخطوتين إن وجد...');
+  try{
+   await loginWhatsAppWithBrowser(session,directory);
+   setConnectStep('تم تأكيد جلسة الموظف، جارٍ قراءة المحادثات من الموديول الأصلي...');
+   const list=await listConversations(session);
+   if(active.current){
+    setRows(list.conversations);setUnread(list.unread);setConnected(true);
+    setConnectStep('اتصال واتساب جاهز');
+    void ingestNotificationSnapshot(session,'whatsapp',whatsAppNotifications(list.conversations));
+   }
+  }catch(e){report(e);setConnectStep('تعذر توثيق جلسة الإدارة');}
+  finally{if(active.current)setBusy(false);}
+ };
  const connect=async()=>{
   if(!session)return;
   setBusy(true);setError('');
@@ -106,15 +129,8 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   }catch(e){report(e);setConnectStep('تعذر إتمام ربط جلسة الإدارة');}
   finally{if(session.mode==='api')setAdminPass('');if(active.current)setBusy(false);}
  };
- // Auto reuse saved Admin Legacy credentials; API keys cannot create browser cookies.
- useEffect(()=>{
-  if(!session||demo||session.mode!=='admin'||!directoryLoaded||connected||needsOtp)return;
-  const key=session.baseUrl+'|'+session.username+'|'+directory;
-  if(autoAttempt.current===key)return;
-  autoAttempt.current=key;
-  const timer=setTimeout(()=>{void connectSaved();},300);
-  return()=>clearTimeout(timer);
- },[session,demo,directoryLoaded,directory,connected,needsOtp]);
+ // Do not silently submit stored administrator passwords on screen mount.
+ // WAF/2FA challenges must be completed by the operator in the in-app login view.
  const openBrowser=async()=>{
   if(!session||openingBrowser)return;
   setOpeningBrowser(true);setError('');
@@ -182,88 +198,193 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  };
  if(!session||demo)return <View><Header title="واتساب" subtitle="محادثات العملاء"/><Empty icon="whatsapp" text="اربط حساب WHMCS لعرض محادثات واتساب الحقيقية"/></View>;
 
- return <View style={{gap:14,paddingBottom:24}}>
-  {selected?<Pressable onPress={close} style={{flexDirection:'row-reverse',gap:8,paddingVertical:8}}><Icon name="arrow-right" color={C.green}/><T color={C.green}>المحادثات</T></Pressable>:null}
-  <Header title={selected?.display_name||'واتساب'} subtitle={selected?.phone||'محادثات العملاء'} right={<Icon name="whatsapp" size={29} color={C.green}/>}/>
-  {error?<View style={{gap:9}}><Notice tone="warning" title="تعذر تحديث واتساب" message={error}/>
-  <Action secondary label="إعادة المحاولة" disabled={busy} onPress={()=>void (connected?refresh():session?.mode==='admin'?connectSaved():openBrowser())}/></View>:null}
-  {!connected?<Card style={{gap:15}}>
-   <View style={{flexDirection:'row-reverse',alignItems:'center',gap:9}}>
-    <Icon name="shield-check-outline" color={C.green} size={27}/>
+ return <View style={{gap:13,paddingBottom:35}}>
+  {selected?<Pressable accessibilityRole="button" accessibilityLabel="العودة إلى محادثات واتساب" onPress={close}
+   style={{flexDirection:'row-reverse',alignItems:'center',gap:8,alignSelf:'flex-start',paddingVertical:6}}>
+   <Icon name="arrow-right" color={C.green} size={21}/><T color={C.green} weight="800" size={13}>كل المحادثات</T>
+  </Pressable>:null}
+  {selected?
+   <Card style={{padding:15,backgroundColor:C.surface,gap:10}}>
+    <View style={{flexDirection:'row-reverse',alignItems:'center',gap:12}}>
+     <View style={{width:50,height:50,borderRadius:18,backgroundColor:C.green+'1C',borderColor:C.green+'40',borderWidth:1,justifyContent:'center',alignItems:'center'}}>
+      <T color={C.green} weight="900" size={17}>{waAvatar(selected.display_name)}</T>
+     </View>
+     <View style={{flex:1,gap:2}}>
+      <T weight="900" size={18} lines={1}>{selected.display_name}</T>
+      <T color={C.muted} size={12}>{selected.phone}</T>
+     </View>
+     <Icon name="whatsapp" color={C.green} size={27}/>
+    </View>
+    <View style={{flexDirection:'row-reverse',gap:8,flexWrap:'wrap'}}>
+     <Pill color={windowOpen?C.green:C.orange} icon={windowOpen?'clock-check-outline':'clock-alert-outline'}
+      label={windowOpen?'نافذة الرد مفتوحة — '+Math.ceil(remaining/3600)+' س':'نافذة الرد مغلقة'}/>
+     {selected.client_id?<Pill color={C.blue} label={'WHMCS #'+selected.client_id}/>:null}
+    </View>
+   </Card>:
+   <View style={{gap:5,paddingBottom:7}}>
+    <View style={{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between'}}>
+     <View style={{gap:3}}><T size={26} weight="900">واتساب</T><T color={C.muted} size={12}>صندوق رسائل العملاء</T></View>
+     <View style={{width:53,height:53,borderRadius:19,backgroundColor:C.green+'19',borderWidth:1,borderColor:C.green+'35',alignItems:'center',justifyContent:'center'}}>
+      <Icon name="whatsapp" size={30} color={C.green}/>
+     </View>
+    </View>
+    {connected?<View style={{flexDirection:'row-reverse',alignItems:'center',gap:7,marginTop:5}}>
+     <View style={{height:7,width:7,borderRadius:5,backgroundColor:C.green}}/>
+     <T color={C.green} size={11}>متصل بمحادثات WHMCS</T>
+     <T color={C.muted} size={10}>• تحديث كل 15 ثانية أثناء فتح التطبيق</T>
+    </View>:null}
+   </View>}
+  {error?<View style={{gap:10}}>
+   <Notice tone="warning" title="تعذر الاتصال بواتساب" message={error}/>
+   <Action secondary label="إعادة المحاولة" disabled={busy}
+    onPress={()=>void (connected?refresh():connectWithBrowser())}/>
+  </View>:null}
+  {!connected?<Card style={{gap:15,padding:18}}>
+   <View style={{flexDirection:'row-reverse',alignItems:'center',gap:12}}>
+    <View style={{height:46,width:46,borderRadius:15,backgroundColor:C.green+'18',alignItems:'center',justifyContent:'center'}}>
+     <Icon name="shield-lock-outline" color={C.green} size={26}/>
+    </View>
     <View style={{flex:1,gap:3}}>
-     <T size={16} weight="800">اتصال WHMCS محفوظ</T>
-     <T size={12} color={C.muted}>{session.mode==='admin'
-      ?'سنستخدم جلسة WHMCS Admin المحفوظة بعد التأكد من صلاحيات الموظف.'
-      :'الربط بـAPI فقط لا يتيح محادثات الموديول. يلزم تسجيل دخول WHMCS Admin منفصل هنا لعرض واتساب داخل التطبيق.'}</T>
+     <T size={16} weight="900">اتصال واتساب الآمن</T>
+     <T size={12} color={C.muted}>نفس موديول واتساب الحالي من غير أي إضافات على السيرفر</T>
     </View>
    </View>
-   <T weight="800" size={14}>مسار إدارة WHMCS</T>
-   <TextInput accessibilityLabel="مسار إدارة WHMCS" value={directory}
+   <Notice title="أول مرة فقط"
+    message="سجل دخول الموظف المصرح له في لوحة WHMCS داخل النافذة الآمنة. بعدها تظهر المحادثات وتقدر ترد من التطبيق."/>
+   <T weight="800" size={12}>مجلد إدارة WHMCS</T>
+   <TextInput accessibilityLabel="مجلد إدارة WHMCS" value={directory}
     onChangeText={v=>{setDirectory(v);setNeedsOtp(false);setOtp('');setError('');}}
-    autoCapitalize="none" autoCorrect={false} placeholder="admin أو رابط الإدارة الكامل"
-    placeholderTextColor={C.muted} style={{color:C.text,textAlign:'left',
-      backgroundColor:C.surface2,padding:13,borderColor:C.stroke,borderWidth:1,borderRadius:12}}/>
-   <T color={C.muted} size={12}>اكتب اسم المجلد فقط (مثال: on) أو الصق رابط الإدارة اللي فاتحه في المتصفح.</T>
-   {session.mode==='api'&&!needsOtp?<View style={{gap:10}}>
-    <T weight="800" size={13}>بيانات موظف WHMCS Admin المصرح له</T>
-    <TextInput accessibilityLabel="اسم مستخدم إدارة WHMCS" value={adminUser}
-     onChangeText={setAdminUser} placeholder="اسم مستخدم الإدارة" autoCapitalize="none"
-     autoCorrect={false} placeholderTextColor={C.muted}
-     style={{color:C.text,textAlign:'left',backgroundColor:C.surface2,
-      padding:14,borderWidth:1,borderColor:C.stroke,borderRadius:13}}/>
-    <TextInput accessibilityLabel="كلمة مرور إدارة WHMCS" value={adminPass}
-     onChangeText={setAdminPass} placeholder="كلمة مرور الموظف" secureTextEntry
-     autoCapitalize="none" autoCorrect={false} placeholderTextColor={C.muted}
-     style={{color:C.text,textAlign:'left',backgroundColor:C.surface2,
-      padding:14,borderWidth:1,borderColor:C.stroke,borderRadius:13}}/>
+    autoCapitalize="none" autoCorrect={false} placeholder="admin أو رابط الإدارة"
+    placeholderTextColor={C.muted} style={{color:C.text,textAlign:'left',backgroundColor:C.surface2,
+     padding:15,borderColor:C.stroke,borderWidth:1,borderRadius:15,fontSize:15}}/>
+   <Action label={busy?'جارٍ الاتصال...':'اتصال وعرض المحادثات'} icon="whatsapp" disabled={busy||!directoryLoaded}
+    onPress={()=>void connectWithBrowser()}/>
+   {connectStep?<T size={11} color={C.muted}>{connectStep}</T>:null}
+   <Pressable accessibilityRole="button" onPress={()=>setShowLegacy(v=>!v)} style={{alignSelf:'center',padding:7}}>
+    <T color={C.muted} size={12}>{showLegacy?'إخفاء خيارات الدخول التقليدية':'خيارات الدخول التقليدية'} </T>
+   </Pressable>
+   {showLegacy?<View style={{gap:11}}>
+    {session.mode==='api'&&!needsOtp?<View style={{gap:9}}>
+     <TextInput accessibilityLabel="اسم مستخدم WHMCS Admin" value={adminUser} onChangeText={setAdminUser}
+      autoCapitalize="none" autoCorrect={false} placeholder="اسم موظف WHMCS Admin"
+      placeholderTextColor={C.muted} style={{color:C.text,textAlign:'left',padding:13,backgroundColor:C.surface2,
+       borderRadius:12,borderColor:C.stroke,borderWidth:1}}/>
+     <TextInput accessibilityLabel="كلمة مرور WHMCS Admin" value={adminPass} onChangeText={setAdminPass}
+      placeholder="كلمة المرور" secureTextEntry autoCapitalize="none" autoCorrect={false}
+      placeholderTextColor={C.muted} style={{color:C.text,textAlign:'left',padding:13,backgroundColor:C.surface2,
+       borderRadius:12,borderColor:C.stroke,borderWidth:1}}/>
+    </View>:null}
+    {needsOtp?<TextInput accessibilityLabel="رمز التحقق الثنائي" value={otp} onChangeText={setOtp}
+     keyboardType="number-pad" secureTextEntry placeholder="رمز التحقق الثنائي"
+     placeholderTextColor={C.muted} style={{color:C.text,textAlign:'center',padding:13,backgroundColor:C.surface2,borderRadius:12}}/>:null}
+    <Action secondary label={needsOtp?'تأكيد رمز التحقق':'الدخول ببيانات الموظف'}
+     disabled={busy||(session.mode==='api'&&!needsOtp&&(!adminUser.trim()||!adminPass))}
+     onPress={()=>void connectSaved()}/>
+    <Action secondary label={openingBrowser?'جارٍ الفتح...':'فتح صندوق واتساب من المتصفح'} icon="open-in-new"
+     disabled={openingBrowser} onPress={()=>void openBrowser()}/>
    </View>:null}
-   {needsOtp?<TextInput accessibilityLabel="رمز التحقق بخطوتين" value={otp}
-    onChangeText={setOtp} keyboardType="number-pad" secureTextEntry
-    placeholder="رمز التحقق من WHMCS" placeholderTextColor={C.muted}
-    style={{color:C.text,textAlign:'center',padding:13,backgroundColor:C.surface2,
-     borderWidth:1,borderColor:C.stroke,borderRadius:13}}/>:null}
-   <Action label={busy?'جارٍ الاتصال...':needsOtp?'تأكيد رمز التحقق':'اتصال صندوق واتساب داخل التطبيق'}
-    icon="whatsapp" disabled={busy||(session.mode==='api'&&!needsOtp&&(!adminUser.trim()||!adminPass))}
-    onPress={()=>void connectSaved()}/>
-   {connectStep?<T color={C.muted} size={11}>{connectStep}</T>:null}
-   <Notice tone="info" title="موديول واتساب لم يتغير"
-    message="مستخدم API لا يملك جلسة إدارة تلقائيًا. سيتم استخدام تسجيل دخول الموظف المصرح له فقط، دون تخزين كلمة المرور الإضافية أو تعديل الموديول."/>
-   <Action secondary icon="open-in-new" label={openingBrowser?'جارٍ الفتح...':'فتح Inbox الموجود باستخدام المتصفح'}
-    disabled={openingBrowser} onPress={()=>void openBrowser()}/>
-   <T size={11} color={C.muted}>نفس موديول whatsapp_notifications الموجود، من غير Plugin جديد أو تعديل الويبهوك.</T>
   </Card>:null}
-  {busy?<ActivityIndicator color={C.green}/>:null}
+  {busy?<View style={{alignItems:'center',padding:8}}><ActivityIndicator color={C.green}/></View>:null}
   {connected&&!selected?<>
-   <View style={{flexDirection:'row-reverse',gap:8,alignItems:'center'}}><View style={{flex:1}}>
-    <Search value={search} onChange={v=>{generation.current++;setSearch(v);}} placeholder="اسم العميل أو رقم الهاتف"/>
-   </View><Pill label={`${unread} غير مقروءة`} color={C.green}/></View>
-   <Pressable onPress={()=>{generation.current++;setUnreadOnly(!unreadOnly);}} style={{flexDirection:'row-reverse',gap:8,alignItems:'center'}}><Icon name={unreadOnly?'checkbox-marked':'checkbox-blank-outline'} color={C.green}/><T size={12}>غير المقروءة فقط</T></Pressable>
-   <Action secondary label="تحديث المحادثات" disabled={busy} onPress={()=>void refresh()}/>
-   <Card style={{paddingVertical:3}}>{rows.length?rows.map(row=><Pressable key={row.id} onPress={()=>void open(row)} accessibilityRole="button" accessibilityLabel={row.display_name}
-    style={({pressed})=>({paddingVertical:17,borderBottomWidth:1,borderBottomColor:C.stroke,gap:9,opacity:pressed?0.72:1})}>
-    <View style={{flexDirection:'row-reverse',alignItems:'center',gap:10}}><View style={{width:44,height:44,borderRadius:16,backgroundColor:C.green+'19',
-     borderWidth:1,borderColor:C.green+'35',justifyContent:'center',alignItems:'center'}}>
-     <Icon name="account-outline" size={22} color={C.green}/></View><View style={{flex:1,gap:4}}><T weight="800" size={14}>{row.display_name}</T><T size={11} color={C.muted}>{row.phone}</T></View>{row.unread_count>0?<Pill label={String(row.unread_count)} color={C.green}/>:null}</View>
-    <T lines={1} size={12} color={C.muted}>{row.last_message_preview||'محادثة بدون نص'}</T><T size={10} color={C.muted}>{row.last_message_at}</T>
-   </Pressable>):!busy?<Empty icon="whatsapp" text="لا توجد محادثات مطابقة"/>:null}</Card>
+   <View style={{flexDirection:'row-reverse',gap:8,alignItems:'center'}}>
+    <View style={{flex:1}}><Search value={search}
+     onChange={v=>{generation.current++;setSearch(v);}} placeholder="ابحث بالاسم أو رقم الهاتف"/></View>
+   </View>
+   <View style={{flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center',gap:9}}>
+    <View style={{flexDirection:'row-reverse',gap:8,alignItems:'center'}}>
+     <Pressable accessibilityRole="button" onPress={()=>{generation.current++;setUnreadOnly(false);}}
+      style={{paddingHorizontal:16,paddingVertical:10,borderWidth:1,borderColor:!unreadOnly?C.green+'66':C.stroke,
+       backgroundColor:!unreadOnly?C.green+'16':C.surface,borderRadius:14}}>
+      <T weight="800" size={12} color={!unreadOnly?C.green:C.muted}>الكل</T>
+     </Pressable>
+     <Pressable accessibilityRole="button" onPress={()=>{generation.current++;setUnreadOnly(true);}}
+      style={{flexDirection:'row-reverse',gap:6,paddingHorizontal:12,paddingVertical:10,borderWidth:1,
+       borderColor:unreadOnly?C.green+'66':C.stroke,backgroundColor:unreadOnly?C.green+'16':C.surface,borderRadius:14}}>
+      <T weight="800" size={12} color={unreadOnly?C.green:C.muted}>غير المقروءة</T>
+      {unread>0?<View style={{paddingHorizontal:6,borderRadius:10,backgroundColor:C.green}}>
+       <T size={10} weight="900" color={C.bg}>{String(unread)}</T>
+      </View>:null}
+     </Pressable>
+    </View>
+    <Pressable accessibilityRole="button" accessibilityLabel="تحديث المحادثات" disabled={busy}
+     onPress={()=>void refresh()} style={{padding:11,backgroundColor:C.surface,borderRadius:14,borderColor:C.stroke,borderWidth:1}}>
+     <Icon name="refresh" color={busy?C.muted:C.green} size={20}/>
+    </Pressable>
+   </View>
+   <View style={{flexDirection:'row-reverse',justifyContent:'space-between',paddingHorizontal:3}}>
+    <T weight="800" size={13}>المحادثات</T><T color={C.muted} size={11}>{rows.length} محادثة</T>
+   </View>
+   <Card style={{paddingVertical:3,paddingHorizontal:12,gap:0}}>
+    {rows.length?rows.map(row=><Pressable key={row.id} onPress={()=>void open(row)}
+     accessibilityRole="button" accessibilityLabel={'فتح محادثة '+row.display_name}
+     style={({pressed})=>({flexDirection:'row-reverse',alignItems:'center',paddingVertical:15,gap:12,
+      borderBottomWidth:1,borderBottomColor:C.stroke,opacity:pressed?0.68:1})}>
+     <View style={{height:51,width:51,borderRadius:19,backgroundColor:C.green+'18',
+      borderColor:C.green+'2A',borderWidth:1,alignItems:'center',justifyContent:'center'}}>
+      <T color={C.green} size={17} weight="900">{waAvatar(row.display_name)}</T>
+     </View>
+     <View style={{flex:1,gap:4}}>
+      <View style={{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between',gap:5}}>
+       <T weight="900" size={14} lines={1} style={{flex:1}}>{row.display_name}</T>
+       <T color={C.muted} size={10}>{waClock(row.last_message_at)}</T>
+      </View>
+      <T lines={1} size={12} color={C.muted}>{row.last_message_preview||'رسالة بدون نص'}</T>
+      <View style={{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between'}}>
+       <T size={10} color={C.muted}>{row.phone}</T>
+       {row.unread_count>0?<View style={{minWidth:24,height:24,alignItems:'center',justifyContent:'center',
+        paddingHorizontal:5,borderRadius:12,backgroundColor:C.green}}>
+        <T size={11} weight="900" color={C.bg}>{String(row.unread_count)}</T></View>:null}
+      </View>
+     </View>
+    </Pressable>):!busy?<Empty icon="chat-outline" text={unreadOnly?'مفيش محادثات غير مقروءة':'لا توجد محادثات مطابقة للبحث'}/>:null}
+   </Card>
   </>:null}
   {selected?<>
-   <Pill label={windowOpen?`نافذة الرد مفتوحة • ${Math.ceil(remaining/3600)} ساعة متبقية`:'نافذة الرد مغلقة'} color={windowOpen?C.green:C.orange}/>
-   {older&&messages.length?<Action secondary label={loadingOlder?'جارٍ التحميل...':'تحميل رسائل أقدم'} disabled={loadingOlder} onPress={()=>void more()}/>:null}
-   {messages.map(message=><View key={message.id} style={{alignSelf:message.direction==='outgoing'?'flex-end':'flex-start',width:'92%'}}><Card style={{gap:8,backgroundColor:message.direction==='outgoing'?'#17352E':C.surface,
-    borderRadius:19,borderColor:message.direction==='outgoing'?C.green+'45':C.stroke}}>
-    <T size={13}>{message.body||message.media_filename||(message.has_media?'مرفق: '+message.message_type:'رسالة '+message.message_type)}</T>
-    {message.has_media?<T size={11} color={C.muted}>مرفق • {message.message_type}{message.media_filename?' • '+message.media_filename:''}</T>:null}
-    <T size={10} color={C.muted}>{message.timestamp}{message.direction==='outgoing'?' • '+message.status:''}</T>
-    {message.error_text?<T size={11} color={C.orange}>{message.error_text}</T>:null}
-   </Card></View>)}
-   {!messages.length&&!busy?<Empty text="لا توجد رسائل"/>:null}
-   <Card style={{gap:12}}>
-    <T weight="800">الرد على العميل</T>
-    {!windowOpen?<T size={12} color={C.orange}>انتهت نافذة الرد. الإرسال النصي متوقف حتى يرسل العميل رسالة جديدة.</T>:null}
-    <TextInput accessibilityLabel="رسالة واتساب" multiline value={draft} onChangeText={setDraft} maxLength={4096} onFocus={onComposerFocus} placeholder="اكتب رسالتك..." placeholderTextColor={C.muted} style={{minHeight:121,backgroundColor:C.surface2,color:C.text,borderWidth:1,
-     borderColor:C.stroke,borderRadius:16,padding:16,textAlign:'right',textAlignVertical:'top'}}/>
-    <Action label={sending?'جارٍ الإرسال...':'إرسال الرسالة'} icon="send" disabled={sending||!draft.trim()||!windowOpen||busy} onPress={send}/>
+   {older&&messages.length?<Action secondary label={loadingOlder?'جارٍ جلب الأقدم...':'تحميل رسائل أقدم'}
+    disabled={loadingOlder} onPress={()=>void more()}/>:null}
+   <View style={{gap:9,paddingVertical:9,paddingHorizontal:4}}>
+    {messages.map(message=>{
+     const outgoing=message.direction==='outgoing';
+     return <View key={message.id} style={{alignItems:outgoing?'flex-end':'flex-start',width:'100%'}}>
+      <View style={{maxWidth:'88%',minWidth:98,backgroundColor:outgoing?'#183A33':C.surface,
+       borderRadius:19,borderTopLeftRadius:outgoing?19:5,borderTopRightRadius:outgoing?5:19,
+       borderWidth:1,borderColor:outgoing?C.green+'40':C.stroke,paddingHorizontal:15,paddingVertical:11,gap:7}}>
+       <T size={13} style={{textAlign:'right'}}>{message.body||message.media_filename||
+        (message.has_media?'مرفق '+message.message_type:'رسالة '+message.message_type)}</T>
+       {message.has_media?<View style={{flexDirection:'row-reverse',alignItems:'center',gap:5}}>
+        <Icon name="paperclip" size={13} color={C.muted}/>
+        <T color={C.muted} size={11}>{message.media_filename||message.message_type}</T>
+       </View>:null}
+       <View style={{flexDirection:'row-reverse',alignItems:'center',gap:5}}>
+        <T color={C.muted} size={10}>{waClock(message.timestamp)}</T>
+        {outgoing?<Icon name={message.status==='read'?'check-all':'check'} size={13}
+         color={message.status==='read'?C.blue:C.muted}/>:null}
+        {outgoing&&message.status?<T size={10} color={C.muted}>{message.status}</T>:null}
+       </View>
+       {message.error_text?<T color={C.orange} size={11}>{message.error_text}</T>:null}
+      </View>
+     </View>;
+    })}
+    {!messages.length&&!busy?<Empty text="مفيش رسائل محفوظة للمحادثة دي" icon="message-text-outline"/>:null}
+   </View>
+   <Card style={{gap:11,padding:13}}>
+    {!windowOpen?<Notice tone="warning" title="نافذة واتساب مغلقة"
+     message="مينفعش تبعت رسالة نصية عادية بعد مرور 24 ساعة من آخر رسالة واردة. استنى رسالة جديدة من العميل أو استخدم قالب Meta معتمد في الواجهة الأصلية."/>:null}
+    <View style={{flexDirection:'row-reverse',alignItems:'flex-end',gap:9}}>
+     <TextInput accessibilityLabel="اكتب رسالة واتساب" multiline value={draft}
+      onChangeText={setDraft} maxLength={4096} editable={windowOpen&&!sending}
+      onFocus={onComposerFocus} placeholder={windowOpen?'اكتب ردك هنا...':'الرد غير متاح حتى تصل رسالة جديدة'}
+      placeholderTextColor={C.muted} style={{minHeight:55,maxHeight:130,flex:1,backgroundColor:C.surface2,
+       color:C.text,borderWidth:1,borderColor:C.stroke,borderRadius:17,
+       paddingHorizontal:14,paddingVertical:12,textAlign:'right',textAlignVertical:'top',fontSize:14}}/>
+     <Pressable accessibilityRole="button" accessibilityLabel="إرسال رسالة واتساب" onPress={send}
+      disabled={sending||busy||!draft.trim()||!windowOpen}
+      style={({pressed})=>({width:53,height:53,alignItems:'center',justifyContent:'center',
+       borderRadius:18,backgroundColor:C.green,opacity:sending||busy||!draft.trim()||!windowOpen?0.38:pressed?0.7:1})}>
+      {sending?<ActivityIndicator color={C.bg}/>:<Icon name="send" size={21} color={C.bg}/>}
+     </Pressable>
+    </View>
+    <T color={C.muted} size={10}>{draft.length}/4096 حرف • يتم الإرسال عبر موديول واتساب الأصلي</T>
    </Card>
   </>:null}
  </View>;

@@ -5,8 +5,8 @@ root=Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory() as folder:
  p=Path(folder);bridge=p/'com/facebook/react/bridge';bridge.mkdir(parents=True)
  stubs={
-  'ReactApplicationContext':'public class ReactApplicationContext {}',
-  'ReactContextBaseJavaModule':'public class ReactContextBaseJavaModule { public ReactContextBaseJavaModule(ReactApplicationContext ctx){} public String getName(){return "";} public void invalidate(){} }',
+  'ReactApplicationContext':'public class ReactApplicationContext {public void runOnUiQueueThread(Runnable r){} }',
+  'ReactContextBaseJavaModule':'public class ReactContextBaseJavaModule { private final ReactApplicationContext ctx; public ReactContextBaseJavaModule(ReactApplicationContext c){ctx=c;} public String getName(){return "";} public void invalidate(){} public android.app.Activity getCurrentActivity(){return null;} public ReactApplicationContext getReactApplicationContext(){return ctx;} }',
   'ReactMethod':'public @interface ReactMethod {}',
   'Promise':'public interface Promise {void resolve(Object value);void reject(String code,String message);}',
   'ReadableMap':'public interface ReadableMap {java.util.HashMap<String,Object> toHashMap();}',
@@ -14,6 +14,22 @@ with tempfile.TemporaryDirectory() as folder:
   'Arguments':'public class Arguments {public static WritableMap createMap(){return null;}}',
  }
  for name,body in stubs.items():(bridge/(name+'.java')).write_text('package com.facebook.react.bridge;\n'+body)
+ android_stubs={
+  'android/app/Activity.java':'public class Activity {public void runOnUiThread(Runnable r){} }',
+  'android/app/Dialog.java':'public class Dialog {public Dialog(Activity a){} public void setContentView(android.webkit.WebView v,android.view.ViewGroup.LayoutParams p){} public void setOnCancelListener(android.content.DialogInterface.OnCancelListener l){} public void dismiss(){} public void show(){} public android.view.Window getWindow(){return null;} }',
+  'android/content/DialogInterface.java':'public interface DialogInterface {public interface OnCancelListener {void onCancel(DialogInterface dialog);} }',
+  'android/view/ViewGroup.java':'public class ViewGroup {public static class LayoutParams {public static final int MATCH_PARENT=-1;public LayoutParams(int w,int h){} }}',
+  'android/view/Window.java':'public class Window {public void setLayout(int w,int h){} }',
+  'android/webkit/WebSettings.java':'public class WebSettings {public void setJavaScriptEnabled(boolean b){} public void setDomStorageEnabled(boolean b){} }',
+  'android/webkit/WebView.java':'public class WebView {public WebView(android.app.Activity a){} public WebSettings getSettings(){return null;} public void setWebViewClient(WebViewClient c){} public void evaluateJavascript(String s,ValueCallback<String> c){} public void loadUrl(String s){} public void destroy(){} }',
+  'android/webkit/WebViewClient.java':'public class WebViewClient {public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){return false;} public void onPageFinished(WebView v,String u){} }',
+  'android/webkit/WebResourceRequest.java':'public interface WebResourceRequest {Object getUrl(); boolean isForMainFrame();}',
+  'android/webkit/ValueCallback.java':'public interface ValueCallback<T> {void onReceiveValue(T value);}',
+  'android/webkit/CookieManager.java':'public class CookieManager {public static CookieManager getInstance(){return new CookieManager();} public void setAcceptCookie(boolean b){} public String getCookie(String url){return "";} public void removeAllCookies(ValueCallback<Boolean> callback){} public void flush(){} }',
+ }
+ for name,body in android_stubs.items():
+  file=p/name;file.parent.mkdir(parents=True,exist_ok=True)
+  file.write_text('package '+name.rsplit('/',1)[0].replace('/','.')+';\n'+body)
  transport=p/'com/ontrackdevelopment/command/update';transport.mkdir(parents=True)
  shutil.copyfile(root/'mobile/native/android/CommandAdminSessionModule.java',transport/'CommandAdminSessionModule.java')
  (transport/'RouteTest.java').write_text('''package com.ontrackdevelopment.command.update;

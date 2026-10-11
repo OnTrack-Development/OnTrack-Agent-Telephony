@@ -1,16 +1,27 @@
 package com.ontrackdevelopment.command.update;
 
 import com.facebook.react.bridge.*;
+import android.app.Activity;
+import android.app.Dialog;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.CookieManager;
+import android.view.ViewGroup;
+import android.view.Window;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** In-memory, per-account cookie jars. No WebView, browser cookies or global CookieHandler. */
+/** Scoped native administrator sessions for existing WHMCS addon routes only. */
 public final class CommandAdminSessionModule extends ReactContextBaseJavaModule {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private final Map<String,CookieManager> jars = new HashMap<>();
+    private final Map<String,java.net.CookieManager> jars = new HashMap<>();
+    // In-memory WHMCS administrator session, scoped to the exact pairing key.
+    private final Map<String,String> waBrowserCookies = new ConcurrentHashMap<>();
     private static final int MAX_RESPONSE = 2 * 1024 * 1024;
     public CommandAdminSessionModule(ReactApplicationContext ctx) { super(ctx); }
     @Override public String getName() { return "CommandAdminSession"; }
@@ -48,6 +59,100 @@ public final class CommandAdminSessionModule extends ReactContextBaseJavaModule 
         return url;
     }
 
+
+    /**
+     * Only the built-in WebView is used for administrator sign-in/2FA.
+     * No new WHMCS server module, no Meta token and no administrator password in JS.
+     * On success the existing native Inbox UI calls whatsapp_notifications/ajax.php.
+     */
+    @ReactMethod public void authorizeInWebView(String key, String base, String directory, Promise promise) {
+        final URI inbox;
+        try {
+            inbox = checked(base,directory,directory + "/addonmodules.php?module=whatsapp_notifications&action=chat");
+        } catch (Exception e) {
+            promise.reject("INVALID_ROUTE","رابط WHMCS أو مجلد الإدارة غير صالح."); return;
+        }
+        final Activity activity = getCurrentActivity();
+        if (activity == null) {
+            promise.reject("NO_ACTIVITY","لا يمكن فتح تسجيل دخول WHMCS الآن."); return;
+        }
+        activity.runOnUiThread(() -> {
+            final AtomicBoolean finished = new AtomicBoolean(false);
+            final AtomicBoolean triedLanding = new AtomicBoolean(false);
+            final Dialog dialog = new Dialog(activity);
+            final WebView browser = new WebView(activity);
+            browser.getSettings().setJavaScriptEnabled(true);
+            browser.getSettings().setDomStorageEnabled(true);
+            // Cookies stay within the Android app's WebView cookie store.
+            CookieManager.getInstance().setAcceptCookie(true);
+            browser.setWebViewClient(new WebViewClient() {
+                @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                    // CAPTCHA/SSO widgets may load third-party frames; never navigate
+                    // the main administrator window away from the WHMCS HTTPS origin.
+                    if (!request.isForMainFrame()) return false;
+                    try {
+                        URI next = new URI(request.getUrl().toString());
+                        URI root = new URI(base + "/");
+                        return !("https".equals(next.getScheme())
+                            && root.getAuthority().equals(next.getAuthority())
+                            && next.getRawPath() != null && next.getRawPath().startsWith(root.getRawPath()));
+                    } catch (Exception e) { return true; }
+                }
+                @Override public void onPageFinished(WebView view, String url) {
+                    if (finished.get()) return;
+                    if (url.contains("/" + directory + "/addonmodules.php")
+                        && url.contains("module=whatsapp_notifications")) {
+                        view.evaluateJavascript(
+                            "(function(){return typeof window.waCSRFToken==='string' && /^[a-f0-9]{32,128}$/i.test(window.waCSRFToken)})()",
+                            result -> {
+                                if (!"true".equals(result) || finished.get()) return;
+                                String cookie = CookieManager.getInstance().getCookie(inbox.toString());
+                                if (cookie == null || cookie.trim().isEmpty()) return;
+                                if (finished.compareAndSet(false,true)) {
+                                    waBrowserCookies.put(key,cookie);
+                                    promise.resolve(true);
+                                    dialog.dismiss();
+                                    browser.destroy();
+                                }
+                            });
+                    } else if (!triedLanding.get() &&
+                        (url.contains("/" + directory + "/index.php") || url.endsWith("/" + directory + "/"))) {
+                        // Some WHMCS installations redirect successful logins to their dashboard
+                        // instead of returning to the requested Inbox. Try the Inbox only once.
+                        view.evaluateJavascript(
+                            "(function(){return !document.querySelector('input[type=password]') && " +
+                            "!!document.querySelector('a[href*=logout],a[href*=addonmodules]')})()",
+                            result -> {
+                                if ("true".equals(result) && !finished.get()
+                                    && triedLanding.compareAndSet(false,true)) view.loadUrl(inbox.toString());
+                            });
+                    }
+                }
+            });
+            dialog.setContentView(browser,new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
+            dialog.setOnCancelListener(d -> {
+                if (finished.compareAndSet(false,true))
+                    promise.reject("LOGIN_CANCELLED","تم إلغاء تسجيل الدخول إلى WHMCS.");
+                browser.destroy();
+            });
+            dialog.show();
+            Window window = dialog.getWindow();
+            if (window != null) window.setLayout(
+                ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT);
+            browser.loadUrl(inbox.toString());
+        });
+    }
+
+    private static String queryValue(String rawQuery, String expected) {
+        if (rawQuery == null) return "";
+        for (String item : rawQuery.split("&")) {
+            String[] pair = item.split("=",2);
+            if (pair.length == 2 && pair[0].equals(expected)) return pair[1];
+        }
+        return "";
+    }
+
     @ReactMethod public void request(String key, String base, String directory, String target,
                                      String method, ReadableMap fields, ReadableMap headers, Promise promise) {
         // Snapshot React maps before moving to worker; no credential logging.
@@ -58,8 +163,8 @@ public final class CommandAdminSessionModule extends ReactContextBaseJavaModule 
             try {
                 if (!method.equals("GET") && !method.equals("POST")) throw new IllegalArgumentException("Unsupported method");
                 URI url = checked(base,directory,target);
-                CookieManager jar = jars.get(key);
-                if (jar == null) { jar = new CookieManager(null,CookiePolicy.ACCEPT_ORIGINAL_SERVER); jars.put(key,jar); }
+                java.net.CookieManager jar = jars.get(key);
+                if (jar == null) { jar = new java.net.CookieManager(null,CookiePolicy.ACCEPT_ORIGINAL_SERVER); jars.put(key,jar); }
                 String currentMethod = method;
                 StringBuilder form = new StringBuilder();
                 for (Map.Entry<String,Object> field : params.entrySet()) {
@@ -79,6 +184,15 @@ public final class CommandAdminSessionModule extends ReactContextBaseJavaModule 
                     conn.setRequestProperty("Referer",base+"/"+directory+"/index.php");
                     for (Map.Entry<String,List<String>> header : jar.get(url,Collections.emptyMap()).entrySet())
                         if (!header.getValue().isEmpty()) conn.setRequestProperty(header.getKey(),String.join("; ",header.getValue()));
+                    // Use the cookies from a completed, same-origin WHMCS browser login.
+                    // The native request still passes the original whitelist and same-origin checks.
+                    String activeCookie = waBrowserCookies.get(key);
+                    String relativeRoute = url.getRawPath().substring(new URI(base + "/").getRawPath().length());
+                    boolean waRequest = relativeRoute.equals("modules/addons/whatsapp_notifications/ajax.php")
+                        || (relativeRoute.equals(directory + "/addonmodules.php")
+                            && "whatsapp_notifications".equals(queryValue(url.getRawQuery(),"module")));
+                    if (waRequest && activeCookie != null && !activeCookie.isEmpty())
+                        conn.setRequestProperty("Cookie",activeCookie);
                     for (Map.Entry<String,Object> header : extraHeaders.entrySet()) {
                         if (!Arrays.asList("X-WA-CSRF","X-AISA-ADMIN-TOKEN","X-Requested-With").contains(header.getKey()))
                             throw new IllegalArgumentException("Unsupported header");
@@ -121,7 +235,14 @@ public final class CommandAdminSessionModule extends ReactContextBaseJavaModule 
         });
     }
     @ReactMethod public void resetAll(Promise promise) {
-        executor.execute(() -> { for (CookieManager jar : jars.values()) jar.getCookieStore().removeAll(); jars.clear(); promise.resolve(null); });
+        executor.execute(() -> { for (java.net.CookieManager jar : jars.values()) jar.getCookieStore().removeAll();
+            jars.clear(); waBrowserCookies.clear();
+            // Do not signal logout completion before the WebView administrator cookie is erased.
+            getReactApplicationContext().runOnUiQueueThread(() ->
+                CookieManager.getInstance().removeAllCookies(value -> {
+                    CookieManager.getInstance().flush();
+                    promise.resolve(null);
+                })); });
     }
-    @Override public void invalidate() { executor.shutdownNow(); jars.clear(); super.invalidate(); }
+    @Override public void invalidate() { executor.shutdownNow(); jars.clear(); waBrowserCookies.clear(); super.invalidate(); }
 }

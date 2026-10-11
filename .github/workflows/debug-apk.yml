@@ -151,7 +151,7 @@ jobs:
           test "$BYTES" -lt 73304381
       - uses: actions/upload-artifact@v4
         with:
-          name: WHMCS-v0.3.21-ARM64-signed
+          name: WHMCS-v0.3.22-ARM64-signed
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Publish GitHub Release with APK and ZIP
@@ -162,13 +162,13 @@ jobs:
           set -euo pipefail
           mkdir -p out
           APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-          cp "$APK" out/WHMCS-v0.3.21-ARM64-release-signed.apk
-          (cd out && zip -9 WHMCS-v0.3.21-ARM64-release-signed.zip WHMCS-v0.3.21-ARM64-release-signed.apk)
+          cp "$APK" out/WHMCS-v0.3.22-ARM64-release-signed.apk
+          (cd out && zip -9 WHMCS-v0.3.22-ARM64-release-signed.zip WHMCS-v0.3.22-ARM64-release-signed.apk)
           BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v0.3.21: explicit opt-in fingerprint prompt after PIN enrollment or successful legacy PIN unlock; biometric-first launcher with OS authentication and PIN fallback, no repeated prompt after decline. Native WhatsApp now supports explicit WHMCS Admin authentication from API Credentials mode, optional OTP and non-persistent entered password. Existing WhatsApp add-on left untouched. Live WHMCS permissions/session validation required. Signed ARM64 APK bytes: ${BYTES}."
-          gh release create "whmcs-v0.3.21-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
+          NOTES="WHMCS v0.3.22: redesigned native WhatsApp inbox, customer search/unread filter, chat bubbles and message status; secure in-app administrator sign-in with OTP/CAPTCHA and original WhatsApp addon AJAX/CSRF reply flow. No WHMCS module or webhook modifications. Verify live admin permissions before use. Signed ARM64 APK bytes: ${BYTES}."
+          gh release create "whmcs-v0.3.22-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
-            --title "WHMCS v0.3.21 (Android build 32)" \
+            --title "WHMCS v0.3.22 (Android build 33)" \
             --notes "$NOTES"
           echo "Signed APK published; APK release published after successful workflow completion."
       # GitHub-hosted release publishing uses GITHUB_TOKEN; trigger the downstream

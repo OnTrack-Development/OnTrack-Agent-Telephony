@@ -1,0 +1,57 @@
+name: Validate WhatsApp Native Inbox
+on:
+  push:
+    branches:
+      - fix/whatsapp-native-existing-addon-only-20261011
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: whmcs-whatsapp-native-review
+  cancel-in-progress: true
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compile native transport and test WHMCS route protection
+        run: python3 tests/native_admin_routes_test.py
+      - name: Install Expo app dependencies
+        working-directory: mobile
+        run: npm install --no-audit --no-fund
+      - name: Typecheck and existing source tests
+        working-directory: mobile
+        run: |
+          npm run typecheck
+          npm run test:source
+          node ../tests/module_integration_test.cjs
+          node ../tests/directory_ui_test.cjs
+      - name: Check no server module or webhook is changed
+        run: |
+          test ! -e whmcs
+          test ! -e mobile/modules/addons
+          ! grep -R -n 'ontrack_mobile_whatsapp' mobile/src mobile/native
+      - name: Generate Android project
+        working-directory: mobile
+        run: CI=1 npx expo prebuild --platform android --no-install
+      - name: Integrate native secure WHMCS WebView session
+        run: python3 mobile/scripts/prepare_native_update.py
+      - name: Pick Android NDK
+        run: python3 mobile/scripts/select_android_ndk.py mobile/android/build.gradle 27.3.13750724
+      - name: Build Android debug APK for integration validation
+        working-directory: mobile/android
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+      - name: Upload unsigned debug-only build
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhatsApp-Native-Debug-For-Testing-Only
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
