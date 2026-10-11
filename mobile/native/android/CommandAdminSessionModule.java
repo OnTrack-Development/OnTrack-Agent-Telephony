@@ -16,11 +16,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** In-memory, per-account cookie jars. No WebView, browser cookies or global CookieHandler. */
+/** Scoped native administrator sessions for existing WHMCS addon routes only. */
 public final class CommandAdminSessionModule extends ReactContextBaseJavaModule {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private final Map<String,CookieManager> jars = new HashMap<>();
-    private final Set<String> webAuthorized = Collections.synchronizedSet(new HashSet<>());
+    private final Map<String,java.net.CookieManager> jars = new HashMap<>();
+    // In-memory WHMCS administrator session, scoped to the exact pairing key.
+    private final Map<String,String> waBrowserCookies = new ConcurrentHashMap<>();
     private static final int MAX_RESPONSE = 2 * 1024 * 1024;
     public CommandAdminSessionModule(ReactApplicationContext ctx) { super(ctx); }
     @Override public String getName() { return "CommandAdminSession"; }
@@ -105,7 +106,7 @@ public final class CommandAdminSessionModule extends ReactContextBaseJavaModule 
                                 String cookie = CookieManager.getInstance().getCookie(inbox.toString());
                                 if (cookie == null || cookie.trim().isEmpty()) return;
                                 if (finished.compareAndSet(false,true)) {
-                                    webAuthorized.add(key);
+                                    waBrowserCookies.put(key,cookie);
                                     promise.resolve(true);
                                     dialog.dismiss();
                                     browser.destroy();
@@ -140,6 +141,15 @@ public final class CommandAdminSessionModule extends ReactContextBaseJavaModule 
         });
     }
 
+    private static String queryValue(String rawQuery, String expected) {
+        if (rawQuery == null) return "";
+        for (String item : rawQuery.split("&")) {
+            String[] pair = item.split("=",2);
+            if (pair.length == 2 && pair[0].equals(expected)) return pair[1];
+        }
+        return "";
+    }
+
     @ReactMethod public void request(String key, String base, String directory, String target,
                                      String method, ReadableMap fields, ReadableMap headers, Promise promise) {
         // Snapshot React maps before moving to worker; no credential logging.
@@ -150,8 +160,8 @@ public final class CommandAdminSessionModule extends ReactContextBaseJavaModule 
             try {
                 if (!method.equals("GET") && !method.equals("POST")) throw new IllegalArgumentException("Unsupported method");
                 URI url = checked(base,directory,target);
-                CookieManager jar = jars.get(key);
-                if (jar == null) { jar = new CookieManager(null,CookiePolicy.ACCEPT_ORIGINAL_SERVER); jars.put(key,jar); }
+                java.net.CookieManager jar = jars.get(key);
+                if (jar == null) { jar = new java.net.CookieManager(null,CookiePolicy.ACCEPT_ORIGINAL_SERVER); jars.put(key,jar); }
                 String currentMethod = method;
                 StringBuilder form = new StringBuilder();
                 for (Map.Entry<String,Object> field : params.entrySet()) {
@@ -173,11 +183,13 @@ public final class CommandAdminSessionModule extends ReactContextBaseJavaModule 
                         if (!header.getValue().isEmpty()) conn.setRequestProperty(header.getKey(),String.join("; ",header.getValue()));
                     // Use the cookies from a completed, same-origin WHMCS browser login.
                     // The native request still passes the original whitelist and same-origin checks.
-                    if (webAuthorized.contains(key)) {
-                        String browserCookie = CookieManager.getInstance().getCookie(url.toString());
-                        if (browserCookie != null && !browserCookie.isEmpty())
-                            conn.setRequestProperty("Cookie",browserCookie);
-                    }
+                    String activeCookie = waBrowserCookies.get(key);
+                    String relativeRoute = url.getRawPath().substring(new URI(base + "/").getRawPath().length());
+                    boolean waRequest = relativeRoute.equals("modules/addons/whatsapp_notifications/ajax.php")
+                        || (relativeRoute.equals(directory + "/addonmodules.php")
+                            && "whatsapp_notifications".equals(queryValue(url.getRawQuery(),"module")));
+                    if (waRequest && activeCookie != null && !activeCookie.isEmpty())
+                        conn.setRequestProperty("Cookie",activeCookie);
                     for (Map.Entry<String,Object> header : extraHeaders.entrySet()) {
                         if (!Arrays.asList("X-WA-CSRF","X-AISA-ADMIN-TOKEN","X-Requested-With").contains(header.getKey()))
                             throw new IllegalArgumentException("Unsupported header");
@@ -220,7 +232,11 @@ public final class CommandAdminSessionModule extends ReactContextBaseJavaModule 
         });
     }
     @ReactMethod public void resetAll(Promise promise) {
-        executor.execute(() -> { for (CookieManager jar : jars.values()) jar.getCookieStore().removeAll(); jars.clear(); webAuthorized.clear(); promise.resolve(null); });
+        executor.execute(() -> { for (java.net.CookieManager jar : jars.values()) jar.getCookieStore().removeAll();
+            jars.clear(); waBrowserCookies.clear();
+            getReactApplicationContext().runOnUiQueueThread(() ->
+                CookieManager.getInstance().removeAllCookies(value -> {}));
+            promise.resolve(null); });
     }
-    @Override public void invalidate() { executor.shutdownNow(); jars.clear(); webAuthorized.clear(); super.invalidate(); }
+    @Override public void invalidate() { executor.shutdownNow(); jars.clear(); waBrowserCookies.clear(); super.invalidate(); }
 }
