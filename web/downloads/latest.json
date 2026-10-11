@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.16",
-  "version_code": 27,
-  "filename": "WHMCS-v0.3.16-ARM64-release-signed.apk",
-  "sha256": "8000c6b5f2f53d3448b9367b81aeded0759dd6623a590c17143b77c53aacc4e9",
-  "size_bytes": 30388835,
-  "release_notes": "WHMCS v0.3.16: manage service details and server commands with confirmation; see full order line items and payment status; open client tickets for replies and notes; open notification record by ID. Background instant Push requires server-side FCM setup.",
-  "published_at": "2026-10-11T01:42:25Z"
+  "version_name": "0.3.17",
+  "version_code": 28,
+  "filename": "WHMCS-v0.3.17-ARM64-release-signed.apk",
+  "sha256": "18a6a33c910bc5bee6cd41358d28d0e4ca25d763b2c2627d483efcae69d4a2d0",
+  "size_bytes": 30392931,
+  "release_notes": "WHMCS v0.3.17: configured OnTrack WHMCS Firebase Android app, native FCM enrollment test without exposing the device token; remote push needs an authenticated multi-tenant backend.",
+  "published_at": "2026-10-11T02:04:05Z"
 }
