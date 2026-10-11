@@ -17,7 +17,9 @@ export const telegramWhatsAppReady=(session:Session)=>telegramGatewayKeys.has(se
  */
 async function telegramGatewayRequest(session:Session,key:string,action:string,
   params:Record<string,string|number>={}):Promise<any>{
- const endpoint=validateBaseUrl(session.baseUrl)+'/modules/addons/telegramnotify/mobile_whatsapp.php';
+ // Use WHMCS's officially supported installed-addon route. Direct PHP under
+ // /modules/addons/telegramnotify/ is denied with HTTP 403 by this host.
+ const endpoint=validateBaseUrl(session.baseUrl)+'/index.php?m=telegramnotify&route=mobile_whatsapp';
  const controller=new AbortController();
  const timeout=setTimeout(()=>controller.abort(),20000);
  let response:Response;
@@ -35,11 +37,13 @@ async function telegramGatewayRequest(session:Session,key:string,action:string,
  let result:any;
  try{result=await response.json();}catch{
   if(action==='chat_send')throw Error('نتيجة إرسال واتساب غير مؤكدة. راجع المحادثة قبل المحاولة مرة أخرى.');
-  throw Error('TelegramNotify رجّع استجابة غير صالحة. تأكد من تحديث الموديول الموجود.');
+  if(response.status===403)throw Error('السيرفر منع مسار WHMCS الرسمي (403). راجع قاعدة الحماية للمسار index.php?m=telegramnotify.');
+  if(response.status===404)throw Error('WHMCS لم يجد رابط TelegramNotify. تأكد إنه مفعل ومحدث للنسخة 3.4.2.');
+  throw Error('WHMCS رجّع HTML بدل JSON (HTTP '+response.status+'). تأكد إن TelegramNotify v3.4.2 مرفوع، وجرّب رابط index.php?m=telegramnotify&route=mobile_whatsapp.');
  }
  if(response.status===429){applyRateLimit(session);assertWhatsAppNotThrottled(session);}
  if(response.status===401)throw Error('رمز ربط واتساب غير صالح أو اتلغى. جدده من إعدادات TelegramNotify.');
- if(response.status===404)throw Error('ملف الربط مش موجود على السيرفر. حدّث موديول TelegramNotify الحالي أولًا.');
+ if(response.status===404)throw Error('ملف الربط مش موجود على السيرفر. حدّث TelegramNotify إلى v3.4.2 على WHMCS أولًا.');
  if(response.status>=500&&action==='chat_send')
   throw Error('نتيجة إرسال واتساب غير مؤكدة بسبب خطأ بالخادم. راجع المحادثة قبل إعادة الإرسال.');
  if(!response.ok||result?.status!=='success')
