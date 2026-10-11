@@ -6,5 +6,5 @@
   "sha256": "78f5ffb7c5c9870166503a190b679cccd2bc81436f3ba8512feb82c542fe8f16",
   "size_bytes": 29282317,
   "release_notes": "WHMCS v0.3.14: fixes ticket reply keyboard visibility, preserves the WHMCS admin signature, and hides closed tickets unless the Closed filter is selected.",
-  "published_at": "2026-10-11T00:14:52Z"
+  "published_at": "2026-10-11T00:35:00Z"
 }
