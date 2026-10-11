@@ -5,7 +5,7 @@ import {C} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Empty,Header,Icon,Notice,Pill,Search,T} from '../components/UI';
 import {adminSessionReady,checkedAdminUrl,loginAdmin,saveAdminDirectory,savedAdminDirectory,validateAdminDirectory} from '../lib/adminSession';
-import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,getWhatsAppRetryAfterMs} from '../lib/whatsapp';
+import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,getWhatsAppRetryAfterMs,pairWhatsApp,verifyPairedWhatsApp} from '../lib/whatsapp';
 import {ingestNotificationSnapshot,whatsAppNotifications} from '../lib/notifications';
 
 /** Browser cookies are distinct from API credentials. Reuse Chrome's *existing*
@@ -23,6 +23,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  const [needsOtp,setNeedsOtp]=useState(false),[otp,setOtp]=useState('');
  const [adminUser,setAdminUser]=useState(''),[adminPass,setAdminPass]=useState('');
  const [connectStep,setConnectStep]=useState('');
+ const [pairCode,setPairCode]=useState(''),[legacyOpen,setLegacyOpen]=useState(false);
  const autoAttempt=useRef('');
  const generation=useRef(0),readInFlight=useRef(false),sendInFlight=useRef(false),active=useRef(true),selectedId=useRef<number|null>(null);
  selectedId.current=selected?.id||null;
@@ -33,6 +34,12 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   if(session)void savedAdminDirectory(session).then(dir=>{if(mounted){setDirectory(dir);setDirectoryLoaded(true);}}).catch(()=>{if(mounted)setDirectoryLoaded(true);});
   return()=>{mounted=false;};
  },[session]);
+ useEffect(()=>{let mounted=true;
+  if(session&&!demo)void verifyPairedWhatsApp(session).then(ready=>{if(mounted&&ready)setConnected(true);}).catch(e=>{
+   if(mounted)setError(e instanceof Error?e.message:'تعذر التحقق من ربط واتساب');
+  });
+  return()=>{mounted=false;};
+ },[session,demo]);
  useEffect(()=>{onDetailChange?.(!!selected);return()=>onDetailChange?.(false);},[!!selected]);
  useEffect(()=>{if(!selected)return;const sub=BackHandler.addEventListener('hardwareBackPress',()=>{close();return true;});return()=>sub.remove();},[!!selected]);
  const report=(e:unknown)=>{
@@ -68,6 +75,18 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   return()=>{clearTimeout(timer);clearInterval(poll);resume.remove();};
  },[refresh,selected?.id]);
  useEffect(()=>{if(!selected)return;const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[!!selected]);
+ const connectPair=async()=>{
+  if(!session||busy)return;
+  setBusy(true);setError('');setConnectStep('جارٍ توثيق هذا الجهاز باستخدام رمز الإدارة...');
+  try{
+   await pairWhatsApp(session,pairCode.trim());
+   await verifyPairedWhatsApp(session);
+   if(active.current){setPairCode('');setConnected(true);}
+   const list=await listConversations(session);
+   if(active.current){setRows(list.conversations);setUnread(list.unread);setConnectStep('تم ربط واتساب بنجاح');}
+  }catch(e){report(e);setConnectStep('تعذر توصيل واتساب');}
+  finally{if(active.current)setBusy(false);}
+ };
  const connect=async()=>{
   if(!session)return;
   setBusy(true);setError('');
@@ -197,6 +216,22 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
       :'الربط بـAPI فقط لا يتيح محادثات الموديول. يلزم تسجيل دخول WHMCS Admin منفصل هنا لعرض واتساب داخل التطبيق.'}</T>
     </View>
    </View>
+
+   <Notice tone="info" title="ربط واتساب بدون كلمة مرور الإدارة"
+    message="من WHMCS افتح Addons → OnTrack Mobile WhatsApp Bridge واضغط إنشاء رمز. الرمز مؤقت وصالح لمرة واحدة، وموديول واتساب الأصلي لن يتغير."/>
+   <T weight="800" size={14}>رمز ربط الجهاز</T>
+   <TextInput accessibilityLabel="رمز ربط واتساب" value={pairCode}
+    onChangeText={v=>{setPairCode(v.toUpperCase());setError('');}}
+    autoCapitalize="characters" autoCorrect={false}
+    placeholder="XXXX-XXXX-XXXX-XXXX" placeholderTextColor={C.muted}
+    style={{color:C.text,textAlign:'center',letterSpacing:1.2,backgroundColor:C.surface2,padding:14,
+     borderColor:C.stroke,borderWidth:1,borderRadius:12}}/>
+   <Action label={busy?'جارٍ الربط...':'ربط واتساب وإظهار المحادثات'}
+    icon="whatsapp" disabled={busy||pairCode.replace(/[^A-Z0-9]/gi,'').length!==16}
+    onPress={()=>void connectPair()}/>
+   <Action secondary label={legacyOpen?'إخفاء تسجيل الدخول التقليدي':'خيارات الدخول التقليدي'}
+    onPress={()=>setLegacyOpen(!legacyOpen)}/>
+   {legacyOpen?<>
    <T weight="800" size={14}>مسار إدارة WHMCS</T>
    <TextInput accessibilityLabel="مسار إدارة WHMCS" value={directory}
     onChangeText={v=>{setDirectory(v);setNeedsOtp(false);setOtp('');setError('');}}
@@ -230,7 +265,8 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     message="مستخدم API لا يملك جلسة إدارة تلقائيًا. سيتم استخدام تسجيل دخول الموظف المصرح له فقط، دون تخزين كلمة المرور الإضافية أو تعديل الموديول."/>
    <Action secondary icon="open-in-new" label={openingBrowser?'جارٍ الفتح...':'فتح Inbox الموجود باستخدام المتصفح'}
     disabled={openingBrowser} onPress={()=>void openBrowser()}/>
-   <T size={11} color={C.muted}>نفس موديول whatsapp_notifications الموجود، من غير Plugin جديد أو تعديل الويبهوك.</T>
+   </>:null}
+   <T size={11} color={C.muted}>ربط مستقل يقرأ ويُرسل من نفس موديول واتساب؛ لا يتطلب توكن Meta أو تغيير Webhook.</T>
   </Card>:null}
   {busy?<ActivityIndicator color={C.green}/>:null}
   {connected&&!selected?<>
