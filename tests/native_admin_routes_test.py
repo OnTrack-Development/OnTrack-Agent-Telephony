@@ -25,7 +25,7 @@ with tempfile.TemporaryDirectory() as folder:
   'android/webkit/WebViewClient.java':'public class WebViewClient {public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){return false;} public void onPageFinished(WebView v,String u){} }',
   'android/webkit/WebResourceRequest.java':'public interface WebResourceRequest {Object getUrl();}',
   'android/webkit/ValueCallback.java':'public interface ValueCallback<T> {void onReceiveValue(T value);}',
-  'android/webkit/CookieManager.java':'public class CookieManager {public static CookieManager getInstance(){return new CookieManager();} public void setAcceptCookie(boolean b){} public String getCookie(String url){return "";} public void removeAllCookies(ValueCallback<Boolean> callback){} }',
+  'android/webkit/CookieManager.java':'public class CookieManager {public static CookieManager getInstance(){return new CookieManager();} public void setAcceptCookie(boolean b){} public String getCookie(String url){return "";} public void removeAllCookies(ValueCallback<Boolean> callback){} public void flush(){} }',
  }
  for name,body in android_stubs.items():
   file=p/name;file.parent.mkdir(parents=True,exist_ok=True)
