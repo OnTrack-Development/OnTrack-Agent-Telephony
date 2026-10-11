@@ -151,7 +151,7 @@ jobs:
           test "$BYTES" -lt 73304381
       - uses: actions/upload-artifact@v4
         with:
-          name: WHMCS-v0.3.22-ARM64-signed
+          name: WHMCS-v0.3.23-ARM64-signed
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Publish GitHub Release with APK and ZIP
@@ -162,13 +162,13 @@ jobs:
           set -euo pipefail
           mkdir -p out
           APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-          cp "$APK" out/WHMCS-v0.3.22-ARM64-release-signed.apk
-          (cd out && zip -9 WHMCS-v0.3.22-ARM64-release-signed.zip WHMCS-v0.3.22-ARM64-release-signed.apk)
+          cp "$APK" out/WHMCS-v0.3.23-ARM64-release-signed.apk
+          (cd out && zip -9 WHMCS-v0.3.23-ARM64-release-signed.zip WHMCS-v0.3.23-ARM64-release-signed.apk)
           BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v0.3.22: redesigned native WhatsApp inbox, customer search/unread filter, chat bubbles and message status; secure in-app administrator sign-in with OTP/CAPTCHA and original WhatsApp addon AJAX/CSRF reply flow. No WHMCS module or webhook modifications. Verify live admin permissions before use. Signed ARM64 APK bytes: ${BYTES}."
-          gh release create "whmcs-v0.3.22-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
+          NOTES="WHMCS v0.3.23: optional mobile WhatsApp gateway provided by the already-installed TelegramNotify v3.4.1 addon, administrator-issued secure pairing key, read/reply through unchanged WhatsApp Meta service, and existing admin session fallback. Requires separately updating existing TelegramNotify files on WHMCS. No new addon or WhatsApp webhook modification. Signed ARM64 APK bytes: ${BYTES}."
+          gh release create "whmcs-v0.3.23-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
-            --title "WHMCS v0.3.22 (Android build 33)" \
+            --title "WHMCS v0.3.23 (Android build 34)" \
             --notes "$NOTES"
           echo "Signed APK published; APK release published after successful workflow completion."
       # GitHub-hosted release publishing uses GITHUB_TOKEN; trigger the downstream
