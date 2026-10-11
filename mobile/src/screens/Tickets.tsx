@@ -1,5 +1,6 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
-import {ActivityIndicator,Alert,BackHandler,Pressable,ScrollView,TextInput,View} from 'react-native';
+import {ActivityIndicator,BackHandler,Pressable,ScrollView,TextInput,View} from 'react-native';
+import {Alert} from '../components/Feedback';
 import type {Session,Ticket} from '../types';
 import {getApiRetryAfterMs,callApi} from '../lib/api';
 import {C} from '../theme';

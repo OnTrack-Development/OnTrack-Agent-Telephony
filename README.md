@@ -1,6 +1,6 @@
 # WHMCS Native Android App
 
-Current source: **v0.3.17, Android build 28**. Application ID remains `com.ontrackdevelopment.command` for upgrades using the existing release signature.
+Current source: **v0.3.18, Android build 29**. Application ID remains `com.ontrackdevelopment.command` for upgrades using the existing release signature.
 
 - Native React Native screens. No WebView, iframe or external-browser WhatsApp inbox.
 - WHMCS core operations use the existing `includes/api.php` API and server-side API permissions.
@@ -40,3 +40,6 @@ Notification taps (including cold launch) can target a ticket, order, invoice, c
 Firebase project ID: `ontrack-whmcs-push`; Android package: `com.ontrackdevelopment.command`. The Firebase Android **client** configuration is stored as `mobile/google-services.json`, referenced from `expo.android.googleServicesFile`. The file contains public app identifiers, **not** a Firebase service-account private key. GitHub Actions verifies that Expo prebuild copies it into the Android native project. Do not commit service account JSON or FCM OAuth access tokens. Restrict the Firebase API key to Firebase APIs as Google recommends.
 
 Settings has a native FCM enrollment test that obtains the device's native FCM token, verifies it exists, and discards it without logging, displaying, or transmitting it. This intentionally does not enable background delivery. Production push requires (1) a secure service-account identity on the backend, (2) a separate authenticated device registration service for each WHMCS installation, (3) strictly isolated tenant/staff/device mapping and revocation, (4) event hooks for new tickets, orders and clients, and (5) FCM HTTP v1 sending with authorized record IDs. Do not use WHMCS API keys or Firebase client API keys as a substitute for server authentication.
+
+## v0.3.18 UI consistency
+A custom branded, accessible in-app confirmation and alert modal replaces the system-default Alert.alert on the native screens, preserving all explicit confirmation buttons including destructive operations. Themed actions and forms use consistent corners, spacing, borders and enterprise-dark surfaces; request/retry banners use one reusable Notice component. Changes are visual-only; no WHMCS permission or payment behavior is bypassed. Android device QA is still required.

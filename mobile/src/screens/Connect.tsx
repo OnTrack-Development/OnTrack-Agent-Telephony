@@ -1,5 +1,6 @@
 import React,{useState} from 'react';
-import {Alert,KeyboardAvoidingView,Platform,ScrollView,TextInput,View} from 'react-native';
+import {KeyboardAvoidingView,Platform,ScrollView,TextInput,View} from 'react-native';
+import {Alert} from '../components/Feedback';
 import {C} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Icon,Pill,T} from '../components/UI';

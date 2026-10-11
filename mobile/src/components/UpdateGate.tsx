@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {Alert,AppState,DeviceEventEmitter,Modal,NativeModules,Platform,Pressable,View} from 'react-native';
+import {AppState,DeviceEventEmitter,Modal,NativeModules,Platform,Pressable,View} from 'react-native';
+import {Alert} from './Feedback';
 import {C} from '../theme';
 import appConfig from '../../app.json';
 import {Action,Icon,T} from './UI';

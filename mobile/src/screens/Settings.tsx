@@ -1,5 +1,6 @@
 import React from 'react';
-import {Alert,DeviceEventEmitter,View} from 'react-native';
+import {DeviceEventEmitter,View} from 'react-native';
+import {Alert} from '../components/Feedback';
 import {C} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Header,ItemRow,Pill,Section,T} from '../components/UI';

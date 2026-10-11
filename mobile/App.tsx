@@ -1,5 +1,6 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
-import {ActivityIndicator,Alert,AppState,BackHandler,Keyboard,KeyboardAvoidingView,Modal,Platform,Pressable,RefreshControl,ScrollView,StatusBar,TextInput,View} from 'react-native';
+import {ActivityIndicator,AppState,BackHandler,Keyboard,KeyboardAvoidingView,Modal,Platform,Pressable,RefreshControl,ScrollView,StatusBar,TextInput,View} from 'react-native';
+import {Alert,FeedbackHost} from './src/components/Feedback';
 import {C} from './src/theme';
 import {SafeAreaProvider,SafeAreaView,useSafeAreaInsets} from 'react-native-safe-area-context';
 import {UpdateGate} from './src/components/UpdateGate';
@@ -9,7 +10,7 @@ import type {DemoState,Page,Session} from './src/types';
 import {seed} from './src/data/demo';
 import {connect as connectApi,loadSession,loadOverview,loadPage,getTicketThread,replyToTicket,signOut,getApiRetryAfterMs} from './src/lib/api';
 import type {SectionKey} from './src/lib/api';
-import {Action,Card,Icon,T} from './src/components/UI';
+import {Action,Card,Icon,Notice,T} from './src/components/UI';
 import {Connect} from './src/screens/Connect';
 import {Home} from './src/screens/Home';
 import {Tickets} from './src/screens/Tickets';
@@ -266,8 +267,8 @@ function CommandApp(){
  const currentTab=nav.some(n=>n.page===page)?page:'more';
  return <View style={{flex:1,backgroundColor:C.bg}}><StatusBar barStyle="light-content" translucent={false} backgroundColor={C.bg}/>
   <View style={{flexDirection:'row-reverse',paddingHorizontal:19,paddingTop:10,paddingBottom:9,justifyContent:'space-between',alignItems:'center',borderBottomWidth:1,borderBottomColor:C.stroke}}><T weight="900" size={12} color={C.red}>WHMCS</T><View style={{flexDirection:'row-reverse',gap:8,alignItems:'center'}}><Icon name={demo?'flask-outline':'shield-check'} color={demo?C.orange:C.green} size={16}/><T size={10} color={C.muted}>{demo?'DEMO':lastSync?`API • ${lastSync}`:'WHMCS API'}</T></View></View>
-  {Object.keys(errors).length>0&&!demo?<Pressable style={{backgroundColor:'#483820',padding:9}} onPress={()=>{if(session)void refresh(session,true);}}><T color={C.orange} size={11}>{Object.values(errors).some(x=>/429/.test(x))?'WHMCS API مؤقتًا مشغول — إعادة تلقائية بعد انتهاء الانتظار':'تعذر تحميل بعض البيانات — اضغط لإعادة المحاولة'}</T></Pressable>:null}
-  {error?<Pressable style={{backgroundColor:'#47212A',padding:11}} onPress={()=>session&&refresh(session)}><T color={C.orange} size={12}>تعذر التحديث: {error} — اضغط لإعادة المحاولة</T></Pressable>:null}
+  {Object.keys(errors).length>0&&!demo?<View style={{paddingHorizontal:18,paddingTop:10}}><Notice tone="warning" title={Object.values(errors).some(x=>/429/.test(x))?'اتصال WHMCS مشغول مؤقتًا':'بعض البيانات لم تُحمّل'} message="اضغط لإعادة المحاولة عند استقرار الاتصال" onPress={()=>{if(session)void refresh(session,true);}}/></View>:null}
+  {error?<View style={{paddingHorizontal:18,paddingTop:8}}><Notice tone="danger" title="تعذر تحديث البيانات" message={error} onPress={()=>session&&void refresh(session)}/></View>:null}
   <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}>
    <ScrollView ref={pageScroll} key={page} keyboardDismissMode={Platform.OS==='ios'?'interactive':'none'} keyboardShouldPersistTaps="handled"
     automaticallyAdjustKeyboardInsets={Platform.OS==='ios'}
@@ -283,4 +284,4 @@ function CommandApp(){
  </View>;
 }
 
-export default function App(){return <SafeAreaProvider><SafeAreaView edges={['top','bottom']} style={{flex:1,backgroundColor:C.bg}}><CommandApp/><UpdateGate/></SafeAreaView></SafeAreaProvider>;}
+export default function App(){return <SafeAreaProvider><SafeAreaView edges={['top','bottom']} style={{flex:1,backgroundColor:C.bg}}><CommandApp/><UpdateGate/><FeedbackHost/></SafeAreaView></SafeAreaProvider>;}

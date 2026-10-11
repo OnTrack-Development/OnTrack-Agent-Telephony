@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {ActivityIndicator,Alert,Pressable,ScrollView,View} from 'react-native';
+import {ActivityIndicator,Pressable,ScrollView,View} from 'react-native';
+import {Alert} from '../components/Feedback';
 import {RecordDetails} from './RecordDetails';
 import {Tickets} from './Tickets';
 import {mapTicket,fetchTicketDetail} from '../lib/tickets';

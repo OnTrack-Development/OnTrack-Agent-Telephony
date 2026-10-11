@@ -55,8 +55,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.17');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,28);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.18');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,29);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
@@ -71,6 +71,18 @@ assert.equal(JSON.parse(get('mobile/app.json')).expo.android.googleServicesFile,
 assert.ok(!Object.prototype.hasOwnProperty.call(firebase,'private_key'));
 assert.ok(get('mobile/src/lib/notifications.ts').includes('Notifications.getDevicePushTokenAsync()'));
 assert.ok(get('mobile/src/screens/Settings.tsx').includes('verifyNativeFcmSetup'));
+assert.ok(get('mobile/src/components/Feedback.tsx').includes('export function FeedbackHost'));
+assert.ok(get('mobile/App.tsx').includes('<FeedbackHost/>'));
+assert.ok(get('mobile/src/components/UI.tsx').includes('export function Notice'));
+assert.ok(get('mobile/src/components/UI.tsx').includes('accessibilityRole="button"'));
+for(const file of ['mobile/src/screens/Tickets.tsx','mobile/src/screens/Settings.tsx',
+ 'mobile/src/components/OrderManagement.tsx','mobile/src/components/ServiceManagement.tsx',
+ 'mobile/src/components/InvoiceActions.tsx']){
+ assert.ok(get(file).includes("from '../components/Feedback'")||get(file).includes("from './Feedback'"),file);
+ assert.ok(!/import \{[^}]*\bAlert\b[^}]*\} from 'react-native'/.test(get(file)),file);
+}
+console.log('PASS: single branded alert host, safe confirmations, consistent accessible actions and notice UI');
+
 assert.ok(!get('mobile/src/lib/notifications.ts').includes('console.log(token'));
 assert.ok(get('.github/workflows/debug-apk.yml').includes("printf '\\n' >> mobile/android/app/build.gradle"),
  'Signing Gradle block must start on a fresh line after Firebase plugin');

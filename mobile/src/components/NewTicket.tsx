@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {Alert,BackHandler,Pressable,TextInput,View} from 'react-native';
+import {BackHandler,Pressable,TextInput,View} from 'react-native';
+import {Alert} from './Feedback';
 import {C} from '../theme';
 import type {Session,Ticket} from '../types';
 import {Action,Card,Header,Icon,Pill,T} from './UI';
