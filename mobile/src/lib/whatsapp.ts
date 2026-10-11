@@ -1,5 +1,8 @@
 import type {Session} from '../types';
 import * as SecureStore from 'expo-secure-store';
+import * as Crypto from 'expo-crypto';
+import * as Notifications from 'expo-notifications';
+import {Platform} from 'react-native';
 import {md5} from 'js-md5';
 import {validateBaseUrl} from './api';
 import {adminPage,adminRequest,adminSessionStamp} from './adminSession';
@@ -194,4 +197,44 @@ export async function sendWhatsAppMedia(session:Session,conversationId:number,as
  if(!result.ok||json?.status!=='success')throw Error(
   result.status>=500?'نتيجة إرسال المرفق غير مؤكدة. راجع سجل المحادثة قبل إعادة الإرسال.':
   String(json?.message||'تعذر إرسال المرفق إلى واتساب.'));
+}
+
+const deviceKey=(session:Session)=>'whmcs-push-device-'+md5(validateBaseUrl(session.baseUrl)
+ +'|'+(session.mode==='admin'?session.username:session.identifier));
+async function persistedDeviceId(session:Session):Promise<string>{
+ const key=deviceKey(session);
+ let id=await SecureStore.getItemAsync(key);
+ if(id&&/^[a-f0-9-]{36}$/.test(id))return id;
+ id=Crypto.randomUUID().toLowerCase();
+ await SecureStore.setItemAsync(key,id,{keychainAccessible:SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY});
+ return id;
+}
+/** Push registration requires the existing TelegramNotify key and server-side
+ * Google service account configured outside WHMCS public files. FCM tokens
+ * aren't authentication credentials, but are never logged or shown to users.
+ */
+export async function registerWhatsAppPush(session:Session):Promise<'registered'|'unpaired'|'permission_denied'|'fcm_unavailable'>{
+ const key=telegramGatewayKeys.get(session);
+ if(!key)return 'unpaired';
+ if(Platform.OS!=='android')return 'fcm_unavailable';
+ const permission=await Notifications.getPermissionsAsync();
+ if(!permission.granted)return 'permission_denied';
+ const token=await Notifications.getDevicePushTokenAsync();
+ if(typeof token.data!=='string'||!token.data)return 'fcm_unavailable';
+ const device=await persistedDeviceId(session);
+ await telegramGatewayRequest(session,key,'register_push',{device_id:device,fcm_token:token.data});
+ return 'registered';
+}
+export async function whatsAppPushStatus(session:Session):Promise<{configured:boolean;registered_devices:number}>{
+ const key=telegramGatewayKeys.get(session);
+ if(!key)throw Error('اتصل بموديول TelegramNotify من صفحة واتساب أولًا.');
+ const data=await telegramGatewayRequest(session,key,'push_status');
+ return {configured:data.configured===true,registered_devices:Number(data.registered_devices)||0};
+}
+export async function unregisterWhatsAppPush(session:Session):Promise<void>{
+ const key=telegramGatewayKeys.get(session);
+ if(!key)return;
+ const device=await SecureStore.getItemAsync(deviceKey(session)).catch(()=>null);
+ if(!device)return;
+ await telegramGatewayRequest(session,key,'unregister_push',{device_id:device});
 }
