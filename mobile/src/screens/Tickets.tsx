@@ -3,7 +3,6 @@ import {ActivityIndicator,Alert,BackHandler,Pressable,ScrollView,TextInput,View}
 import type {Session,Ticket} from '../types';
 import {getApiRetryAfterMs} from '../lib/api';
 import {C} from '../theme';
-import {AdminAccess} from '../components/AdminAccess';
 import {adminSessionReady} from '../lib/adminSession';
 import {TicketAdminData,readTicketAdmin,returnTicketToAi} from '../lib/ticketAdmin';
 import {NewTicket} from '../components/NewTicket';
@@ -219,11 +218,11 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
      {(detail?.flag||selected.flag)?<Pill label={`Assigned #${detail?.flag||selected.flag}`} color={C.orange}/>:null}
     </View>
     {!demo?<View style={{gap:9}}>
-     {session&&!adminSessionReady(session)?<AdminAccess key={adminError} session={session} onReady={()=>void loadAdmin(selected.id)}/>:null}
+     
      {adminError?<T size={12} color={C.orange}>{adminError}</T>:null}
-     <Action secondary compact icon="robot-outline" label="إرجاع التذكرة إلى المساعد AI"
-      disabled={!detail||changing||!adminData?.aiNonce} onPress={returnToAi}/>
-     {session&&adminSessionReady(session)&&!adminData?.aiNonce?<T size={11} color={C.muted}>إجراء الإرجاع غير متاح لهذه التذكرة في الموديول الحالي.</T>:null}
+     {adminData?.aiNonce?<Action secondary compact icon="robot-outline" label="إرجاع التذكرة إلى المساعد AI"
+      disabled={!detail||changing} onPress={returnToAi}/>:null}
+     
      <View style={{flexDirection:'row-reverse',gap:9}}>
      <View style={{flex:1}}><Action secondary compact disabled={!detail||changing} label="تغيير الأولوية" onPress={()=>{setShowPriority(!showPriority);setShowStatus(false);}}/></View>
      <View style={{flex:1}}><Action secondary compact disabled={!detail||changing} label="تغيير الحالة" onPress={()=>{setShowStatus(!showStatus);setShowPriority(false);}}/></View>

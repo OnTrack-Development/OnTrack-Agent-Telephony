@@ -1,8 +1,10 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
-import {ActivityIndicator,Alert,AppState,BackHandler,Keyboard,KeyboardAvoidingView,Modal,Platform,Pressable,RefreshControl,ScrollView,StatusBar,View} from 'react-native';
+import {ActivityIndicator,Alert,AppState,BackHandler,Keyboard,KeyboardAvoidingView,Modal,Platform,Pressable,RefreshControl,ScrollView,StatusBar,TextInput,View} from 'react-native';
 import {C} from './src/theme';
 import {SafeAreaProvider,SafeAreaView,useSafeAreaInsets} from 'react-native-safe-area-context';
 import {UpdateGate} from './src/components/UpdateGate';
+import * as SplashScreen from 'expo-splash-screen';
+void SplashScreen.preventAutoHideAsync().catch(()=>{});
 import type {DemoState,Page,Session} from './src/types';
 import {seed} from './src/data/demo';
 import {connect as connectApi,loadSession,loadOverview,loadPage,getTicketThread,replyToTicket,signOut,getApiRetryAfterMs} from './src/lib/api';
@@ -43,28 +45,34 @@ function CommandApp(){
  const [keyboardVisible,setKeyboardVisible]=useState(false),[ticketDetailOpen,setTicketDetailOpen]=useState(false);
 
  const composerFocused=useRef(false);
- const focusedInput=useRef<number|null>(null);
- // Scroll the focused input into view, not the end of a long ticket thread.
- const keepComposerVisible=()=>{
-  const scroll=pageScroll.current;
-  if(!scroll)return;
-  if(focusedInput.current!==null)
-   scroll.scrollResponderScrollNativeHandleToKeyboard(focusedInput.current,48,true);
-  else scroll.scrollToEnd({animated:true});
+ const focusedText=useRef<any>(null),scrollOffset=useRef(0);
+ const keyboardY=useRef<number|null>(null);
+ const [keyboardPadding,setKeyboardPadding]=useState(0);
+ // On edge-to-edge Android, adjustResize alone may leave inputs under the IME.
+ const revealFocusedInput=()=>{
+  if(!composerFocused.current||keyboardY.current===null)return;
+  const input=focusedText.current||(TextInput as any).State?.currentlyFocusedInput?.();
+  if(!input?.measureInWindow)return;
+  input.measureInWindow((_x:number,y:number,_w:number,h:number)=>{
+   if(!composerFocused.current||keyboardY.current===null)return;
+   const overlap=y+h-(keyboardY.current-26);
+   if(overlap>0)pageScroll.current?.scrollTo({y:Math.max(0,scrollOffset.current+overlap),animated:true});
+  });
  };
- const revealComposer=(nativeInputHandle?:number)=>{
+ const revealComposer=()=>{
   composerFocused.current=true;
-  focusedInput.current=typeof nativeInputHandle==='number'&&nativeInputHandle>0?nativeInputHandle:null;
-  setTimeout(keepComposerVisible,140);
-  setTimeout(keepComposerVisible,430);
+  focusedText.current=(TextInput as any).State?.currentlyFocusedInput?.()||null;
+  for(const ms of [70,230,460,740])setTimeout(revealFocusedInput,ms);
  };
  useEffect(()=>{
-  const shown=Keyboard.addListener('keyboardDidShow',()=>{
-   setKeyboardVisible(true);
-   if(composerFocused.current)setTimeout(keepComposerVisible,70);
+  const shown=Keyboard.addListener('keyboardDidShow',event=>{
+   keyboardY.current=event.endCoordinates.screenY;
+   setKeyboardPadding(Math.max(200,event.endCoordinates.height+75));setKeyboardVisible(true);
+   if(composerFocused.current)for(const ms of [70,220,450])setTimeout(revealFocusedInput,ms);
   });
   const hidden=Keyboard.addListener('keyboardDidHide',()=>{
-   setKeyboardVisible(false);composerFocused.current=false;focusedInput.current=null;
+   keyboardY.current=null;setKeyboardPadding(0);setKeyboardVisible(false);
+   composerFocused.current=false;focusedText.current=null;
   });
   return()=>{shown.remove();hidden.remove();};
  },[]);
@@ -126,6 +134,7 @@ function CommandApp(){
  },[]);
  useEffect(()=>()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);},[]);
  useEffect(()=>{let active=true;loadSession().then(s=>{if(!active)return;setSession(s);setInitializing(false);if(s)void refresh(s);}).catch(()=>setInitializing(false));return()=>{active=false;};},[refresh]);
+ useEffect(()=>{if(!initializing)void SplashScreen.hideAsync().catch(()=>{});},[initializing]);
  useEffect(()=>{if(!session||demo)return;const listener=AppState.addEventListener('change',s=>{if(s==='active')void refresh(session);});return()=>listener.remove();},[session,demo,refresh]);
  useEffect(()=>{
   if(!session||demo)return;
@@ -239,10 +248,11 @@ function CommandApp(){
   {Object.keys(errors).length>0&&!demo?<Pressable style={{backgroundColor:'#483820',padding:9}} onPress={()=>{if(session)void refresh(session,true);}}><T color={C.orange} size={11}>{Object.values(errors).some(x=>/429/.test(x))?'WHMCS API مؤقتًا مشغول — إعادة تلقائية بعد انتهاء الانتظار':'تعذر تحميل بعض البيانات — اضغط لإعادة المحاولة'}</T></Pressable>:null}
   {error?<Pressable style={{backgroundColor:'#47212A',padding:11}} onPress={()=>session&&refresh(session)}><T color={C.orange} size={12}>تعذر التحديث: {error} — اضغط لإعادة المحاولة</T></Pressable>:null}
   <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}>
-   <ScrollView ref={pageScroll} key={page} keyboardDismissMode={Platform.OS==='ios'?'interactive':'on-drag'} keyboardShouldPersistTaps="handled"
+   <ScrollView ref={pageScroll} key={page} keyboardDismissMode={Platform.OS==='ios'?'interactive':'none'} keyboardShouldPersistTaps="handled"
     automaticallyAdjustKeyboardInsets={Platform.OS==='ios'}
-     onContentSizeChange={()=>{if(composerFocused.current&&keyboardVisible)keepComposerVisible();}}
-    contentContainerStyle={{padding:18,paddingBottom:keyboardVisible?Math.max(160,insets.bottom+90):Math.max(35,insets.bottom+24)}}
+     onScroll={event=>{scrollOffset.current=event.nativeEvent.contentOffset.y}} scrollEventThrottle={16}
+     onContentSizeChange={()=>{if(composerFocused.current&&keyboardVisible)revealFocusedInput();}}
+    contentContainerStyle={{padding:18,paddingBottom:keyboardVisible?keyboardPadding+insets.bottom+140:Math.max(35,insets.bottom+24)}}
     refreshControl={<RefreshControl refreshing={loading} tintColor={C.red} onRefresh={()=>page==='tickets'?setTicketReload(x=>x+1):session?void refresh(session,true):undefined}/>}>
     {body()}
    </ScrollView>

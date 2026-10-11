@@ -4,6 +4,7 @@ import {C} from '../theme';
 import type {DemoState,Page,Client,Session} from '../types';
 import {ClientProfile} from './ClientProfile';
 import {RecordDetails} from './RecordDetails';
+import {InvoiceActions} from '../components/InvoiceActions';
 import {Action,Card,Empty,Header,Icon,Pill,Search,T} from '../components/UI';
 
 const config:Record<string,{title:string;subtitle:string;icon:string;key:keyof DemoState}>={
@@ -62,7 +63,8 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
  const cfg=config[page], [q,setQ]=useState(''),[filter,setFilter]=useState<Filter>('focus');
  const [selectedClient,setSelectedClient]=useState<Client|null>(null);
  const [selected,setSelected]=useState<{id:number;[key:string]:any}|null>(null);
- useEffect(()=>{setSelected(null);setSelectedClient(null);setQ('');setFilter(page==='clients'?'all':'focus');},[page]);
+ const [invoiceSelection,setInvoiceSelection]=useState<number[]>([]);
+ useEffect(()=>{setSelected(null);setSelectedClient(null);setInvoiceSelection([]);setQ('');setFilter(page==='clients'?'all':'focus');},[page]);
  useEffect(()=>{
   if(!selected&&!selectedClient)return;
   const sub=BackHandler.addEventListener('hardwareBackPress',()=>{
@@ -77,6 +79,8 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
   return matchesRecordStatus(page,str(r.status),filter) &&
    [details.title,details.primary,details.secondary,str(r.id)].some(x=>x.toLowerCase().includes(q.trim().toLowerCase()));
  });
+ const selectedInvoices=page==='invoices'?records.filter((r:any)=>invoiceSelection.includes(Number(r.id))).map((r:any)=>({id:Number(r.id),status:str(r.status)})):[];
+ const toggleInvoice=(id:number)=>setInvoiceSelection(prev=>prev.includes(id)?prev.filter(n=>n!==id):prev.length<15?[...prev,id]:prev);
  if(!cfg)return null;
  if(page==='clients'&&selectedClient&&session)return <ClientProfile session={session} client={selectedClient} onBack={()=>setSelectedClient(null)}/>;
  if(selected)return <RecordDetails key={page+'-'+selected.id} page={page} item={selected}
@@ -98,6 +102,15 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
     <Icon name="refresh" color={C.blue} size={16}/><T color={C.blue} size={12}>تحديث</T>
    </Pressable>:null}
   </View>
+  {page==='invoices'&&session?<View style={{gap:9}}>
+   <View style={{flexDirection:'row-reverse',alignItems:'center',gap:8}}>
+    <View style={{flex:1}}><Action compact secondary icon="checkbox-multiple-marked-outline" label="تحديد المعروض (حتى 15)" onPress={()=>setInvoiceSelection(shown.slice(0,15).map((r:any)=>Number(r.id)))}/></View>
+    <View style={{flex:1}}><Action compact secondary label="إلغاء التحديد" onPress={()=>setInvoiceSelection([])}/></View>
+   </View>
+   {selectedInvoices.length?<InvoiceActions session={session} targets={selectedInvoices}
+    onChanged={()=>{setInvoiceSelection([]);onReload?.();}}/>:
+    <T size={11} color={C.muted}>حدد الفواتير لعرض الإجراءات، أو افتح فاتورة لإدارتها منفردة.</T>}
+  </View>:null}
   {loading?<ActivityIndicator color={C.red}/>:null}
   {error?<Card><T color={C.orange} size={12}>{error}</T></Card>:null}
   <View style={{gap:9}}>
@@ -111,6 +124,8 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
      }}
      style={{backgroundColor:C.surface,borderRadius:15,borderWidth:1,borderColor:C.stroke,padding:14,gap:7}}>
      <View style={{flexDirection:'row-reverse',gap:10,alignItems:'center',justifyContent:'space-between'}}>
+      {page==='invoices'?<Pressable accessibilityLabel={'تحديد فاتورة '+r.id} onPress={event=>{event.stopPropagation();toggleInvoice(Number(r.id));}}
+       style={{padding:7}}><Icon name={invoiceSelection.includes(Number(r.id))?'checkbox-marked':'checkbox-blank-outline'} color={C.red} size={24}/></Pressable>:null}
       <View style={{flex:1,gap:3}}>
        <T size={15} weight="800" lines={2}>{d.title}</T>
        {d.primary?<T size={12} color={C.muted} lines={2}>{d.primary}</T>:null}

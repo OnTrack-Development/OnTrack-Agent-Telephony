@@ -4,6 +4,8 @@ import type {Page,Session} from '../types';
 import {C} from '../theme';
 import {Action,Card,Header,Icon,Pill,T} from '../components/UI';
 import {callApi,listOf} from '../lib/api';
+import {InvoiceEditor} from '../components/InvoiceEditor';
+import {InvoiceActions} from '../components/InvoiceActions';
 
 type DetailPage='services'|'invoices'|'orders'|'domains';
 type RecordItem={id:number;status?:string;[key:string]:any};
@@ -126,6 +128,8 @@ export function RecordDetails({page,item,session,onBack,onChanged}:{
    </View>)}
    {!itemList(data,'items','item').length?<T color={C.muted} size={12}>لا توجد بنود متاحة</T>:null}
   </Card>:null}
+  {data&&type==='invoices'?<><InvoiceEditor session={session} invoice={data} invoiceId={item.id} onChanged={()=>{onChanged?.();void load();}}/>
+   <InvoiceActions session={session} targets={[{id:item.id,status:status}]} onChanged={()=>{onChanged?.();void load();}}/></>:null}
   {data&&(type==='invoices'||type==='services')?<Card style={{gap:11}}>
    <View style={{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between'}}>
     <T weight="800">ملاحظات {type==='invoices'?'الفاتورة':'الخدمة'}</T>

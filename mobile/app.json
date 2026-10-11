@@ -3,7 +3,7 @@
     "name": "WHMCS",
     "slug": "whmcs-admin",
     "scheme": "whmcsadmin",
-    "version": "0.3.14",
+    "version": "0.3.15",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -15,7 +15,7 @@
       "package": "com.ontrackdevelopment.command",
       "edgeToEdgeEnabled": true,
       "permissions": ["POST_NOTIFICATIONS"],
-      "versionCode": 25,
+      "versionCode": 26,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#081322"
@@ -28,7 +28,8 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-notifications"
+      "expo-notifications",
+      ["expo-splash-screen",{"backgroundColor":"#080D17","image":"./assets/icon.png","imageWidth":175,"dark":{"backgroundColor":"#080D17","image":"./assets/icon.png"}}]
     ],
     "icon": "./assets/icon.png"
   }

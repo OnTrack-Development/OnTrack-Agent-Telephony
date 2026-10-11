@@ -18,14 +18,16 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  const [rows,setRows]=useState<WaConversation[]>([]),[unread,setUnread]=useState(0),[selected,setSelected]=useState<WaConversation|null>(null);
  const [messages,setMessages]=useState<WaMessage[]>([]),[draft,setDraft]=useState(''),[busy,setBusy]=useState(false),[sending,setSending]=useState(false),[error,setError]=useState('');
  const [older,setOlder]=useState(true),[loadingOlder,setLoadingOlder]=useState(false),[windowAt,setWindowAt]=useState(Date.now()),[now,setNow]=useState(Date.now());
- const [directory,setDirectory]=useState('admin'),[openingBrowser,setOpeningBrowser]=useState(false);
+ const [directory,setDirectory]=useState('admin'),[directoryLoaded,setDirectoryLoaded]=useState(false),[openingBrowser,setOpeningBrowser]=useState(false);
  const [needsOtp,setNeedsOtp]=useState(false),[otp,setOtp]=useState('');
+ const autoAttempt=useRef('');
  const generation=useRef(0),readInFlight=useRef(false),sendInFlight=useRef(false),active=useRef(true),selectedId=useRef<number|null>(null);
  selectedId.current=selected?.id||null;
  const close=()=>{generation.current++;setSelected(null);setMessages([]);setDraft('');setError('');};
  useEffect(()=>{active.current=true;return()=>{active.current=false;generation.current++;};},[]);
  useEffect(()=>{let mounted=true;
-  if(session)void savedAdminDirectory(session).then(dir=>{if(mounted)setDirectory(dir);}).catch(()=>{});
+  setDirectoryLoaded(false);
+  if(session)void savedAdminDirectory(session).then(dir=>{if(mounted){setDirectory(dir);setDirectoryLoaded(true);}}).catch(()=>{if(mounted)setDirectoryLoaded(true);});
   return()=>{mounted=false;};
  },[session]);
  useEffect(()=>{onDetailChange?.(!!selected);return()=>onDetailChange?.(false);},[!!selected]);
@@ -95,6 +97,15 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   }catch(e){report(e);}
   finally{if(active.current)setBusy(false);}
  };
+ // Auto reuse saved Admin Legacy credentials; API keys cannot create browser cookies.
+ useEffect(()=>{
+  if(!session||demo||session.mode!=='admin'||!directoryLoaded||connected||needsOtp)return;
+  const key=session.baseUrl+'|'+session.username+'|'+directory;
+  if(autoAttempt.current===key)return;
+  autoAttempt.current=key;
+  const timer=setTimeout(()=>{void connectSaved();},300);
+  return()=>clearTimeout(timer);
+ },[session,demo,directoryLoaded,directory,connected,needsOtp]);
  const openBrowser=async()=>{
   if(!session||openingBrowser)return;
   setOpeningBrowser(true);setError('');

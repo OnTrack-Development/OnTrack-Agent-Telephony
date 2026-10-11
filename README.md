@@ -1,6 +1,6 @@
 # WHMCS Native Android App
 
-Current source: **v0.3.14, Android build 25**. Application ID remains `com.ontrackdevelopment.command` for upgrades using the existing release signature.
+Current source: **v0.3.15, Android build 26**. Application ID remains `com.ontrackdevelopment.command` for upgrades using the existing release signature.
 
 - Native React Native screens. No WebView, iframe or external-browser WhatsApp inbox.
 - WHMCS core operations use the existing `includes/api.php` API and server-side API permissions.
