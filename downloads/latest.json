@@ -6,5 +6,5 @@
   "sha256": "f52b3909bd7b8b18944cfc3ddf01e43147a62c0ccd964b6d50709e5f9e7af473",
   "size_bytes": 29972140,
   "release_notes": "WHMCS v0.3.27: WhatsApp detects supported TelegramNotify media operations before photo/document upload, displays actionable gateway update and PHP size-limit errors and offers image retry. Existing app lock preferences and FCM registration are preserved. Live media preview/send requires the existing TelegramNotify addon upgraded to v3.4.5. Background push additionally needs an external Firebase service-account key and running TelegramNotify cron.",
-  "published_at": "2026-10-11T19:16:38Z"
+  "published_at": "2026-10-11T20:12:45Z"
 }
