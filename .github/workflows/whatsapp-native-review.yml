@@ -4,6 +4,7 @@ on:
     branches:
       - fix/whatsapp-native-existing-addon-only-20261011
       - feat/whatsapp-from-installed-telegramnotify-20261011
+      - fix/telegramnotify-whmcs-index-route-20261011
   workflow_dispatch:
 permissions:
   contents: read
