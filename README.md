@@ -1,6 +1,6 @@
 # WHMCS Native Android App
 
-Current source: **v0.3.20, Android build 31**. Application ID remains `com.ontrackdevelopment.command` for upgrades using the existing release signature.
+Current source: **v0.3.21, Android build 32**. Application ID remains `com.ontrackdevelopment.command` for upgrades using the existing release signature.
 
 - Native React Native screens. No WebView, iframe or external-browser WhatsApp inbox.
 - WHMCS core operations use the existing `includes/api.php` API and server-side API permissions.
@@ -55,3 +55,8 @@ Device unlock is required before restoring access to WHMCS records. A mandatory 
 Financial figures are hidden by default (including unpaid invoice totals), with an eye button to reveal. Revenue uses WHMCS GetStats's official today/month/year/all-time formatted values. Invoice face-value totals use GetInvoices(status=Unpaid), stay unavailable when the response is incomplete, and are grouped by currency rather than summing mixed currencies. These figures aren't a remaining-balance ledger when partially paid invoices exist. No fake demo numbers are substituted.
 
 The native opening frame and in-app wordmark now share the same background, with no invented native splash logo. WhatsApp remains integrated externally via the existing WHMCS admin inbox and requires an authenticated admin session; its stable module is not modified. Device-level QA and real WhatsApp authentication checks are still needed.
+
+## v0.3.21 biometric onboarding and WhatsApp admin auth
+After the secure app PIN is confirmed, WHMCS asks once whether the operator wants to enable biometric/device authentication. Acceptance triggers an OS authentication request before the opt-in is saved; declining saves an explicit preference, with no repeated offer. Pre-existing v0.3.20 PIN users are offered this migration only after authenticating with their PIN. Once enabled, reopening WHMCS automatically opens the native biometric prompt, with an accessible fingerprint-first surface and a PIN fallback. Preferences remain encrypted locally and are never transmitted to the server. 
+
+Native WhatsApp: WHMCS External API Identifier/Secret do not grant a browser-admin cookie/session. The app now includes an explicit in-app administrator login path for accounts connected in API Credentials mode, without storing that additional admin password; it supports administrator OTP challenges. Existing Admin Legacy reuse still works and the WhatsApp Notifications addon remains an untouched black box. A real permitted WHMCS administrator session and addon permissions remain mandatory. Browser-only sessions cannot be transplanted into the app's isolated native cookie jar. If the WHMCS installation has WAF/browser challenges, staff may still need its external browser until an approved server-side companion authentication bridge exists.

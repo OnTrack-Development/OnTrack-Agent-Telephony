@@ -57,8 +57,10 @@ function load(name){
  const admin=load('adminSession'),wa=load('whatsapp'),ticket=load('ticketAdmin'),create=load('createTicket'),ai=load('aiSnapshot');
  const waScreen=fs.readFileSync(path.join(__dirname,'../mobile/src/screens/WhatsApp.tsx'),'utf8');
  assert.ok(waScreen.includes("session.mode==='admin'"),'Only Admin Legacy may use saved admin credentials in native inbox');
- assert.ok(waScreen.includes('loginAdmin(session,dir,session.username,session.password,otp.trim())'),'Admin Legacy must reuse saved credentials after selecting admin folder');
- assert.ok(!waScreen.includes('<AdminAccess'),'WhatsApp must not ask for a separate username and password');
+ assert.ok(waScreen.includes('loginAdmin(session,dir,username,password,otp.trim())'),'Native WhatsApp must use WHMCS administrator authentication');
+ assert.ok(!waScreen.includes('<AdminAccess'),'Old AdminAccess component must not return');
+ assert.ok(waScreen.includes("session.mode==='admin'?session.username:adminUser.trim()"),'API accounts may sign into the WHMCS admin session explicitly');
+ assert.ok(waScreen.includes("if(session.mode==='api')setAdminPass('')"),'Transient admin password must be cleared');
  assert.ok(waScreen.includes('saveAdminDirectory(session,dir)'),'Chosen folder must be persisted with a valid SecureStore key');
  assert.ok(waScreen.includes('checkedAdminUrl(baseUrl,dir'),'Browser fallback URL must be checked and same-origin');
  assert.ok(waScreen.includes('Linking.openURL(target)'),'Reuse browser administrator cookies, not API credentials');

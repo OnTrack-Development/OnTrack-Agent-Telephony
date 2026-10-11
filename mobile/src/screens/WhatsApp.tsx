@@ -21,6 +21,8 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  const [older,setOlder]=useState(true),[loadingOlder,setLoadingOlder]=useState(false),[windowAt,setWindowAt]=useState(Date.now()),[now,setNow]=useState(Date.now());
  const [directory,setDirectory]=useState('admin'),[directoryLoaded,setDirectoryLoaded]=useState(false),[openingBrowser,setOpeningBrowser]=useState(false);
  const [needsOtp,setNeedsOtp]=useState(false),[otp,setOtp]=useState('');
+ const [adminUser,setAdminUser]=useState(''),[adminPass,setAdminPass]=useState('');
+ const [connectStep,setConnectStep]=useState('');
  const autoAttempt=useRef('');
  const generation=useRef(0),readInFlight=useRef(false),sendInFlight=useRef(false),active=useRef(true),selectedId=useRef<number|null>(null);
  selectedId.current=selected?.id||null;
@@ -79,13 +81,19 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   * API mode has no browser-admin authentication: keep it on the existing browser
   * session instead of trying to impersonate a WHMCS admin with API keys. */
  const connectSaved=async()=>{
-  if(!session||session.mode!=='admin'||busy)return;
-  setBusy(true);setError('');
+  if(!session||busy)return;
+  setBusy(true);setError('');setConnectStep('جارٍ اختبار مسار إدارة WHMCS...');
   try{
    const dir=await saveAdminDirectory(session,directory);
-   if(!session.username||!session.password)
-    throw Error('بيانات Admin Legacy مش موجودة في اتصال WHMCS المحفوظ.');
-   const result=await loginAdmin(session,dir,session.username,session.password,otp.trim());
+   const username=session.mode==='admin'?session.username:adminUser.trim();
+   const password=session.mode==='admin'?session.password:adminPass;
+   if(!username||(!password&&!needsOtp))
+    throw Error('الواتساب يحتاج جلسة WHMCS Admin. أدخل حساب الموظف المصرح له.');
+   setConnectStep(needsOtp?'جارٍ تأكيد التحقق بخطوتين...':'جارٍ التحقق من صلاحيات حساب الإدارة...');
+   // API credentials never grant an admin browser session or WhatsApp addon access.
+   const result=await loginAdmin(session,dir,username,password,otp.trim());
+   // The additional administrator credential exists only during this login attempt.
+   setConnectStep(result.ready?'جارٍ جلب محادثات واتساب...':'في انتظار رمز التحقق');
    setNeedsOtp(result.needsOtp);
    if(result.ready){
     setNeedsOtp(false);setOtp('');
@@ -94,9 +102,9 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     const list=await listConversations(session);
     if(active.current){setRows(list.conversations);setUnread(list.unread);}
     void ingestNotificationSnapshot(session,'whatsapp',whatsAppNotifications(list.conversations));
-   }else if(active.current)setError('مطلوب رمز التحقق بخطوتين من حساب WHMCS المحفوظ.');
-  }catch(e){report(e);}
-  finally{if(active.current)setBusy(false);}
+   }else if(active.current)setError('اكتب رمز التحقق بخطوتين من حساب موظف WHMCS ثم اضغط تأكيد.');
+  }catch(e){report(e);setConnectStep('تعذر إتمام ربط جلسة الإدارة');}
+  finally{if(session.mode==='api')setAdminPass('');if(active.current)setBusy(false);}
  };
  // Auto reuse saved Admin Legacy credentials; API keys cannot create browser cookies.
  useEffect(()=>{
@@ -184,7 +192,9 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     <Icon name="shield-check-outline" color={C.green} size={27}/>
     <View style={{flex:1,gap:3}}>
      <T size={16} weight="800">اتصال WHMCS محفوظ</T>
-     <T size={12} color={C.muted}>المطلوب فقط تحديد مسار لوحة الإدارة الصحيح، من غير تسجيل بيانات دخول جديدة.</T>
+     <T size={12} color={C.muted}>{session.mode==='admin'
+      ?'سنستخدم جلسة WHMCS Admin المحفوظة بعد التأكد من صلاحيات الموظف.'
+      :'الربط بـAPI فقط لا يتيح محادثات الموديول. يلزم تسجيل دخول WHMCS Admin منفصل هنا لعرض واتساب داخل التطبيق.'}</T>
     </View>
    </View>
    <T weight="800" size={14}>مسار إدارة WHMCS</T>
@@ -194,14 +204,30 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     placeholderTextColor={C.muted} style={{color:C.text,textAlign:'left',
       backgroundColor:C.surface2,padding:13,borderColor:C.stroke,borderWidth:1,borderRadius:12}}/>
    <T color={C.muted} size={12}>اكتب اسم المجلد فقط (مثال: on) أو الصق رابط الإدارة اللي فاتحه في المتصفح.</T>
-   {session.mode==='admin'?<>
-    {needsOtp?<TextInput accessibilityLabel="رمز التحقق بخطوتين" value={otp} onChangeText={setOtp}
-      keyboardType="number-pad" placeholder="رمز التحقق" placeholderTextColor={C.muted}
-      style={{color:C.text,textAlign:'center',padding:13,backgroundColor:C.surface2,borderRadius:12}}/>:null}
-    <Action label={busy?'جارٍ الربط...':needsOtp?'تأكيد رمز التحقق':'ربط محادثات واتساب بالبيانات المحفوظة'}
-      icon="whatsapp" disabled={busy} onPress={()=>void connectSaved()}/>
-    <T size={11} color={C.muted}>هيستخدم اسم مستخدم وكلمة مرور Admin Legacy المحفوظين مسبقًا في نفس التطبيق. لو WHMCS طلب التحقق بخطوتين، هنطلب الرمز فقط.</T>
-   </>:<T size={12} color={C.muted}>اتصال API Credentials الحالي لا يفتح جلسة إدارة WHMCS. افتح Inbox بالمتصفح اللي مسجل فيه بالفعل، من غير إضافة أو بيانات دخول جديدة في التطبيق.</T>}
+   {session.mode==='api'&&!needsOtp?<View style={{gap:10}}>
+    <T weight="800" size={13}>بيانات موظف WHMCS Admin المصرح له</T>
+    <TextInput accessibilityLabel="اسم مستخدم إدارة WHMCS" value={adminUser}
+     onChangeText={setAdminUser} placeholder="اسم مستخدم الإدارة" autoCapitalize="none"
+     autoCorrect={false} placeholderTextColor={C.muted}
+     style={{color:C.text,textAlign:'left',backgroundColor:C.surface2,
+      padding:14,borderWidth:1,borderColor:C.stroke,borderRadius:13}}/>
+    <TextInput accessibilityLabel="كلمة مرور إدارة WHMCS" value={adminPass}
+     onChangeText={setAdminPass} placeholder="كلمة مرور الموظف" secureTextEntry
+     autoCapitalize="none" autoCorrect={false} placeholderTextColor={C.muted}
+     style={{color:C.text,textAlign:'left',backgroundColor:C.surface2,
+      padding:14,borderWidth:1,borderColor:C.stroke,borderRadius:13}}/>
+   </View>:null}
+   {needsOtp?<TextInput accessibilityLabel="رمز التحقق بخطوتين" value={otp}
+    onChangeText={setOtp} keyboardType="number-pad" secureTextEntry
+    placeholder="رمز التحقق من WHMCS" placeholderTextColor={C.muted}
+    style={{color:C.text,textAlign:'center',padding:13,backgroundColor:C.surface2,
+     borderWidth:1,borderColor:C.stroke,borderRadius:13}}/>:null}
+   <Action label={busy?'جارٍ الاتصال...':needsOtp?'تأكيد رمز التحقق':'اتصال صندوق واتساب داخل التطبيق'}
+    icon="whatsapp" disabled={busy||(session.mode==='api'&&!needsOtp&&(!adminUser.trim()||!adminPass))}
+    onPress={()=>void connectSaved()}/>
+   {connectStep?<T color={C.muted} size={11}>{connectStep}</T>:null}
+   <Notice tone="info" title="موديول واتساب لم يتغير"
+    message="مستخدم API لا يملك جلسة إدارة تلقائيًا. سيتم استخدام تسجيل دخول الموظف المصرح له فقط، دون تخزين كلمة المرور الإضافية أو تعديل الموديول."/>
    <Action secondary icon="open-in-new" label={openingBrowser?'جارٍ الفتح...':'فتح Inbox الموجود باستخدام المتصفح'}
     disabled={openingBrowser} onPress={()=>void openBrowser()}/>
    <T size={11} color={C.muted}>نفس موديول whatsapp_notifications الموجود، من غير Plugin جديد أو تعديل الويبهوك.</T>
