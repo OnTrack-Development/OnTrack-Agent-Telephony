@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.18",
-  "version_code": 29,
-  "filename": "WHMCS-v0.3.18-ARM64-release-signed.apk",
-  "sha256": "fa47271bdce49a93300200beffbb78b2e36a821a3ffd25df6746c1306541a249",
-  "size_bytes": 30397027,
-  "release_notes": "WHMCS v0.3.18: consistent enterprise-dark UI, redesigned in-app warnings and safe confirmations, refined action buttons and banners; FCM backend registration remains gated on verified WHMCS admin pairing.",
-  "published_at": "2026-10-11T04:35:46Z"
+  "version_name": "0.3.19",
+  "version_code": 30,
+  "filename": "WHMCS-v0.3.19-ARM64-release-signed.apk",
+  "sha256": "d8d55e8fbe54b4a07a8abcfb8c22e324da0c985e29c17877c3e07e62fda35dbe",
+  "size_bytes": 30409315,
+  "release_notes": "WHMCS v0.3.19: animated branded splash with accessible reduced-motion support, redesigned dashboard, tabs, client directory, ticket conversations, WhatsApp, connection and settings. FCM remote push requires verified employee enrollment and server credentials.",
+  "published_at": "2026-10-11T04:49:24Z"
 }
