@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.19",
-  "version_code": 30,
-  "filename": "WHMCS-v0.3.19-ARM64-release-signed.apk",
-  "sha256": "d8d55e8fbe54b4a07a8abcfb8c22e324da0c985e29c17877c3e07e62fda35dbe",
-  "size_bytes": 30409315,
-  "release_notes": "WHMCS v0.3.19: animated branded splash with accessible reduced-motion support, redesigned dashboard, tabs, client directory, ticket conversations, WhatsApp, connection and settings. FCM remote push requires verified employee enrollment and server credentials.",
-  "published_at": "2026-10-11T05:36:52Z"
+  "version_name": "0.3.20",
+  "version_code": 31,
+  "filename": "WHMCS-v0.3.20-ARM64-release-signed.apk",
+  "sha256": "2045390405d0122602a073ef0e3b6278a75d627686b69c793610099d72164022",
+  "size_bytes": 29442660,
+  "release_notes": "WHMCS v0.3.20: biometric or local PIN lock on every launch, default-hidden revenue/unpaid totals from native WHMCS stats, compact finance dashboard, typography-only splash, with the existing WhatsApp integration preserved. Actual module permissions and external FCM server setup must be completed separately.",
+  "published_at": "2026-10-11T05:56:59Z"
 }
