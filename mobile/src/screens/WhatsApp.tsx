@@ -7,7 +7,7 @@ import {C} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Empty,Header,Icon,Notice,Pill,Search,T} from '../components/UI';
 import {adminSessionReady,checkedAdminUrl,loginAdmin,loginWhatsAppWithBrowser,saveAdminDirectory,savedAdminDirectory,validateAdminDirectory} from '../lib/adminSession';
-import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,sendWhatsAppMedia,whatsappImageSource,UploadAsset,getWhatsAppRetryAfterMs,pairTelegramWhatsApp,restoreTelegramWhatsApp,forgetTelegramWhatsApp,telegramWhatsAppReady} from '../lib/whatsapp';
+import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,sendWhatsAppMedia,whatsappImageSource,UploadAsset,registerWhatsAppPush,unregisterWhatsAppPush,getWhatsAppRetryAfterMs,pairTelegramWhatsApp,restoreTelegramWhatsApp,forgetTelegramWhatsApp,telegramWhatsAppReady} from '../lib/whatsapp';
 import {ingestNotificationSnapshot,whatsAppNotifications} from '../lib/notifications';
 
 /** Browser cookies are distinct from API credentials. Reuse Chrome's *existing*
@@ -101,6 +101,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   setTelegramBusy(true);setError('');
   try{
    await pairTelegramWhatsApp(session,telegramKey);
+   void registerWhatsAppPush(session).catch(()=>{});
    const list=await listConversations(session);
    if(active.current){
     setTelegramKey('');setRows(list.conversations);setUnread(list.unread);
@@ -114,6 +115,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  };
  const disconnectTelegram=async()=>{
   if(!session)return;
+  await unregisterWhatsAppPush(session).catch(()=>{});
   await forgetTelegramWhatsApp(session);
   setConnected(false);setSelected(null);setMessages([]);setRows([]);setUnread(0);
   setConnectStep('تم فصل الربط. تقدر تولد رمز جديد من الموديول.');
