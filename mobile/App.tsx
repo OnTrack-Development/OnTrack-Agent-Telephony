@@ -166,6 +166,7 @@ function CommandApp(){
   void enableDeviceNotifications().catch(()=>{});
   const sections:SectionKey[]=['tickets','orders','clients','invoices','services','domains'];
   let index=0,busy=false;
+  // Foreground-only polling, with no server-side FCM delivery dependency.
   // Rotate WHMCS notifications every 30s while the app is open; a full cycle
   // takes about 3 minutes. Calls remain serial and obey the shared 429 cooldown.
   const tick=async()=>{
