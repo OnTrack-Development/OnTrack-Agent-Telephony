@@ -7,7 +7,7 @@ import {C} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Empty,Header,Icon,Notice,Pill,Search,T} from '../components/UI';
 import {adminSessionReady,checkedAdminUrl,loginAdmin,loginWhatsAppWithBrowser,saveAdminDirectory,savedAdminDirectory,validateAdminDirectory} from '../lib/adminSession';
-import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,sendWhatsAppMedia,whatsappImageSource,UploadAsset,registerWhatsAppPush,unregisterWhatsAppPush,getWhatsAppRetryAfterMs,pairTelegramWhatsApp,restoreTelegramWhatsApp,forgetTelegramWhatsApp,telegramWhatsAppReady} from '../lib/whatsapp';
+import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,sendWhatsAppMedia,whatsappImageSource,whatsAppMediaStatus,UploadAsset,registerWhatsAppPush,unregisterWhatsAppPush,getWhatsAppRetryAfterMs,pairTelegramWhatsApp,restoreTelegramWhatsApp,forgetTelegramWhatsApp,telegramWhatsAppReady} from '../lib/whatsapp';
 import {ingestNotificationSnapshot,whatsAppNotifications} from '../lib/notifications';
 
 /** Browser cookies are distinct from API credentials. Reuse Chrome's *existing*
@@ -209,7 +209,8 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   }catch(e){if(stamp===generation.current)report(e);}finally{if(active.current)setLoadingOlder(false);}
  };
  const validateAsset=(file:UploadAsset)=>{
-  if(!file.uri||!file.mimeType||!file.name||file.size<=0)throw Error('الملف المختار غير صالح.');
+  if(!file.uri||!file.mimeType||!file.name||file.size<=0)
+   throw Error('لم أقدر أحدد حجم الملف. جرّب اختيار ملف محفوظ على الجهاز أو صورة من المعرض.');
   const allowed=['image/jpeg','image/png','application/pdf','text/plain',
    'application/msword','application/vnd.ms-excel','application/vnd.ms-powerpoint',
    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -219,6 +220,8 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   if(file.size>16*1024*1024)throw Error('الملف أكبر من 16 ميجابايت.');
   if(file.mimeType.startsWith('image/')&&file.size>5*1024*1024)
    throw Error('صور واتساب حدها 5 ميجابايت.');
+  if(session&&!whatsAppMediaStatus(session).mediaSend)
+   throw Error('الصور والملفات تحتاج TelegramNotify v3.4.5 على WHMCS. تحديث APK وحده مش كفاية.');
   setAttachment(file);
  };
  const selectImage=async()=>{
@@ -459,6 +462,9 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     </Pressable>):!busy?<Empty icon="chat-outline" text={unreadOnly?'مفيش محادثات غير مقروءة':'لا توجد محادثات مطابقة للبحث'}/>:null}
    </Card>
   </>:null}
+  {selected&&session&&!whatsAppMediaStatus(session).mediaSend?
+   <Notice tone="warning" title="المرفقات مش مفعلة على السيرفر"
+    message="حدث نفس موديول TelegramNotify إلى v3.4.5. لسه تقدر تبعت رسايل نصية. مش محتاج موديول جديد."/>:null}
   {selected?<>
    {older&&messages.length?<Action secondary label={loadingOlder?'جارٍ جلب الأقدم...':'تحميل رسائل أقدم'}
     disabled={loadingOlder} onPress={()=>void more()}/>:null}
@@ -480,6 +486,13 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
           onError={()=>setImageFailures(prev=>({...prev,[message.id]:true}))}
           style={{height:185,width:240,maxWidth:'100%',borderRadius:13,backgroundColor:C.surface2}}/>
         </Pressable>:null}
+       {message.has_media&&['image','sticker'].includes(message.message_type)&&session
+         &&!whatsAppMediaStatus(session).imagePreview?
+        <T size={11} color={C.orange}>معاينة الصور تحتاج تحديث TelegramNotify على السيرفر إلى v3.4.5.</T>:null}
+       {message.has_media&&imageFailures[message.id]?<Pressable onPress={()=>
+         setImageFailures(prev=>({...prev,[message.id]:false}))} accessibilityRole="button">
+        <T size={11} color={C.orange}>تعذر تحميل الصورة من Meta. اضغط لإعادة المحاولة؛ الصور القديمة قد تنتهي صلاحيتها.</T>
+       </Pressable>:null}
        {message.body?<T size={13} style={{textAlign:'right'}}>{message.body}</T>:null}
        {!message.body&&!message.has_media?<T size={13}>رسالة {message.message_type}</T>:null}
        {message.has_media?<View style={{flexDirection:'row-reverse',alignItems:'center',gap:5}}>

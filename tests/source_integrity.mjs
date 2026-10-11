@@ -55,8 +55,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.26');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,37);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.27');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,38);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
@@ -211,3 +211,6 @@ assert.ok(get('mobile/src/lib/whatsapp.ts').includes('chat_send_media'));
 assert.ok(get('mobile/src/lib/lockPreferences.ts').includes('after_5m'));
 assert.ok(get('mobile/App.tsx').includes('shouldLockOnResume('));
 assert.ok(get('mobile/src/screens/Settings.tsx').includes('saveLockPolicy('));
+
+assert.ok(get('mobile/src/lib/whatsapp.ts').includes('whatsAppMediaStatus'));
+assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('v3.4.5'));

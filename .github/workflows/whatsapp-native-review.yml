@@ -7,6 +7,7 @@ on:
       - fix/telegramnotify-whmcs-index-route-20261011
       - fix/whatsapp-chat-fixed-composer-notifications-20261011
       - feat/wa-media-lock-preferences-20261011
+      - fix/whatsapp-media-capabilities-v0327-20261011
   workflow_dispatch:
 permissions:
   contents: read

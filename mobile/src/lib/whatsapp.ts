@@ -10,6 +10,19 @@ export interface WaWindow {open:boolean;expires_at:string|null;remaining_seconds
 export interface WaConversation {id:number;display_name:string;phone:string;client_id:number|null;last_message_preview:string;last_message_at:string;unread_count:number;window:WaWindow}
 export interface WaMessage {id:number;direction:'incoming'|'outgoing';body:string;message_type:string;status:string;timestamp:string;media_id:string;media_mime_type:string;media_filename:string;has_media:boolean;error_text:string}
 const telegramGatewayKeys=new WeakMap<Session,string>();
+const mediaCapabilities=new WeakMap<Session,{imagePreview:boolean;mediaSend:boolean;version:string}>();
+function storeMediaCapabilities(session:Session,status:any):void{
+ const caps=status?.capabilities;
+ mediaCapabilities.set(session,{
+  imagePreview:caps?.image_preview===true,
+  mediaSend:caps?.media_send===true,
+  version:String(status?.gateway_version||'legacy')
+ });
+}
+/** Media requires the *installed* TelegramNotify gateway, not merely an upgraded APK. */
+export function whatsAppMediaStatus(session:Session):{imagePreview:boolean;mediaSend:boolean;version:string}{
+ return mediaCapabilities.get(session)||{imagePreview:false,mediaSend:false,version:'unknown'};
+}
 const gatewayKey=(session:Session)=>
  'whmcs-tg-wa-v1-'+md5(validateBaseUrl(session.baseUrl)+'|'+(session.mode==='admin'?session.username:session.identifier));
 export const telegramWhatsAppReady=(session:Session)=>telegramGatewayKeys.has(session);
@@ -59,7 +72,8 @@ export async function restoreTelegramWhatsApp(session:Session):Promise<boolean>{
  const key=await SecureStore.getItemAsync(gatewayKey(session)).catch(()=>null);
  if(!key||!/^[a-f0-9]{64}$/.test(key))return false;
  try{
-  await telegramGatewayRequest(session,key,'status');
+  const gatewayStatus=await telegramGatewayRequest(session,key,'status');
+  storeMediaCapabilities(session,gatewayStatus);
   telegramGatewayKeys.set(session,key);
   return true;
  }catch{return false;}
@@ -68,13 +82,14 @@ export async function pairTelegramWhatsApp(session:Session,keyInput:string):Prom
  const key=keyInput.trim().toLowerCase();
  if(!/^[a-f0-9]{64}$/.test(key))
   throw Error('رمز الربط 64 حرفًا، بتاخده من إعدادات موديول TelegramNotify الحالي.');
- await telegramGatewayRequest(session,key,'status');
+ const gatewayStatus=await telegramGatewayRequest(session,key,'status');
+ storeMediaCapabilities(session,gatewayStatus);
  await SecureStore.setItemAsync(gatewayKey(session),key,
   {keychainAccessible:SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY});
  telegramGatewayKeys.set(session,key);
 }
 export async function forgetTelegramWhatsApp(session:Session):Promise<void>{
- telegramGatewayKeys.delete(session);
+ telegramGatewayKeys.delete(session);mediaCapabilities.delete(session);
  await SecureStore.deleteItemAsync(gatewayKey(session));
 }
 
@@ -158,7 +173,7 @@ export async function sendWhatsAppText(session:Session,id:number,text:string):Pr
 export function whatsappImageSource(session:Session,conversationId:number,message:WaMessage):
  {uri:string;headers:{Authorization:string}}|null{
  const key=telegramGatewayKeys.get(session);
- if(!key||!Number.isSafeInteger(conversationId)||!Number.isSafeInteger(message.id)
+ if(!key||!whatsAppMediaStatus(session).imagePreview||!Number.isSafeInteger(conversationId)||!Number.isSafeInteger(message.id)
     ||!message.has_media||!['image','sticker'].includes(message.message_type))return null;
  const endpoint=validateBaseUrl(session.baseUrl)
   +'/index.php?m=telegramnotify&route=mobile_whatsapp';
@@ -168,7 +183,11 @@ export function whatsappImageSource(session:Session,conversationId:number,messag
 export type UploadAsset={uri:string;name:string;mimeType:string;size:number};
 export async function sendWhatsAppMedia(session:Session,conversationId:number,asset:UploadAsset,caption=''):Promise<void>{
  const key=telegramGatewayKeys.get(session);
- if(!key)throw Error('إرسال المرفقات يحتاج ربط واتساب عبر TelegramNotify v3.4.3.');
+ if(!key)throw Error('اربط واتساب عبر TelegramNotify أولًا.');
+ const status=await telegramGatewayRequest(session,key,'status');
+ storeMediaCapabilities(session,status);
+ if(!whatsAppMediaStatus(session).mediaSend)
+  throw Error('TelegramNotify على سيرفر WHMCS قديم. حدّث نفس الموديول إلى v3.4.5 لإرسال الصور والملفات. تحديث التطبيق وحده مش كفاية.');
  if(!Number.isSafeInteger(conversationId)||conversationId<1
     ||!asset.uri||!asset.name||!asset.mimeType||!Number.isFinite(asset.size)||asset.size<=0)
   throw Error('الملف غير صالح.');
@@ -194,6 +213,8 @@ export async function sendWhatsAppMedia(session:Session,conversationId:number,as
  try{json=await result.json();}catch{
   throw Error('نتيجة إرسال المرفق غير مؤكدة؛ السيرفر لم يرجع تأكيدًا صالحًا. راجع المحادثة قبل الإعادة.');
  }
+ if(result.status===413)throw Error('السيرفر رفض حجم الملف. راجع إعدادات PHP upload_max_filesize وpost_max_size على WHMCS.');
+ if(result.status===404)throw Error('مسار المرفقات غير موجود. حدّث TelegramNotify على WHMCS إلى v3.4.5.');
  if(!result.ok||json?.status!=='success')throw Error(
   result.status>=500?'نتيجة إرسال المرفق غير مؤكدة. راجع سجل المحادثة قبل إعادة الإرسال.':
   String(json?.message||'تعذر إرسال المرفق إلى واتساب.'));
