@@ -1,6 +1,7 @@
 import type {Session} from '../types';
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Notifications from 'expo-notifications';
 import {Platform} from 'react-native';
 import {md5} from 'js-md5';
@@ -180,6 +181,60 @@ export function whatsappImageSource(session:Session,conversationId:number,messag
  return {uri:endpoint+'&conversation_id='+conversationId+'&media_message_id='+message.id,
   headers:{Authorization:'Bearer '+key}};
 }
+/**
+ * Android native Image can swallow authentication/HTTP errors. Download to
+ * private, short-lived app cache with the pairing key in a request HEADER,
+ * check HTTP + Content-Type, then render from file://. Never place bearer
+ * tokens in URLs, logs, JS image data URIs or public storage.
+ */
+export async function downloadWhatsAppImage(session:Session,conversationId:number,message:WaMessage):Promise<string>{
+ const source=whatsappImageSource(session,conversationId,message);
+ if(!source)throw Error('لا يوجد رابط صورة مصرح به. تأكد من تحديث TelegramNotify.');
+ const cacheRoot=FileSystem.cacheDirectory;
+ if(!cacheRoot)throw Error('تعذر الوصول لمساحة التخزين المؤقتة الآمنة.');
+ const uri=cacheRoot+'wa-private-'+conversationId+'-'+message.id+'-'+Date.now()+'.img';
+ try{
+  const response=await FileSystem.downloadAsync(source.uri,uri,{
+   headers:{...source.headers,Accept:'image/jpeg,image/png,image/webp,application/json'}
+  });
+  if(response.status<200||response.status>=300){
+   let code='',upstream=0;
+   try{
+    const info=await FileSystem.getInfoAsync(uri);
+    if(info.exists&&info.size<12000){
+     const data=JSON.parse(await FileSystem.readAsStringAsync(uri));
+     code=String(data.code||'');
+     upstream=Number(data.upstream_status)||0;
+    }
+   }catch{}
+   if(response.status===401)throw Error('انتهى أو اتلغى رمز ربط TelegramNotify. أعد الربط من واتساب.');
+   if(response.status===403)throw Error('ليس لديك صلاحية الوصول لهذه الصورة من WHMCS.');
+   if(code==='media_not_found_or_expired')
+    throw Error('Meta رجّعت '+upstream+' للصورة. المرفق غير متاح الآن أو انتهت صلاحيته.');
+   if(code==='meta_permission_denied')
+    throw Error('Meta رفضت قراءة الصورة ('+upstream+'). راجع صلاحيات رقم واتساب وتوكن Cloud API.');
+   if(code==='meta_media_download_failed')
+    throw Error('Meta سمحت بقراءة بيانات الصورة لكن تحميل الملف فشل ('+upstream+'). افحص اتصال السيرفر بـMeta CDN.');
+   throw Error('تحميل صورة واتساب فشل برمز HTTP '+response.status+'؛ جرّب تحديث TelegramNotify v3.4.6.');
+  }
+  const contentType=String(response.headers?.['content-type']||
+   response.headers?.['Content-Type']||'').toLowerCase();
+  if(!/^image\/(jpeg|png|webp)(?:\s*;|$)/.test(contentType))
+   throw Error('السيرفر لم يرجع صورة صالحة (Content-Type: '+contentType.slice(0,35)+').');
+  const info=await FileSystem.getInfoAsync(uri);
+  if(!info.exists||info.size===0||info.size>5*1024*1024)
+   throw Error('الصورة غير متاحة أو حجمها غير مدعوم.');
+  return uri;
+ }catch(error){
+  await FileSystem.deleteAsync(uri,{idempotent:true}).catch(()=>{});
+  throw error;
+ }
+}
+export async function clearWhatsAppImage(uri:string):Promise<void>{
+ if(FileSystem.cacheDirectory&&uri.startsWith(FileSystem.cacheDirectory+'wa-private-'))
+  await FileSystem.deleteAsync(uri,{idempotent:true});
+}
+
 export type UploadAsset={uri:string;name:string;mimeType:string;size:number};
 export async function sendWhatsAppMedia(session:Session,conversationId:number,asset:UploadAsset,caption=''):Promise<void>{
  const key=telegramGatewayKeys.get(session);
@@ -187,35 +242,45 @@ export async function sendWhatsAppMedia(session:Session,conversationId:number,as
  const status=await telegramGatewayRequest(session,key,'status');
  storeMediaCapabilities(session,status);
  if(!whatsAppMediaStatus(session).mediaSend)
-  throw Error('TelegramNotify على سيرفر WHMCS قديم. حدّث نفس الموديول إلى v3.4.5 لإرسال الصور والملفات. تحديث التطبيق وحده مش كفاية.');
+  throw Error('TelegramNotify على سيرفر WHMCS قديم. حدّث نفس الموديول إلى v3.4.6 لإرسال الصور والملفات. تحديث التطبيق وحده مش كفاية.');
  if(!Number.isSafeInteger(conversationId)||conversationId<1
     ||!asset.uri||!asset.name||!asset.mimeType||!Number.isFinite(asset.size)||asset.size<=0)
   throw Error('الملف غير صالح.');
  if(asset.size>16*1024*1024)
   throw Error('حجم الملف أكبر من الحد المسموح في التطبيق (16 ميجابايت).');
  const endpoint=validateBaseUrl(session.baseUrl)+'/index.php?m=telegramnotify&route=mobile_whatsapp';
- const body=new FormData();
- body.append('action','chat_send_media');
- body.append('conversation_id',String(conversationId));
- body.append('caption',caption.slice(0,1024));
- body.append('file',{uri:asset.uri,name:asset.name.replace(/[\\/\x00-\x1f]/g,'_').slice(0,170),
-  type:asset.mimeType} as any);
- const controller=new AbortController();
- const timer=setTimeout(()=>controller.abort(),95000);
- let result:Response;
+ // Native multipart upload is more reliable than JS FormData for Android
+ // file:// URIs. Important: let native code set the boundary itself.
+ let result:{status:number;body:string};
  try{
-  result=await fetch(endpoint,{method:'POST',headers:{'Accept':'application/json',
-   'Authorization':'Bearer '+key},body,signal:controller.signal});
+  const upload=FileSystem.createUploadTask(endpoint,asset.uri,{
+   httpMethod:'POST',
+   uploadType:FileSystem.FileSystemUploadType.MULTIPART,
+   fieldName:'file',
+   mimeType:asset.mimeType,
+   headers:{'Accept':'application/json','Authorization':'Bearer '+key},
+   parameters:{
+    action:'chat_send_media',
+    conversation_id:String(conversationId),
+    caption:caption.slice(0,1024)
+   }
+  });
+  const timer=setTimeout(()=>{void upload.cancelAsync().catch(()=>{});},95000);
+  try{
+   const response=await upload.uploadAsync();
+   if(!response)throw Error('cancelled');
+   result={status:response.status,body:response.body};
+  }finally{clearTimeout(timer);}
  }catch{
-  throw Error('نتيجة إرسال المرفق غير مؤكدة بسبب انقطاع الاتصال. راجع المحادثة قبل المحاولة مرة أخرى.');
- }finally{clearTimeout(timer);}
+  throw Error('نتيجة إرسال الصورة أو الملف غير مؤكدة. راجع المحادثة قبل إعادة الإرسال؛ ممكن Meta تكون استلمته.');
+ }
  let json:any;
- try{json=await result.json();}catch{
+ try{json=JSON.parse(result.body);}catch{
   throw Error('نتيجة إرسال المرفق غير مؤكدة؛ السيرفر لم يرجع تأكيدًا صالحًا. راجع المحادثة قبل الإعادة.');
  }
  if(result.status===413)throw Error('السيرفر رفض حجم الملف. راجع إعدادات PHP upload_max_filesize وpost_max_size على WHMCS.');
- if(result.status===404)throw Error('مسار المرفقات غير موجود. حدّث TelegramNotify على WHMCS إلى v3.4.5.');
- if(!result.ok||json?.status!=='success')throw Error(
+ if(result.status===404)throw Error('مسار المرفقات غير موجود. حدّث TelegramNotify على WHMCS إلى v3.4.6.');
+ if(result.status<200||result.status>=300||json?.status!=='success')throw Error(
   result.status>=500?'نتيجة إرسال المرفق غير مؤكدة. راجع سجل المحادثة قبل إعادة الإرسال.':
   String(json?.message||'تعذر إرسال المرفق إلى واتساب.'));
 }
