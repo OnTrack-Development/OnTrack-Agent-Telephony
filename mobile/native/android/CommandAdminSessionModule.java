@@ -1,6 +1,15 @@
 package com.ontrackdevelopment.command.update;
 
 import com.facebook.react.bridge.*;
+import android.app.Activity;
+import android.app.Dialog;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.CookieManager;
+import android.view.ViewGroup;
+import android.view.Window;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
@@ -11,6 +20,7 @@ import java.util.concurrent.*;
 public final class CommandAdminSessionModule extends ReactContextBaseJavaModule {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Map<String,CookieManager> jars = new HashMap<>();
+    private final Set<String> webAuthorized = Collections.synchronizedSet(new HashSet<>());
     private static final int MAX_RESPONSE = 2 * 1024 * 1024;
     public CommandAdminSessionModule(ReactApplicationContext ctx) { super(ctx); }
     @Override public String getName() { return "CommandAdminSession"; }
@@ -48,6 +58,88 @@ public final class CommandAdminSessionModule extends ReactContextBaseJavaModule 
         return url;
     }
 
+
+    /**
+     * Only the built-in WebView is used for administrator sign-in/2FA.
+     * No new WHMCS server module, no Meta token and no administrator password in JS.
+     * On success the existing native Inbox UI calls whatsapp_notifications/ajax.php.
+     */
+    @ReactMethod public void authorizeInWebView(String key, String base, String directory, Promise promise) {
+        final URI inbox;
+        try {
+            inbox = checked(base,directory,directory + "/addonmodules.php?module=whatsapp_notifications&action=chat");
+        } catch (Exception e) {
+            promise.reject("INVALID_ROUTE","رابط WHMCS أو مجلد الإدارة غير صالح."); return;
+        }
+        final Activity activity = getCurrentActivity();
+        if (activity == null) {
+            promise.reject("NO_ACTIVITY","لا يمكن فتح تسجيل دخول WHMCS الآن."); return;
+        }
+        activity.runOnUiThread(() -> {
+            final AtomicBoolean finished = new AtomicBoolean(false);
+            final AtomicBoolean triedLanding = new AtomicBoolean(false);
+            final Dialog dialog = new Dialog(activity);
+            final WebView browser = new WebView(activity);
+            browser.getSettings().setJavaScriptEnabled(true);
+            browser.getSettings().setDomStorageEnabled(true);
+            // Cookies stay within the Android app's WebView cookie store.
+            CookieManager.getInstance().setAcceptCookie(true);
+            browser.setWebViewClient(new WebViewClient() {
+                @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                    try {
+                        URI next = new URI(request.getUrl().toString());
+                        URI root = new URI(base + "/");
+                        return !("https".equals(next.getScheme())
+                            && root.getAuthority().equals(next.getAuthority())
+                            && next.getRawPath() != null && next.getRawPath().startsWith(root.getRawPath()));
+                    } catch (Exception e) { return true; }
+                }
+                @Override public void onPageFinished(WebView view, String url) {
+                    if (finished.get()) return;
+                    if (url.contains("/" + directory + "/addonmodules.php")
+                        && url.contains("module=whatsapp_notifications")) {
+                        view.evaluateJavascript(
+                            "(function(){return typeof window.waCSRFToken==='string' && /^[a-f0-9]{32,128}$/i.test(window.waCSRFToken)})()",
+                            result -> {
+                                if (!"true".equals(result) || finished.get()) return;
+                                String cookie = CookieManager.getInstance().getCookie(inbox.toString());
+                                if (cookie == null || cookie.trim().isEmpty()) return;
+                                if (finished.compareAndSet(false,true)) {
+                                    webAuthorized.add(key);
+                                    promise.resolve(true);
+                                    dialog.dismiss();
+                                    browser.destroy();
+                                }
+                            });
+                    } else if (!triedLanding.get() &&
+                        (url.contains("/" + directory + "/index.php") || url.endsWith("/" + directory + "/"))) {
+                        // Some WHMCS installations redirect successful logins to their dashboard
+                        // instead of returning to the requested Inbox. Try the Inbox only once.
+                        view.evaluateJavascript(
+                            "(function(){return !document.querySelector('input[type=password]') && " +
+                            "!!document.querySelector('a[href*=logout],a[href*=addonmodules]')})()",
+                            result -> {
+                                if ("true".equals(result) && !finished.get()
+                                    && triedLanding.compareAndSet(false,true)) view.loadUrl(inbox.toString());
+                            });
+                    }
+                }
+            });
+            dialog.setContentView(browser,new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
+            dialog.setOnCancelListener(d -> {
+                if (finished.compareAndSet(false,true))
+                    promise.reject("LOGIN_CANCELLED","تم إلغاء تسجيل الدخول إلى WHMCS.");
+                browser.destroy();
+            });
+            dialog.show();
+            Window window = dialog.getWindow();
+            if (window != null) window.setLayout(
+                ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT);
+            browser.loadUrl(inbox.toString());
+        });
+    }
+
     @ReactMethod public void request(String key, String base, String directory, String target,
                                      String method, ReadableMap fields, ReadableMap headers, Promise promise) {
         // Snapshot React maps before moving to worker; no credential logging.
@@ -79,6 +171,13 @@ public final class CommandAdminSessionModule extends ReactContextBaseJavaModule 
                     conn.setRequestProperty("Referer",base+"/"+directory+"/index.php");
                     for (Map.Entry<String,List<String>> header : jar.get(url,Collections.emptyMap()).entrySet())
                         if (!header.getValue().isEmpty()) conn.setRequestProperty(header.getKey(),String.join("; ",header.getValue()));
+                    // Use the cookies from a completed, same-origin WHMCS browser login.
+                    // The native request still passes the original whitelist and same-origin checks.
+                    if (webAuthorized.contains(key)) {
+                        String browserCookie = CookieManager.getInstance().getCookie(url.toString());
+                        if (browserCookie != null && !browserCookie.isEmpty())
+                            conn.setRequestProperty("Cookie",browserCookie);
+                    }
                     for (Map.Entry<String,Object> header : extraHeaders.entrySet()) {
                         if (!Arrays.asList("X-WA-CSRF","X-AISA-ADMIN-TOKEN","X-Requested-With").contains(header.getKey()))
                             throw new IllegalArgumentException("Unsupported header");
@@ -121,7 +220,7 @@ public final class CommandAdminSessionModule extends ReactContextBaseJavaModule 
         });
     }
     @ReactMethod public void resetAll(Promise promise) {
-        executor.execute(() -> { for (CookieManager jar : jars.values()) jar.getCookieStore().removeAll(); jars.clear(); promise.resolve(null); });
+        executor.execute(() -> { for (CookieManager jar : jars.values()) jar.getCookieStore().removeAll(); jars.clear(); webAuthorized.clear(); promise.resolve(null); });
     }
-    @Override public void invalidate() { executor.shutdownNow(); jars.clear(); super.invalidate(); }
+    @Override public void invalidate() { executor.shutdownNow(); jars.clear(); webAuthorized.clear(); super.invalidate(); }
 }
