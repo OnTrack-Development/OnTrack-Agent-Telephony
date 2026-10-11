@@ -5,7 +5,6 @@ on:
     paths:
       - 'mobile/**'
       - 'tests/**'
-      - '.github/workflows/debug-apk.yml'
   workflow_dispatch:
 permissions:
   contents: write
@@ -151,3 +150,14 @@ jobs:
             --title "WHMCS v0.3.14 (Android build 25)" \
             --notes "$NOTES"
           echo "Signed APK published; APK release published after successful workflow completion."
+      # GitHub-hosted release publishing uses GITHUB_TOKEN; trigger the downstream
+      # staging workflow explicitly rather than relying solely on workflow_run.
+      - name: Dispatch signed APK to live download website
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run stage-whmcs-release.yml --ref main -R OnTrack-Development/OnTrack-Agent-Telephony
+          echo "Requested downstream staging; its own job verifies the live APK and manifest."
+
