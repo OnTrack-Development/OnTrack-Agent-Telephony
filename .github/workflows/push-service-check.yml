@@ -1,0 +1,30 @@
+name: Check WHMCS Push Gateway
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/api/push/**'
+      - 'web/app/push*.php'
+      - 'tests/push_runtime_test.php'
+      - 'integrations/whmcs/includes/hooks/ontrack_push_notifications.php'
+      - '.github/workflows/push-service-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, sodium, openssl, curl
+          coverage: none
+      - name: PHP syntax and private gateway contracts
+        run: |
+          set -euo pipefail
+          find web/app web/api/push integrations/whmcs/includes/hooks -name '*.php' -print0 | xargs -0 -n1 php -l
+          php tests/push_runtime_test.php
+          ! grep -rE 'BEGIN PRIVATE KEY|private_key_id' web/app web/api/push
