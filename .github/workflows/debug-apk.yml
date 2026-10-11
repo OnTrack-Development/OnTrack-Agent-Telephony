@@ -88,6 +88,11 @@ jobs:
         if: env.ANDROID_SIGNING_PASSWORD != ''
         shell: bash
         run: |
+          set -euo pipefail
+          # Expo's Firebase config plugin may leave a final apply-plugin statement
+          # without a trailing newline. Never glue 'android {' onto that statement:
+          # Groovy can parse it as an android() method call on apply's null result.
+          printf '\n' >> mobile/android/app/build.gradle
           cat >> mobile/android/app/build.gradle <<'GRADLE'
           android {
               signingConfigs {
