@@ -72,6 +72,8 @@ assert.ok(!Object.prototype.hasOwnProperty.call(firebase,'private_key'));
 assert.ok(get('mobile/src/lib/notifications.ts').includes('Notifications.getDevicePushTokenAsync()'));
 assert.ok(get('mobile/src/screens/Settings.tsx').includes('verifyNativeFcmSetup'));
 assert.ok(!get('mobile/src/lib/notifications.ts').includes('console.log(token'));
+assert.ok(get('.github/workflows/debug-apk.yml').includes("printf '\\n' >> mobile/android/app/build.gradle"),
+ 'Signing Gradle block must start on a fresh line after Firebase plugin');
 console.log('PASS: Firebase Android app client config, token readiness without disclosing device token or backend secrets');
 console.log('PASS: source integrity plus ticket external ID, pagination, safe areas, Android Back, version increment and demo isolation');
 
