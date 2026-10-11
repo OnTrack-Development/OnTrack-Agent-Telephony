@@ -6,5 +6,5 @@
   "sha256": "299c8fdd60ae70b0b9dfeb519a92f5b8c8bb7eec996423c6165f67e2f3ef3740",
   "size_bytes": 29467236,
   "release_notes": "WHMCS v0.3.23: optional WhatsApp conversation gateway via the already installed TelegramNotify v3.4.1 addon, secure admin-issued pairing key, read/reply in app with unchanged WhatsApp webhook and Meta service. Update existing TelegramNotify files on the WHMCS server before enabling the new pairing route; live operator validation required.",
-  "published_at": "2026-10-11T16:05:45Z"
+  "published_at": "2026-10-11T16:44:33Z"
 }
