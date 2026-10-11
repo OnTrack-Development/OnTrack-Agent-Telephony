@@ -35,7 +35,7 @@ function encodeLine(p:Record<string,string|number|boolean>,prefix:string,index:n
  if(!desc.trim()||desc.trim().length>2000)throw Error('وصف بند الفاتورة مطلوب وأقصاه 2000 حرف.');
  p[prefix+'description['+index+']']=desc.trim();
  p[prefix+'amount['+index+']']=amount(value,'قيمة البند');
- p[prefix+'taxed['+index+']]=taxed?1:0;
+ p[prefix+'taxed['+index+']']=taxed?1:0;
 }
 export function buildInvoiceUpdate(id:number,previous:any,draft:InvoiceDraft,lines:InvoiceLine[]):Record<string,string|number|boolean>{
  if(!positiveId(id)||!exactInvoice(previous,id))throw Error('لم يتم التحقق من الفاتورة ومالكها.');
