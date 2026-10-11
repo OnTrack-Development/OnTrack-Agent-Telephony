@@ -1,15 +1,86 @@
-import React from 'react';
+import React,{useEffect,useState} from 'react';
+import * as SecureStore from 'expo-secure-store';
+import * as LocalAuthentication from 'expo-local-authentication';
 import {DeviceEventEmitter,View} from 'react-native';
 import {Alert} from '../components/Feedback';
 import {C} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Header,Icon,ItemRow,Notice,Pill,Section,T} from '../components/UI';
 import {enableDeviceNotifications,verifyNativeFcmSetup,testDeviceNotification} from '../lib/notifications';
+import {LockPolicy,readLockPolicy,saveLockPolicy} from '../lib/lockPreferences';
+import {biometricChoiceKey} from '../components/AppLock';
+import {restoreTelegramWhatsApp,registerWhatsAppPush,whatsAppPushStatus} from '../lib/whatsapp';
 
-export function Settings({session,demo,onLogout,onLock,capabilities,errors}:{
- session:Session|null;demo:boolean;onLogout:()=>void;onLock?:()=>void;
+export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabilities,errors}:{
+ session:Session|null;demo:boolean;onLogout:()=>void;onLock?:()=>void;onLockPolicyChange?:(policy:LockPolicy)=>void;
  capabilities:Record<string,boolean>;errors:Record<string,string>;
 }){
+ const [policy,setPolicy]=useState<LockPolicy>('after_5m'),[lockSaving,setLockSaving]=useState(false);
+ const [biometric,setBiometric]=useState(false),[bioBusy,setBioBusy]=useState(false);
+ useEffect(()=>{
+  if(!session)return;
+  let active=true;
+  void readLockPolicy(session.baseUrl).then(p=>{if(active)setPolicy(p);}).catch(()=>{});
+  void SecureStore.getItemAsync(biometricChoiceKey(session.baseUrl)).then(v=>{if(active)setBiometric(v==='enabled');}).catch(()=>{});
+  return()=>{active=false;};
+ },[session?.baseUrl]);
+ const applyPolicy=async(value:LockPolicy)=>{
+  if(!session||lockSaving)return;
+  const execute=async()=>{
+   setLockSaving(true);
+   try{
+    await saveLockPolicy(session.baseUrl,value);
+    setPolicy(value);onLockPolicyChange?.(value);
+   }catch{Alert.alert('تعذر حفظ اختيار القفل','لم تتغير إعدادات القفل.');}
+   finally{setLockSaving(false);}
+  };
+  if(value==='off'){
+   Alert.alert('إيقاف قفل التطبيق',
+    'بيانات WHMCS هتبقى متاحة لأي شخص يفتح موبايلك وهو مفتوح. تسجيل الدخول إلى WHMCS نفسه هيفضل مؤمّن. تأكد إنك عايز تعطّل قفل التطبيق.',
+    [{text:'إلغاء',style:'cancel'},{text:'إيقاف قفل التطبيق',style:'destructive',onPress:()=>void execute()}]);
+  }else await execute();
+ };
+ const setBiometricChoice=async(next:boolean)=>{
+  if(!session||bioBusy)return;
+  setBioBusy(true);
+  try{
+   if(next){
+    const supported=await LocalAuthentication.hasHardwareAsync()&&await LocalAuthentication.isEnrolledAsync();
+    if(!supported)throw Error('البصمة غير متوفرة أو مش متسجلة على الجهاز.');
+    const auth=await LocalAuthentication.authenticateAsync({promptMessage:'تفعيل الدخول بالبصمة لتطبيق WHMCS'});
+    if(!auth.success)return;
+   }
+   await SecureStore.setItemAsync(biometricChoiceKey(session.baseUrl),next?'enabled':'disabled',{
+    keychainAccessible:SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY});
+   setBiometric(next);
+  }catch(e){Alert.alert('البصمة',e instanceof Error?e.message:'تعذر تغيير إعداد البصمة.');}
+  finally{setBioBusy(false);}
+ };
+ const enableBackgroundPush=async()=>{
+  if(!session)return;
+  try{
+   const ok=await enableDeviceNotifications();
+   if(!ok){Alert.alert('الإشعارات متوقفة','اسمح بإشعارات WHMCS من إعدادات Android أولًا.');return;}
+   const paired=await restoreTelegramWhatsApp(session);
+   if(!paired)throw Error('ربط واتساب عبر TelegramNotify مطلوب أولًا.');
+   const result=await registerWhatsAppPush(session);
+   if(result!=='registered')throw Error(result==='fcm_unavailable'?
+    'Firebase غير متاح على الجهاز. تأكد من Google Play Services.':'لم تتم الموافقة على إشعارات Android.');
+   Alert.alert('إشعارات الخلفية','تم تسجيل هذا الجهاز على سيرفر الإشعارات. اختبار التوصيل الفعلي يتطلب وصول رسالة جديدة وتشغيل Cron.');
+  }catch(e){Alert.alert('إعداد إشعارات الخلفية',e instanceof Error?e.message:'تعذر ربط الجهاز بالإشعارات.');}
+ };
+ const checkBackgroundPush=async()=>{
+  if(!session)return;
+  try{
+   const paired=await restoreTelegramWhatsApp(session);
+   if(!paired)throw Error('اربط TelegramNotify من صفحة واتساب أولًا.');
+   const s=await whatsAppPushStatus(session);
+   Alert.alert('حالة FCM على السيرفر',s.configured?
+    'إرسال FCM مهيأ على السيرفر. عدد الأجهزة المسجلة: '+s.registered_devices+
+    '. يلزم تشغيل Cron واختبار رسالة جديدة للتأكد من التسليم.':
+    'مفاتيح FCM Service Account غير مهيأة على السيرفر. الإشعارات والتطبيق مقفول لن تصل حتى يتم إعدادها.');
+  }catch(e){Alert.alert('حالة FCM',e instanceof Error?e.message:'تعذر فحص خدمة FCM.');}
+ };
  const firebaseTest=()=>{
   void verifyNativeFcmSetup().then(result=>{
    const text=result.ready?
@@ -54,10 +125,14 @@ export function Settings({session,demo,onLogout,onLock,capabilities,errors}:{
      if(result==='permission_denied')
       Alert.alert('إشعارات Android مقفولة','افتح إعدادات التطبيق من Android ← الإشعارات، واسمح بإشعارات WHMCS وقناة واتساب.');
     }).catch(()=>Alert.alert('اختبار الإشعارات','تعذر إرسال إشعار محلي. راجع إعدادات إشعارات Android.'))}/>
+   <Action secondary icon="bell-badge-outline" label="ربط إشعارات واتساب والتطبيق مقفول"
+    onPress={()=>void enableBackgroundPush()}/>
+   <Action secondary icon="cloud-check-outline" label="فحص حالة إرسال FCM على السيرفر"
+    onPress={()=>void checkBackgroundPush()}/>
    <Action label="اختبار اتصال Firebase للجهاز" secondary
     icon="shield-check-outline" onPress={firebaseTest}/>
    <Notice tone="info" title="حالة الإشعارات اللحظية"
-    message="مكوّن Firebase موجود في التطبيق. وصول Push والجهاز مغلق يحتاج إكمال تسجيل الأجهزة والموظفين على السيرفر."/>
+    message="إشعارات الخلفية تستخدم Firebase FCM عبر TelegramNotify المثبّت. يجب تجهيز مفتاح Service Account آمن على السيرفر وتشغيل Cron؛ نجاح ربط الجهاز وحده لا يثبت وصول التنبيهات."/>
   </Card>
   <Section title="التحديثات"/>
   <Card style={{gap:13}}>
@@ -85,6 +160,24 @@ export function Settings({session,demo,onLogout,onLock,capabilities,errors}:{
   </View>:null}
   <Section title="قفل التطبيق"/>
   <Card style={{gap:12}}>
+   <T weight="800" size={14}>متى يطلب التطبيق البصمة أو رمز القفل؟</T>
+   {([
+    ['off','إيقاف قفل التطبيق','بدون بصمة أو رمز سري محلي'],
+    ['on_launch','عند فتح التطبيق من جديد','من غير طلب بصمة عند التنقل بين التطبيقات'],
+    ['after_5m','بعد 5 دقائق بالخلفية','الافتراضي؛ التنقل السريع من غير قفل'],
+    ['immediate','فور مغادرة التطبيق','أقصى حماية']
+   ] as [LockPolicy,string,string][]).map(([value,title,subtitle])=>
+    <Action key={value} secondary={policy!==value}
+     icon={policy===value?'check-circle-outline':'circle-outline'}
+     label={title} disabled={lockSaving||!session}
+     onPress={()=>void applyPolicy(value)}/>)}
+   <T color={C.muted} size={11}>{policy==='off'?'القفل المحلي معطّل باختيارك.':
+    policy==='on_launch'?'يُطلب رمز القفل بعد إغلاق التطبيق وفتحه من جديد.':
+    policy==='after_5m'?'تبديل التطبيقات لمدة أقل من 5 دقائق لا يطلب بصمة.':
+    'سيطلب التطبيق قفله بمجرد العودة إليه بعد تركه.'}</T>
+   {policy!=='off'?<Action secondary icon="fingerprint" disabled={bioBusy}
+    label={biometric?'إيقاف استخدام البصمة (الرمز يفضل شغال)':'تفعيل استخدام البصمة'}
+    onPress={()=>void setBiometricChoice(!biometric)}/>:null}
    <View style={{flexDirection:'row-reverse',gap:10,alignItems:'center'}}>
     <Icon name="fingerprint" size={25} color={C.green}/>
     <View style={{flex:1,gap:4}}>
@@ -92,9 +185,9 @@ export function Settings({session,demo,onLogout,onLock,capabilities,errors}:{
      <T color={C.muted} size={11}>رمز سري محلي + بصمة عند توفرها</T>
     </View>
    </View>
-   <Notice tone="info" title="القفل إلزامي"
-    message="يتم قفل جلسة WHMCS فور انتقال التطبيق للخلفية. رمز القفل محفوظ مشفّرًا على الجهاز، ولا يُرسل إلى الشركة."/>
-   {session&&!demo?<Action secondary icon="lock-outline" label="قفل التطبيق الآن" onPress={()=>onLock?.()}/>:null}
+   <Notice tone="info" title="الخصوصية"
+    message="القفل ده لحماية التطبيق محليًا فقط، ومش بيغير صلاحيات WHMCS. اختار المدة المناسبة ليك؛ الحساب نفسه يفضل محمي بنظام WHMCS."/>
+   {session&&!demo&&policy!=='off'?<Action secondary icon="lock-outline" label="قفل التطبيق الآن" onPress={()=>onLock?.()}/>:null}
   </Card>
   <Section title="إدارة الجلسة"/>
   <Card style={{gap:13}}>

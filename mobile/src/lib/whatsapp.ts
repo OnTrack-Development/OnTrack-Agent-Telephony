@@ -1,11 +1,14 @@
 import type {Session} from '../types';
 import * as SecureStore from 'expo-secure-store';
+import * as Crypto from 'expo-crypto';
+import * as Notifications from 'expo-notifications';
+import {Platform} from 'react-native';
 import {md5} from 'js-md5';
 import {validateBaseUrl} from './api';
 import {adminPage,adminRequest,adminSessionStamp} from './adminSession';
 export interface WaWindow {open:boolean;expires_at:string|null;remaining_seconds:number}
 export interface WaConversation {id:number;display_name:string;phone:string;client_id:number|null;last_message_preview:string;last_message_at:string;unread_count:number;window:WaWindow}
-export interface WaMessage {id:number;direction:'incoming'|'outgoing';body:string;message_type:string;status:string;timestamp:string;media_filename:string;has_media:boolean;error_text:string}
+export interface WaMessage {id:number;direction:'incoming'|'outgoing';body:string;message_type:string;status:string;timestamp:string;media_id:string;media_mime_type:string;media_filename:string;has_media:boolean;error_text:string}
 const telegramGatewayKeys=new WeakMap<Session,string>();
 const gatewayKey=(session:Session)=>
  'whmcs-tg-wa-v1-'+md5(validateBaseUrl(session.baseUrl)+'|'+(session.mode==='admin'?session.username:session.identifier));
@@ -131,7 +134,7 @@ export function normalizeConversation(value:any):WaConversation {
 }
 export function normalizeMessages(values:any):WaMessage[]{
  if(!Array.isArray(values))throw Error('قائمة رسائل غير صالحة');
- return values.filter(v=>Number.isSafeInteger(Number(v.id))&&Number(v.id)>0&&['incoming','outgoing'].includes(v.direction)).map(v=>({id:Number(v.id),direction:v.direction,body:String(v.body||''),message_type:String(v.message_type||'text'),status:String(v.status||''),timestamp:String(v.timestamp||''),media_filename:String(v.media_filename||''),has_media:v.has_media===true,error_text:String(v.error_text||'')}));
+ return values.filter(v=>Number.isSafeInteger(Number(v.id))&&Number(v.id)>0&&['incoming','outgoing'].includes(v.direction)).map(v=>({id:Number(v.id),direction:v.direction,body:String(v.body||''),message_type:String(v.message_type||'text'),status:String(v.status||''),timestamp:String(v.timestamp||''),media_id:String(v.media_id||''),media_mime_type:String(v.media_mime_type||''),media_filename:String(v.media_filename||''),has_media:v.has_media===true,error_text:String(v.error_text||'')}));
 }
 export async function listConversations(session:Session,search='',unread=false):Promise<{conversations:WaConversation[];unread:number}>{
  const data=await call(session,'chat_list',{q:search.slice(0,150),unread_only:unread?1:0});
@@ -147,4 +150,91 @@ export async function markConversationRead(session:Session,id:number):Promise<vo
 export async function sendWhatsAppText(session:Session,id:number,text:string):Promise<void>{
  if(!Number.isSafeInteger(id)||id<=0||!text.trim()||text.length>4096)throw Error('رقم المحادثة أو نص الرسالة غير صالح');
  await call(session,'chat_send',{conversation_id:id,message:text.trim()},true);
+}
+
+/** Use the paired operator's bearer token in an HTTPS HEADER, never a query string.
+ * Image access is reauthorized server-side against the conversation and message.
+ */
+export function whatsappImageSource(session:Session,conversationId:number,message:WaMessage):
+ {uri:string;headers:{Authorization:string}}|null{
+ const key=telegramGatewayKeys.get(session);
+ if(!key||!Number.isSafeInteger(conversationId)||!Number.isSafeInteger(message.id)
+    ||!message.has_media||!['image','sticker'].includes(message.message_type))return null;
+ const endpoint=validateBaseUrl(session.baseUrl)
+  +'/index.php?m=telegramnotify&route=mobile_whatsapp';
+ return {uri:endpoint+'&conversation_id='+conversationId+'&media_message_id='+message.id,
+  headers:{Authorization:'Bearer '+key}};
+}
+export type UploadAsset={uri:string;name:string;mimeType:string;size:number};
+export async function sendWhatsAppMedia(session:Session,conversationId:number,asset:UploadAsset,caption=''):Promise<void>{
+ const key=telegramGatewayKeys.get(session);
+ if(!key)throw Error('إرسال المرفقات يحتاج ربط واتساب عبر TelegramNotify v3.4.3.');
+ if(!Number.isSafeInteger(conversationId)||conversationId<1
+    ||!asset.uri||!asset.name||!asset.mimeType||!Number.isFinite(asset.size)||asset.size<=0)
+  throw Error('الملف غير صالح.');
+ if(asset.size>16*1024*1024)
+  throw Error('حجم الملف أكبر من الحد المسموح في التطبيق (16 ميجابايت).');
+ const endpoint=validateBaseUrl(session.baseUrl)+'/index.php?m=telegramnotify&route=mobile_whatsapp';
+ const body=new FormData();
+ body.append('action','chat_send_media');
+ body.append('conversation_id',String(conversationId));
+ body.append('caption',caption.slice(0,1024));
+ body.append('file',{uri:asset.uri,name:asset.name.replace(/[\\/\x00-\x1f]/g,'_').slice(0,170),
+  type:asset.mimeType} as any);
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),95000);
+ let result:Response;
+ try{
+  result=await fetch(endpoint,{method:'POST',headers:{'Accept':'application/json',
+   'Authorization':'Bearer '+key},body,signal:controller.signal});
+ }catch{
+  throw Error('نتيجة إرسال المرفق غير مؤكدة بسبب انقطاع الاتصال. راجع المحادثة قبل المحاولة مرة أخرى.');
+ }finally{clearTimeout(timer);}
+ let json:any;
+ try{json=await result.json();}catch{
+  throw Error('نتيجة إرسال المرفق غير مؤكدة؛ السيرفر لم يرجع تأكيدًا صالحًا. راجع المحادثة قبل الإعادة.');
+ }
+ if(!result.ok||json?.status!=='success')throw Error(
+  result.status>=500?'نتيجة إرسال المرفق غير مؤكدة. راجع سجل المحادثة قبل إعادة الإرسال.':
+  String(json?.message||'تعذر إرسال المرفق إلى واتساب.'));
+}
+
+const deviceKey=(session:Session)=>'whmcs-push-device-'+md5(validateBaseUrl(session.baseUrl)
+ +'|'+(session.mode==='admin'?session.username:session.identifier));
+async function persistedDeviceId(session:Session):Promise<string>{
+ const key=deviceKey(session);
+ let id=await SecureStore.getItemAsync(key);
+ if(id&&/^[a-f0-9-]{36}$/.test(id))return id;
+ id=Crypto.randomUUID().toLowerCase();
+ await SecureStore.setItemAsync(key,id,{keychainAccessible:SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY});
+ return id;
+}
+/** Push registration requires the existing TelegramNotify key and server-side
+ * Google service account configured outside WHMCS public files. FCM tokens
+ * aren't authentication credentials, but are never logged or shown to users.
+ */
+export async function registerWhatsAppPush(session:Session):Promise<'registered'|'unpaired'|'permission_denied'|'fcm_unavailable'>{
+ const key=telegramGatewayKeys.get(session);
+ if(!key)return 'unpaired';
+ if(Platform.OS!=='android')return 'fcm_unavailable';
+ const permission=await Notifications.getPermissionsAsync();
+ if(!permission.granted)return 'permission_denied';
+ const token=await Notifications.getDevicePushTokenAsync();
+ if(typeof token.data!=='string'||!token.data)return 'fcm_unavailable';
+ const device=await persistedDeviceId(session);
+ await telegramGatewayRequest(session,key,'register_push',{device_id:device,fcm_token:token.data});
+ return 'registered';
+}
+export async function whatsAppPushStatus(session:Session):Promise<{configured:boolean;registered_devices:number}>{
+ const key=telegramGatewayKeys.get(session);
+ if(!key)throw Error('اتصل بموديول TelegramNotify من صفحة واتساب أولًا.');
+ const data=await telegramGatewayRequest(session,key,'push_status');
+ return {configured:data.configured===true,registered_devices:Number(data.registered_devices)||0};
+}
+export async function unregisterWhatsAppPush(session:Session):Promise<void>{
+ const key=telegramGatewayKeys.get(session);
+ if(!key)return;
+ const device=await SecureStore.getItemAsync(deviceKey(session)).catch(()=>null);
+ if(!device)return;
+ await telegramGatewayRequest(session,key,'unregister_push',{device_id:device});
 }

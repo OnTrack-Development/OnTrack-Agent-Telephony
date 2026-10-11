@@ -7,6 +7,7 @@ import {UpdateGate} from './src/components/UpdateGate';
 import {AnimatedSplash} from './src/components/AnimatedSplash';
 import {PageMotion} from './src/components/PageMotion';
 import {AppLock} from './src/components/AppLock';
+import {LockPolicy,readLockPolicy,shouldLockOnResume} from './src/lib/lockPreferences';
 import {loadFinancialSummary,FinancialSummary} from './src/lib/financial';
 import * as SplashScreen from 'expo-splash-screen';
 void SplashScreen.preventAutoHideAsync().catch(()=>{});
@@ -26,7 +27,7 @@ import {Explorer} from './src/screens/Explorer';
 import {resetAdminSessions,adminSessionReady} from './src/lib/adminSession';
 import * as Notifications from 'expo-notifications';
 import {enableDeviceNotifications,ingestNotificationSnapshot,whmcsSectionNotifications,whatsAppNotifications} from './src/lib/notifications';
-import {listConversations,getWhatsAppRetryAfterMs,telegramWhatsAppReady,restoreTelegramWhatsApp} from './src/lib/whatsapp';
+import {listConversations,getWhatsAppRetryAfterMs,telegramWhatsAppReady,restoreTelegramWhatsApp,registerWhatsAppPush,unregisterWhatsAppPush} from './src/lib/whatsapp';
 const empty:DemoState={tickets:[],clients:[],invoices:[],services:[],orders:[],domains:[],chats:[],agents:[],queue:[]};
 const nav:{page:Page,label:string,icon:string}[]=[
  {page:'home',label:'الرئيسية',icon:'view-dashboard-outline'},
@@ -87,6 +88,8 @@ function CommandApp(){
  const [finance,setFinance]=useState<FinancialSummary|null>(null),[financeError,setFinanceError]=useState(''),[financeBusy,setFinanceBusy]=useState(false);
  const financeRequest=useRef(false);
  const [initializing,setInitializing]=useState(true),[session,setSession]=useState<Session|null>(null),[demo,setDemo]=useState(false);
+ const [lockPolicy,setLockPolicy]=useState<LockPolicy|null>(null);
+ const lockPolicyRef=useRef<LockPolicy>('after_5m'),backgroundAt=useRef(0);
  const [data,setData]=useState<DemoState>(empty),[page,setPage]=useState<Page>('home'),[loading,setLoading]=useState(false);
  const [ticketReload,setTicketReload]=useState(0);
  const [notificationTarget,setNotificationTarget]=useState<{page:SectionKey|'whatsapp';id:number|null}|null>(null);
@@ -147,16 +150,36 @@ function CommandApp(){
  useEffect(()=>()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);},[]);
  useEffect(()=>{let active=true;loadSession().then(s=>{if(!active)return;setSession(s);setInitializing(false);}).catch(()=>setInitializing(false));return()=>{active=false;};},[refresh]);
 
+ useEffect(()=>{
+  if(!session){setLockPolicy(null);lockPolicyRef.current='after_5m';return;}
+  let alive=true;
+  setLockPolicy(null);
+  void readLockPolicy(session.baseUrl).then(policy=>{
+   if(!alive)return;
+   lockPolicyRef.current=policy;setLockPolicy(policy);
+   if(policy==='off'){unlockedRef.current=true;setUnlocked(true);}
+  }).catch(()=>{
+   if(!alive)return;
+   // Fail locked if secure preferences cannot be loaded.
+   lockPolicyRef.current='immediate';setLockPolicy('immediate');
+  });
+  return()=>{alive=false;};
+ },[session?.baseUrl]);
  // Keep the native launch surface until AnimatedSplash has painted its first frame.
 
  useEffect(()=>{
   if(!session||demo)return;
   const listener=AppState.addEventListener('change',state=>{
    if(state==='background'){
-    // Always lock immediately; do not expose a previous dashboard snapshot after resume.
-    unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);
-    setFinance(null);setFinanceError('');
-   }else if(state==='active'&&unlockedRef.current)void refresh(session);
+    backgroundAt.current=Date.now();
+    // Privacy values never persist on background even during the grace window.
+    setMoneyVisible(false);setFinance(null);setFinanceError('');
+   }else if(state==='active'){
+    if(unlockedRef.current&&shouldLockOnResume(lockPolicyRef.current,backgroundAt.current,Date.now())){
+     unlockedRef.current=false;setUnlocked(false);
+    }else if(unlockedRef.current)void refresh(session);
+    backgroundAt.current=0;
+   }
   });
   return()=>listener.remove();
  },[session,demo,refresh]);
@@ -190,7 +213,13 @@ function CommandApp(){
   let destroyed=false,reading=false;
   // Restore the previously paired TelegramNotify key when WHMCS unlocks, not only
   // when the operator visits WhatsApp. Otherwise global notification polling never starts.
-  void restoreTelegramWhatsApp(session).then(ready=>{if(ready&&!destroyed)void poll();}).catch(()=>{});
+  void restoreTelegramWhatsApp(session).then(ready=>{
+   if(!ready||destroyed)return;
+   void poll();
+   void enableDeviceNotifications().then(ok=>{
+    if(ok&&!destroyed)void registerWhatsAppPush(session).catch(()=>{});
+   }).catch(()=>{});
+  }).catch(()=>{});
   const poll=async()=>{
    if(destroyed||reading||AppState.currentState!=='active'
       ||!(adminSessionReady(session)||telegramWhatsAppReady(session))||getWhatsAppRetryAfterMs(session)>0)return;
@@ -259,7 +288,11 @@ function CommandApp(){
    lastRefreshAt.current={};unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);setFinance(null);
    setSession(result.data);setDemo(false);setHistory([]);setPage('home');
  };
- const logout=async()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;await resetAdminSessions();await signOut();unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);setFinance(null);setFinanceError('');setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
+ const logout=async()=>{
+  if(session&&telegramWhatsAppReady(session)){
+   try{await unregisterWhatsAppPush(session);}catch{}
+  }
+  generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;await resetAdminSessions();await signOut();unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);setFinance(null);setFinanceError('');setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
  const reply=async(id:number,text:string,identity?:{clientId:number;contactId:number;name:string;email:string})=>{
   if(demo){setData(d=>({...d,tickets:d.tickets.map(t=>t.id===id?{...t,status:'Answered',message:text}:t)}));Alert.alert('وضع تجريبي','تم تعديل البيانات المحلية فقط.');return true;}
   if(!session)return false; // WHMCS enforces actual reply permission; list/read failures aren't reply denials.
@@ -279,6 +312,7 @@ function CommandApp(){
   return [initial,...arr.map((m:any,i:number)=>({id:String(m.id||i),message:String(m.message||''),name:String(m.name||m.admin||''),date:String(m.date||''),admin:!!m.admin}))].filter(x=>x.message);
  };
  if(!introFinished)return <AnimatedSplash ready={!initializing} onFinish={()=>setIntroFinished(true)}/>;
+ if(session&&!demo&&lockPolicy===null)return <View style={{flex:1,backgroundColor:C.bg,justifyContent:'center'}}><ActivityIndicator color={C.red}/></View>;
  if(session&&!demo&&!unlocked)return <AppLock session={session} onUnlock={()=>{
   unlockedRef.current=true;setUnlocked(true);void refresh(session,true,'tickets');
  }}/>;
@@ -322,7 +356,11 @@ function CommandApp(){
      </Pressable>)}
     </View>
    </View>;
-  if(page==='settings')return <Settings session={session} demo={demo} onLogout={logout} capabilities={caps} errors={errors} onLock={()=>{unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);setFinance(null);}}/>;
+  if(page==='settings')return <Settings session={session} demo={demo} onLogout={logout} capabilities={caps} errors={errors} onLockPolicyChange={policy=>{
+   lockPolicyRef.current=policy;setLockPolicy(policy);
+   if(policy==='off'){unlockedRef.current=true;setUnlocked(true);}
+  }}
+  onLock={()=>{if(lockPolicyRef.current==='off')return;unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);setFinance(null);}}/>;
   if(page==='explorer')return demo?<View><T color={C.orange}>دليل API يحتاج ربط WHMCS حقيقي (غير متاح في الديمو).</T></View>:session?<Explorer session={session} onDetails={(title,lines)=>setDetail({title,lines})}/>:null;
   return <Directory session={session} page={page} data={data} onDetails={(title,lines)=>setDetail({title,lines})} total={totals[page]} error={errors[page]} loading={moreBusy} onLoadMore={()=>loadMore(page as 'clients'|'invoices'|'services'|'orders'|'domains')} onReload={()=>session&&void refresh(session,true,page as SectionKey)}
   onComposerFocus={revealComposer} focusRecordId={notificationTarget?.page===page?notificationTarget.id||undefined:undefined} onFocusExit={()=>setNotificationTarget(null)}/>;

@@ -3,7 +3,7 @@
     "name": "WHMCS",
     "slug": "whmcs-admin",
     "scheme": "whmcsadmin",
-    "version": "0.3.25",
+    "version": "0.3.26",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -17,7 +17,7 @@
       "permissions": [
         "POST_NOTIFICATIONS"
       ],
-      "versionCode": 36,
+      "versionCode": 37,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#090D14"
@@ -48,6 +48,14 @@
         "expo-local-authentication",
         {
           "faceIDPermission": "استخدام البصمة لفتح WHMCS"
+        }
+      ],
+      "expo-document-picker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "اختيار صور لإرسالها لعملائك على واتساب",
+          "cameraPermission": "استخدام الكاميرا لإرسال صور العملاء"
         }
       ]
     ],
