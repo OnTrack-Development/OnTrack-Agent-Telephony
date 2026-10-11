@@ -6,5 +6,5 @@
   "sha256": "8000c6b5f2f53d3448b9367b81aeded0759dd6623a590c17143b77c53aacc4e9",
   "size_bytes": 30388835,
   "release_notes": "WHMCS v0.3.16: manage service details and server commands with confirmation; see full order line items and payment status; open client tickets for replies and notes; open notification record by ID. Background instant Push requires server-side FCM setup.",
-  "published_at": "2026-10-11T01:23:01Z"
+  "published_at": "2026-10-11T01:42:25Z"
 }
