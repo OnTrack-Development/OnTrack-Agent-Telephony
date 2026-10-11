@@ -17,6 +17,7 @@ export const telegramWhatsAppReady=(session:Session)=>telegramGatewayKeys.has(se
  */
 async function telegramGatewayRequest(session:Session,key:string,action:string,
   params:Record<string,string|number>={}):Promise<any>{
+ // TelegramNotify v3.4.2 (installed addon) handles this WHMCS client-area route.
  // Use WHMCS's officially supported installed-addon route. Direct PHP under
  // /modules/addons/telegramnotify/ is denied with HTTP 403 by this host.
  const endpoint=validateBaseUrl(session.baseUrl)+'/index.php?m=telegramnotify&route=mobile_whatsapp';
