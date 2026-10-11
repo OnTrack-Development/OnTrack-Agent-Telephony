@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: whmcs-whatsapp-native-review
+  cancel-in-progress: true
 jobs:
   review:
     runs-on: ubuntu-latest
