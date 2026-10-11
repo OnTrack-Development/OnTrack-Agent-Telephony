@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.17",
-  "version_code": 28,
-  "filename": "WHMCS-v0.3.17-ARM64-release-signed.apk",
-  "sha256": "18a6a33c910bc5bee6cd41358d28d0e4ca25d763b2c2627d483efcae69d4a2d0",
-  "size_bytes": 30392931,
-  "release_notes": "WHMCS v0.3.17: configured OnTrack WHMCS Firebase Android app, native FCM enrollment test without exposing the device token; remote push needs an authenticated multi-tenant backend.",
-  "published_at": "2026-10-11T02:46:31Z"
+  "version_name": "0.3.18",
+  "version_code": 29,
+  "filename": "WHMCS-v0.3.18-ARM64-release-signed.apk",
+  "sha256": "fa47271bdce49a93300200beffbb78b2e36a821a3ffd25df6746c1306541a249",
+  "size_bytes": 30397027,
+  "release_notes": "WHMCS v0.3.18: consistent enterprise-dark UI, redesigned in-app warnings and safe confirmations, refined action buttons and banners; FCM backend registration remains gated on verified WHMCS admin pairing.",
+  "published_at": "2026-10-11T02:50:23Z"
 }
