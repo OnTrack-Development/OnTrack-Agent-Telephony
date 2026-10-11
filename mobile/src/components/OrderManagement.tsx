@@ -90,7 +90,7 @@ export function OrderManagement({session,order,id,onChanged,onOpenService,onOpen
     {([{id:'autosetup',value:autosetup,change:setAutosetup,label:'Run Module Create (تفعيل فعلي)'},{id:'sendemail',value:sendemail,change:setSendemail,label:'Send Welcome Email'},{id:'sendregistrar',value:sendregistrar,change:setSendregistrar,label:'تنفيذ أوامر المسجّل'}] as const).map(x=>
      <Pressable key={x.id} style={{flexDirection:'row-reverse',alignItems:'center',gap:9}}
       onPress={()=>x.change(!x.value)}><Icon name={x.value?'checkbox-marked':'checkbox-blank-outline'} color={C.red}/>
-      <T size={12}>{x.label}</T></Press>)}
+      <T size={12}>{x.label}</T></Pressable>)}
     <Action disabled={busy} label="Accept Order" onPress={()=>run('AcceptOrder')}/>
     <Action disabled={busy} secondary label="Cancel Order" onPress={()=>run('CancelOrder')}/>
     <Action disabled={busy} secondary label="Set as Fraud" onPress={()=>run('FraudOrder')}/>
