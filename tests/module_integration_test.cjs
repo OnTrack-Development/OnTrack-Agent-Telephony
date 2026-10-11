@@ -39,7 +39,12 @@ function load(name){
  const code=fs.readFileSync(path.join(__dirname,'../mobile/src/lib/'+name+'.ts'),'utf8');
  const js=ts.transpileModule(code,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  const context={exports:{},URL,URLSearchParams,setTimeout,clearTimeout,require(imported){
-  if(imported==='react-native')return {NativeModules:{CommandAdminSession:native}};
+  if(imported==='react-native')return {NativeModules:{CommandAdminSession:native},Platform:{OS:'android'}};
+  if(imported==='expo-crypto')return {randomUUID:()=>'c6271bf5-967c-4684-aa8c-6b7fa7e52714'};
+  if(imported==='expo-notifications')return {
+    getPermissionsAsync:async()=>({granted:false}),
+    getDevicePushTokenAsync:async()=>({data:''})
+  };
   if(imported==='expo-secure-store')return {WHEN_UNLOCKED_THIS_DEVICE_ONLY:1,
   getItemAsync:async k=>secureStore.get(k)||null,
   setItemAsync:async(k,v)=>{
