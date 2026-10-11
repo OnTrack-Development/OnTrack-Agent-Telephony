@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
-import {ActivityIndicator,AppState,BackHandler,Linking,Pressable,TextInput,View} from 'react-native';
+import {ActivityIndicator,AppState,BackHandler,Linking,Pressable,ScrollView,TextInput,View} from 'react-native';
 import {Alert} from '../components/Feedback';
 import {C} from '../theme';
 import type {Session} from '../types';
@@ -33,9 +33,11 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  const [adminUser,setAdminUser]=useState(''),[adminPass,setAdminPass]=useState('');
  const [connectStep,setConnectStep]=useState(''),[showLegacy,setShowLegacy]=useState(false);
  const [telegramKey,setTelegramKey]=useState(''),[telegramBusy,setTelegramBusy]=useState(false);
+ const threadScroll=useRef<ScrollView>(null),followNewest=useRef(true),historyHeight=useRef(0),
+  historyScrollY=useRef(0),restoreHistoryOffset=useRef(false);
  const generation=useRef(0),readInFlight=useRef(false),sendInFlight=useRef(false),active=useRef(true),selectedId=useRef<number|null>(null);
  selectedId.current=selected?.id||null;
- const close=()=>{generation.current++;setSelected(null);setMessages([]);setDraft('');setError('');};
+ const close=()=>{followNewest.current=true;historyHeight.current=0;restoreHistoryOffset.current=false;generation.current++;setSelected(null);setMessages([]);setDraft('');setError('');};
  useEffect(()=>{active.current=true;return()=>{active.current=false;generation.current++;};},[]);
  useEffect(()=>{let mounted=true;
   setDirectoryLoaded(false);
@@ -182,6 +184,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  const open=async(conversation:WaConversation)=>{
   if(!session||busy)return;
   const stamp=++generation.current;
+  followNewest.current=true;historyHeight.current=0;historyScrollY.current=0;restoreHistoryOffset.current=false;
   setSelected(conversation);setMessages([]);setOlder(true);setDraft('');setBusy(true);setError('');setWindowAt(Date.now());setNow(Date.now());
   try{
    const data=await conversationMessages(session,conversation.id);
@@ -193,47 +196,65 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  };
  const more=async()=>{
   if(!session||!selected||!messages.length||loadingOlder)return;
-  const stamp=generation.current;setLoadingOlder(true);
+  const stamp=generation.current;followNewest.current=false;restoreHistoryOffset.current=true;setLoadingOlder(true);
   try{const data=await conversationMessages(session,selected.id,messages[0]!.id);if(stamp!==generation.current)return;
    setMessages(prev=>[...data.messages.filter(x=>!prev.some(y=>y.id===x.id)),...prev].sort((a,b)=>a.id-b.id));setOlder(data.messages.length===120);
   }catch(e){if(stamp===generation.current)report(e);}finally{if(active.current)setLoadingOlder(false);}
  };
  const remaining=selected?Math.max(0,selected.window.remaining_seconds-Math.floor((now-windowAt)/1000)):0;
  const windowOpen=!!selected?.window.open&&remaining>0;
- const send=()=>{
+ const send=async()=>{
   if(!session||!selected||!draft.trim()||!windowOpen||sendInFlight.current)return;
   const id=selected.id,text=draft.trim(),stamp=generation.current;
   sendInFlight.current=true;setSending(true);
-  Alert.alert('إرسال واتساب',`إرسال الرسالة إلى ${selected.display_name} (${selected.phone})؟`,[
-   {text:'إلغاء',style:'cancel',onPress:()=>{sendInFlight.current=false;if(active.current)setSending(false);}},
-   {text:'إرسال',onPress:async()=>{
-    let accepted=false;
-    try{
-     await sendWhatsAppText(session,id,text);
-     accepted=true;
-     if(active.current&&stamp===generation.current){
-      setDraft('');setError('');
-      Alert.alert('تم إرسال واتساب','تم قبول الرسالة من موديول واتساب. لا تعِد إرسالها بسبب تأخر تحديث المحادثة.');
-     }
-     // A failed *read* after successful send must NEVER look like a failed send.
-     try{
-      const data=await conversationMessages(session,id);
-      if(active.current&&stamp===generation.current){
-       setMessages(prev=>[...prev.filter(m=>!data.messages.some(x=>x.id===m.id)),...data.messages].sort((a,b)=>a.id-b.id));
-       setSelected(data.conversation);setWindowAt(Date.now());
-      }
-     }catch(_refreshError){
-      if(active.current&&stamp===generation.current)setError('الرسالة اتبعت، لكن تحديث المحادثة فشل مؤقتًا. استخدم تحديث المحادثات فقط؛ لا تُعد الإرسال.');
-     }
-    }catch(e){
-     if(stamp===generation.current&&!accepted)report(e);
-    }finally{sendInFlight.current=false;if(active.current)setSending(false);}
-   }}
-  ],{cancelable:false});
+  let accepted=false;
+  try{
+   await sendWhatsAppText(session,id,text);
+   accepted=true;
+   if(active.current&&stamp===generation.current){
+    setDraft('');setError('');followNewest.current=true;
+   }
+   // Refreshing is a separate read: failure must never encourage sending twice.
+   try{
+    const data=await conversationMessages(session,id);
+    if(active.current&&stamp===generation.current){
+     setMessages(prev=>[...prev.filter(m=>!data.messages.some(x=>x.id===m.id)),...data.messages].sort((a,b)=>a.id-b.id));
+     setSelected(data.conversation);setWindowAt(Date.now());
+    }
+   }catch(_refreshError){
+    if(active.current&&stamp===generation.current)
+     setError('الرسالة اتبعت، لكن تحديث المحادثة اتأخر. متكررش إرسال نفس الرسالة.');
+   }
+  }catch(e){
+   if(stamp===generation.current&&!accepted)report(e);
+  }finally{sendInFlight.current=false;if(active.current)setSending(false);}
  };
  if(!session||demo)return <View><Header title="واتساب" subtitle="محادثات العملاء"/><Empty icon="whatsapp" text="اربط حساب WHMCS لعرض محادثات واتساب الحقيقية"/></View>;
 
- return <View style={{gap:13,paddingBottom:35}}>
+ return <View style={{flex:1}}>
+  <ScrollView ref={threadScroll} style={{flex:1}}
+   keyboardShouldPersistTaps="handled" keyboardDismissMode="none"
+   contentContainerStyle={{gap:13,paddingTop:2,paddingBottom:20}}
+   onScroll={e=>{
+    const {contentOffset,layoutMeasurement,contentSize}=e.nativeEvent;
+    historyScrollY.current=contentOffset.y;
+    if(selected&&!loadingOlder&&!restoreHistoryOffset.current)
+     followNewest.current=contentSize.height-contentOffset.y-layoutMeasurement.height<110;
+   }}
+   scrollEventThrottle={16}
+   onContentSizeChange={(_width,height)=>{
+    if(!selected){historyHeight.current=height;return;}
+    const before=historyHeight.current;
+    historyHeight.current=height;
+    if(restoreHistoryOffset.current){
+     if(height>before&&before>0){
+      threadScroll.current?.scrollTo({y:historyScrollY.current+height-before,animated:false});
+      restoreHistoryOffset.current=false;
+     }
+    }else if(followNewest.current){
+     threadScroll.current?.scrollToEnd({animated:false});
+    }
+   }}>
   {selected?<Pressable accessibilityRole="button" accessibilityLabel="العودة إلى محادثات واتساب" onPress={close}
    style={{flexDirection:'row-reverse',alignItems:'center',gap:8,alignSelf:'flex-start',paddingVertical:6}}>
    <Icon name="arrow-right" color={C.green} size={21}/><T color={C.green} weight="800" size={13}>كل المحادثات</T>
@@ -417,6 +438,9 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     })}
     {!messages.length&&!busy?<Empty text="مفيش رسائل محفوظة للمحادثة دي" icon="message-text-outline"/>:null}
    </View>
+  </>:null}
+  </ScrollView>
+  {selected?<View style={{paddingTop:9,paddingBottom:8,backgroundColor:C.bg,borderTopWidth:1,borderTopColor:C.stroke}}>
    <Card style={{gap:11,padding:13}}>
     {!windowOpen?<Notice tone="warning" title="نافذة واتساب مغلقة"
      message="مينفعش تبعت رسالة نصية عادية بعد مرور 24 ساعة من آخر رسالة واردة. استنى رسالة جديدة من العميل أو استخدم قالب Meta معتمد في الواجهة الأصلية."/>:null}
@@ -436,6 +460,6 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     </View>
     <T color={C.muted} size={10}>{draft.length}/4096 حرف • يتم الإرسال عبر موديول واتساب الأصلي</T>
    </Card>
-  </>:null}
+  </View>:null}
  </View>;
 }
