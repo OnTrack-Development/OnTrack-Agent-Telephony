@@ -176,7 +176,7 @@ assert.ok(get('mobile/src/components/InvoiceActions.tsx').includes('Duplicate In
 assert.ok(get('mobile/src/screens/Directory.tsx').includes('invoiceSelection'));
 assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('loginWhatsAppWithBrowser(session,directory)'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('authorizeInWebView'));
-assert.ok(get('mobile/native/android/CommandAdminSessionModule.java').includes('webAuthorized.contains(key)'));
+assert.ok(get('mobile/native/android/CommandAdminSessionModule.java').includes('waBrowserCookies.get(key)'));
 assert.ok(get('mobile/native/android/CommandAdminSessionModule.java').includes('waCSRFToken'));
 assert.ok(!get('mobile/src/screens/WhatsApp.tsx').includes('autoAttempt.current'));
 assert.ok(JSON.parse(get('mobile/app.json')).expo.plugins.some(p=>Array.isArray(p)&&p[0]==='expo-splash-screen'));
