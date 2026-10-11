@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.27",
-  "version_code": 38,
-  "filename": "WHMCS-v0.3.27-ARM64-release-signed.apk",
-  "sha256": "f52b3909bd7b8b18944cfc3ddf01e43147a62c0ccd964b6d50709e5f9e7af473",
-  "size_bytes": 29972140,
-  "release_notes": "WHMCS v0.3.27: WhatsApp detects supported TelegramNotify media operations before photo/document upload, displays actionable gateway update and PHP size-limit errors and offers image retry. Existing app lock preferences and FCM registration are preserved. Live media preview/send requires the existing TelegramNotify addon upgraded to v3.4.5. Background push additionally needs an external Firebase service-account key and running TelegramNotify cron.",
-  "published_at": "2026-10-11T20:12:45Z"
+  "version_name": "0.3.28",
+  "version_code": 39,
+  "filename": "WHMCS-v0.3.28-ARM64-release-signed.apk",
+  "sha256": "63fd9a82330b7c531649b5a87680a8830b297c6b6ebb53baaaf67e9883431df5",
+  "size_bytes": 30000812,
+  "release_notes": "WHMCS v0.3.28: WhatsApp incoming images now use private native authenticated cache downloads and precise HTTP/Meta error diagnostics; sending files and pictures uses native multipart upload instead of React Native FormData. Requires updating existing TelegramNotify to v3.4.6 on WHMCS. Original WhatsApp module and webhook are unchanged. Actual Meta send/receive requires live verification.",
+  "published_at": "2026-10-11T20:27:56Z"
 }
