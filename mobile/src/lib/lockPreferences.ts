@@ -4,7 +4,7 @@ import {md5} from 'js-md5';
 /** Opt-in local application lock; WHMCS server credentials remain in encrypted storage. */
 export type LockPolicy='off'|'on_launch'|'after_5m'|'immediate';
 const allowed:LockPolicy[]=['off','on_launch','after_5m','immediate'];
-const key=(baseUrl:string)=>'whmcs-lock-policy-v2-'+md5(baseUrl.trim().toLowerCase().replace(/\\/+$/,''));
+const key=(baseUrl:string)=>'whmcs-lock-policy-v2-'+md5(baseUrl.trim().toLowerCase().replace(/\/+$/,''));
 const opts={keychainAccessible:SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY};
 export async function readLockPolicy(baseUrl:string):Promise<LockPolicy>{
  const value=await SecureStore.getItemAsync(key(baseUrl));
