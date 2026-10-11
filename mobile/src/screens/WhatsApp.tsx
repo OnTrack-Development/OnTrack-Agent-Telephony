@@ -345,9 +345,9 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
    <View style={{gap:9,paddingVertical:9,paddingHorizontal:4}}>
     {messages.map(message=>{
      const outgoing=message.direction==='outgoing';
-     return <View key={message.id} style={{alignItems:outgoing?'flex-start':'flex-end',width:'100%'}}>
+     return <View key={message.id} style={{alignItems:outgoing?'flex-end':'flex-start',width:'100%'}}>
       <View style={{maxWidth:'88%',minWidth:98,backgroundColor:outgoing?'#183A33':C.surface,
-       borderRadius:19,borderTopLeftRadius:outgoing?5:19,borderTopRightRadius:outgoing?19:5,
+       borderRadius:19,borderTopLeftRadius:outgoing?19:5,borderTopRightRadius:outgoing?5:19,
        borderWidth:1,borderColor:outgoing?C.green+'40':C.stroke,paddingHorizontal:15,paddingVertical:11,gap:7}}>
        <T size={13} style={{textAlign:'right'}}>{message.body||message.media_filename||
         (message.has_media?'مرفق '+message.message_type:'رسالة '+message.message_type)}</T>
