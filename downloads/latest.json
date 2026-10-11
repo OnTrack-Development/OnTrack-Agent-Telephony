@@ -6,5 +6,5 @@
   "sha256": "fa47271bdce49a93300200beffbb78b2e36a821a3ffd25df6746c1306541a249",
   "size_bytes": 30397027,
   "release_notes": "WHMCS v0.3.18: consistent enterprise-dark UI, redesigned in-app warnings and safe confirmations, refined action buttons and banners; FCM backend registration remains gated on verified WHMCS admin pairing.",
-  "published_at": "2026-10-11T02:50:23Z"
+  "published_at": "2026-10-11T04:35:46Z"
 }
