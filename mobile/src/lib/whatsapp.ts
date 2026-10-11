@@ -1,5 +1,57 @@
 import type {Session} from '../types';
 import {adminPage,adminRequest,adminSessionStamp} from './adminSession';
+import * as SecureStore from 'expo-secure-store';
+import {randomUUID} from 'expo-crypto';
+import {md5} from 'js-md5';
+import {validateBaseUrl} from './api';
+
+/** Separate, opt-in companion bridge; the original WhatsApp addon is untouched.
+ * A device is paired by an authorised WHMCS administrator for five minutes.
+ * Never place a Meta token, webhook secret, or administrator password here. */
+const bridgePath='/modules/addons/ontrack_mobile_whatsapp/bridge.php';
+const deviceKey=(session:Session)=>'ontrack-wa-paired-'+md5(validateBaseUrl(session.baseUrl));
+async function currentDeviceToken(session:Session):Promise<string>{
+ return (await SecureStore.getItemAsync(deviceKey(session)))||'';
+}
+export async function hasPairedWhatsApp(session:Session):Promise<boolean>{
+ return !!(await currentDeviceToken(session));
+}
+export async function pairWhatsApp(session:Session,code:string):Promise<void>{
+ const normalized=code.toUpperCase().replace(/[^A-Z0-9]/g,'');
+ if(!/^[A-HJ-NP-Z2-9]{16}$/.test(normalized))throw Error('رمز الربط لازم يكون 16 حرف ورقم.');
+ const response=await fetch(validateBaseUrl(session.baseUrl)+bridgePath,{
+  method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
+  body:JSON.stringify({action:'pair',code:normalized,device_label:'OnTrack WHMCS Android'})
+ });
+ const body=await response.json().catch(()=>null);
+ if(!response.ok||body?.status!=='success'||!/^[a-f0-9]{64}$/.test(String(body.device_token||'')))
+  throw Error(String(body?.message||'فشل الربط. تأكد من تركيب Bridge وصلاحية الرمز.'));
+ await SecureStore.setItemAsync(deviceKey(session),body.device_token,{
+  keychainAccessible:SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY
+ });
+}
+export async function verifyPairedWhatsApp(session:Session):Promise<boolean>{
+ if(!(await currentDeviceToken(session)))return false;
+ await bridgeCall(session,'status');
+ return true;
+}
+export async function forgetPairedWhatsApp(session:Session):Promise<void>{
+ await SecureStore.deleteItemAsync(deviceKey(session));
+}
+async function bridgeCall(session:Session,action:string,params:Record<string,string|number>={}):Promise<any|null>{
+ const token=await currentDeviceToken(session);
+ if(!token)return null;
+ const response=await fetch(validateBaseUrl(session.baseUrl)+bridgePath,{
+  method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json'},
+  body:JSON.stringify({action,...params})
+ });
+ const data=await response.json().catch(()=>null);
+ if(response.status===401)throw Error('جلسة ربط واتساب اتلغت أو صلاحية الموظف اتغيرت. اعمل ربط جديد.');
+ if(!response.ok||data?.status!=='success')
+  throw Error(String(data?.message||(response.status===409?'نتيجة الإرسال غير مؤكدة، راجع المحادثة قبل إرسال رسالة جديدة.':'تعذر تحميل بيانات واتساب')));
+ return data;
+}
+
 export interface WaWindow {open:boolean;expires_at:string|null;remaining_seconds:number}
 export interface WaConversation {id:number;display_name:string;phone:string;client_id:number|null;last_message_preview:string;last_message_at:string;unread_count:number;window:WaWindow}
 export interface WaMessage {id:number;direction:'incoming'|'outgoing';body:string;message_type:string;status:string;timestamp:string;media_filename:string;has_media:boolean;error_text:string}
@@ -29,6 +81,8 @@ export async function prepareWhatsApp(session:Session):Promise<void>{
  csrf.set(session,{token:whatsappCsrf(await adminPage(session,'addonmodules.php?module=whatsapp_notifications&action=chat')),stamp:adminSessionStamp(session)});
 }
 async function call(session:Session,action:'chat_list'|'chat_messages'|'chat_mark_read'|'chat_send',params:Record<string,string|number>={},write=false):Promise<any>{
+ const bridged=await bridgeCall(session,action,{...params,...(action==='chat_send'?{request_id:randomUUID()}:{})});
+ if(bridged!==null)return bridged;
  assertWhatsAppNotThrottled(session);
  if(csrf.get(session)?.stamp!==adminSessionStamp(session))await prepareWhatsApp(session);
  const query=new URLSearchParams({ajax_action:action});
