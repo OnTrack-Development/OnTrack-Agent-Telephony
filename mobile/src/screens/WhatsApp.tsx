@@ -4,7 +4,7 @@ import {Alert} from '../components/Feedback';
 import {C} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Empty,Header,Icon,Notice,Pill,Search,T} from '../components/UI';
-import {adminSessionReady,checkedAdminUrl,loginAdmin,saveAdminDirectory,savedAdminDirectory,validateAdminDirectory} from '../lib/adminSession';
+import {adminSessionReady,checkedAdminUrl,loginAdmin,loginWhatsAppWithBrowser,saveAdminDirectory,savedAdminDirectory,validateAdminDirectory} from '../lib/adminSession';
 import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,getWhatsAppRetryAfterMs} from '../lib/whatsapp';
 import {ingestNotificationSnapshot,whatsAppNotifications} from '../lib/notifications';
 
@@ -22,7 +22,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  const [directory,setDirectory]=useState('admin'),[directoryLoaded,setDirectoryLoaded]=useState(false),[openingBrowser,setOpeningBrowser]=useState(false);
  const [needsOtp,setNeedsOtp]=useState(false),[otp,setOtp]=useState('');
  const [adminUser,setAdminUser]=useState(''),[adminPass,setAdminPass]=useState('');
- const [connectStep,setConnectStep]=useState('');
+ const [connectStep,setConnectStep]=useState(''),[showLegacy,setShowLegacy]=useState(false);
  const autoAttempt=useRef('');
  const generation=useRef(0),readInFlight=useRef(false),sendInFlight=useRef(false),active=useRef(true),selectedId=useRef<number|null>(null);
  selectedId.current=selected?.id||null;
@@ -68,6 +68,21 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   return()=>{clearTimeout(timer);clearInterval(poll);resume.remove();};
  },[refresh,selected?.id]);
  useEffect(()=>{if(!selected)return;const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[!!selected]);
+ const connectWithBrowser=async()=>{
+  if(!session||busy||!directoryLoaded)return;
+  setBusy(true);setError('');setConnectStep('افتح تسجيل الدخول داخل التطبيق وأكمل التحقق بخطوتين إن وجد...');
+  try{
+   await loginWhatsAppWithBrowser(session,directory);
+   setConnectStep('تم تأكيد جلسة الموظف، جارٍ قراءة المحادثات من الموديول الأصلي...');
+   const list=await listConversations(session);
+   if(active.current){
+    setRows(list.conversations);setUnread(list.unread);setConnected(true);
+    setConnectStep('اتصال واتساب جاهز');
+    void ingestNotificationSnapshot(session,'whatsapp',whatsAppNotifications(list.conversations));
+   }
+  }catch(e){report(e);setConnectStep('تعذر توثيق جلسة الإدارة');}
+  finally{if(active.current)setBusy(false);}
+ };
  const connect=async()=>{
   if(!session)return;
   setBusy(true);setError('');
@@ -106,15 +121,8 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   }catch(e){report(e);setConnectStep('تعذر إتمام ربط جلسة الإدارة');}
   finally{if(session.mode==='api')setAdminPass('');if(active.current)setBusy(false);}
  };
- // Auto reuse saved Admin Legacy credentials; API keys cannot create browser cookies.
- useEffect(()=>{
-  if(!session||demo||session.mode!=='admin'||!directoryLoaded||connected||needsOtp)return;
-  const key=session.baseUrl+'|'+session.username+'|'+directory;
-  if(autoAttempt.current===key)return;
-  autoAttempt.current=key;
-  const timer=setTimeout(()=>{void connectSaved();},300);
-  return()=>clearTimeout(timer);
- },[session,demo,directoryLoaded,directory,connected,needsOtp]);
+ // Do not silently submit stored administrator passwords on screen mount.
+ // WAF/2FA challenges must be completed by the operator in the in-app login view.
  const openBrowser=async()=>{
   if(!session||openingBrowser)return;
   setOpeningBrowser(true);setError('');
@@ -204,6 +212,14 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     placeholderTextColor={C.muted} style={{color:C.text,textAlign:'left',
       backgroundColor:C.surface2,padding:13,borderColor:C.stroke,borderWidth:1,borderRadius:12}}/>
    <T color={C.muted} size={12}>اكتب اسم المجلد فقط (مثال: on) أو الصق رابط الإدارة اللي فاتحه في المتصفح.</T>
+
+   <Action label={busy?'جارٍ الاتصال...':'فتح تسجيل الدخول الآمن لواتساب'}
+    icon="whatsapp" disabled={busy||!directoryLoaded} onPress={()=>void connectWithBrowser()}/>
+   <Notice tone="info" title="بدون أي موديول إضافي"
+    message="تسجيل دخول WHMCS Admin يتم مرة داخل نافذة آمنة بالتطبيق. بعدها نقرأ الرسائل ونرد عبر ajax.php الموجود في whatsapp_notifications، بنفس جلسة الموظف وصلاحياته."/>
+   <Action secondary label={showLegacy?'إخفاء الطريقة القديمة':'خيارات تسجيل الدخول القديمة'}
+    onPress={()=>setShowLegacy(!showLegacy)}/>
+   {showLegacy?<>
    {session.mode==='api'&&!needsOtp?<View style={{gap:10}}>
     <T weight="800" size={13}>بيانات موظف WHMCS Admin المصرح له</T>
     <TextInput accessibilityLabel="اسم مستخدم إدارة WHMCS" value={adminUser}
@@ -230,7 +246,8 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     message="مستخدم API لا يملك جلسة إدارة تلقائيًا. سيتم استخدام تسجيل دخول الموظف المصرح له فقط، دون تخزين كلمة المرور الإضافية أو تعديل الموديول."/>
    <Action secondary icon="open-in-new" label={openingBrowser?'جارٍ الفتح...':'فتح Inbox الموجود باستخدام المتصفح'}
     disabled={openingBrowser} onPress={()=>void openBrowser()}/>
-   <T size={11} color={C.muted}>نفس موديول whatsapp_notifications الموجود، من غير Plugin جديد أو تعديل الويبهوك.</T>
+   <T size={11} color={C.muted}>نفس موديول واتساب الموجود، من غير تغيير الـWebhook.</T>
+   </>:null>
   </Card>:null}
   {busy?<ActivityIndicator color={C.green}/>:null}
   {connected&&!selected?<>
