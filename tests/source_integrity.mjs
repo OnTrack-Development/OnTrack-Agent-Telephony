@@ -174,7 +174,11 @@ assert.ok(get('mobile/src/components/InvoiceEditor.tsx').includes('buildInvoiceU
 assert.ok(get('mobile/src/components/InvoiceActions.tsx').includes('Mark Paid'));
 assert.ok(get('mobile/src/components/InvoiceActions.tsx').includes('Duplicate Invoice'));
 assert.ok(get('mobile/src/screens/Directory.tsx').includes('invoiceSelection'));
-assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('autoAttempt.current'));
+assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('loginWhatsAppWithBrowser(session,directory)'));
+assert.ok(get('mobile/src/lib/adminSession.ts').includes('authorizeInWebView'));
+assert.ok(get('mobile/native/android/CommandAdminSessionModule.java').includes('webAuthorized.contains(key)'));
+assert.ok(get('mobile/native/android/CommandAdminSessionModule.java').includes('waCSRFToken'));
+assert.ok(!get('mobile/src/screens/WhatsApp.tsx').includes('autoAttempt.current'));
 assert.ok(JSON.parse(get('mobile/app.json')).expo.plugins.some(p=>Array.isArray(p)&&p[0]==='expo-splash-screen'));
 assert.ok(get('mobile/package.json').includes('expo-splash-screen'));
 assert.ok(ticketScreen.includes('onComposerFocus?.(event.nativeEvent.target)'));
