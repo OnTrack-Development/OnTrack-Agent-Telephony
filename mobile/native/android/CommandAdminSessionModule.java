@@ -234,9 +234,12 @@ public final class CommandAdminSessionModule extends ReactContextBaseJavaModule 
     @ReactMethod public void resetAll(Promise promise) {
         executor.execute(() -> { for (java.net.CookieManager jar : jars.values()) jar.getCookieStore().removeAll();
             jars.clear(); waBrowserCookies.clear();
+            // Do not signal logout completion before the WebView administrator cookie is erased.
             getReactApplicationContext().runOnUiQueueThread(() ->
-                CookieManager.getInstance().removeAllCookies(value -> {}));
-            promise.resolve(null); });
+                CookieManager.getInstance().removeAllCookies(value -> {
+                    CookieManager.getInstance().flush();
+                    promise.resolve(null);
+                })); });
     }
     @Override public void invalidate() { executor.shutdownNow(); jars.clear(); waBrowserCookies.clear(); super.invalidate(); }
 }
