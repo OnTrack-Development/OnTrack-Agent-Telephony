@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.25",
-  "version_code": 36,
-  "filename": "WHMCS-v0.3.25-ARM64-release-signed.apk",
-  "sha256": "9005dc79c01759e1520e21bb4c8e621c887b215753c427592acbd31576d004f3",
-  "size_bytes": 29471332,
-  "release_notes": "WHMCS v0.3.25: WhatsApp chat opens at newest message, scrolling does not move the pinned keyboard-aware reply composer, sending no longer shows confirmation or success popups, foreground TelegramNotify WhatsApp polling and WHMCS notification cadence repaired, and local Android notification test added. Background push still requires an authenticated server-side FCM sender.",
-  "published_at": "2026-10-11T18:02:16Z"
+  "version_name": "0.3.26",
+  "version_code": 37,
+  "filename": "WHMCS-v0.3.26-ARM64-release-signed.apk",
+  "sha256": "f40f2af48e03f02455808c3fafc6e1d0316fff46783bf0b766164fd571a05f46",
+  "size_bytes": 29968044,
+  "release_notes": "WHMCS v0.3.26: WhatsApp inline image preview, secure image/document picker and upload via existing TelegramNotify v3.4.4; optional app lock OFF/startup-only/5-minute grace/immediate plus biometric preference; optional FCM device enrollment. Background WhatsApp push requires external Firebase Admin Service Account configuration and active TelegramNotify Cron on WHMCS.",
+  "published_at": "2026-10-11T18:14:17Z"
 }
