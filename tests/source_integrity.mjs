@@ -25,7 +25,7 @@ assert.ok(!get('mobile/src/screens/WhatsApp.tsx').includes('<AdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('adminDirectoryStorageKey'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('saveAdminDirectory'));
 assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('Linking.openURL(target)'));
-assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('loginAdmin(session,dir,username,password,otp.trim())'));
+assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('loginAdmin(session,dir,session.username,session.password,otp.trim())'));
 assert.ok(!get('mobile/src/screens/WhatsApp.tsx').includes('if(session.mode===\'api\')return <AdminAccess'));
 assert.match(get('mobile/src/lib/whatsapp.ts'),/chat_list/);
 assert.match(get('mobile/src/lib/whatsapp.ts'),/X-WA-CSRF/);

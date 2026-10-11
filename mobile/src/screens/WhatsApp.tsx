@@ -21,7 +21,6 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  const [older,setOlder]=useState(true),[loadingOlder,setLoadingOlder]=useState(false),[windowAt,setWindowAt]=useState(Date.now()),[now,setNow]=useState(Date.now());
  const [directory,setDirectory]=useState('admin'),[directoryLoaded,setDirectoryLoaded]=useState(false),[openingBrowser,setOpeningBrowser]=useState(false);
  const [needsOtp,setNeedsOtp]=useState(false),[otp,setOtp]=useState('');
- const [waUser,setWaUser]=useState(''),[waPassword,setWaPassword]=useState('');
  const autoAttempt=useRef('');
  const generation=useRef(0),readInFlight=useRef(false),sendInFlight=useRef(false),active=useRef(true),selectedId=useRef<number|null>(null);
  selectedId.current=selected?.id||null;
@@ -80,18 +79,13 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   * API mode has no browser-admin authentication: keep it on the existing browser
   * session instead of trying to impersonate a WHMCS admin with API keys. */
  const connectSaved=async()=>{
-  if(!session||busy)return;
+  if(!session||session.mode!=='admin'||busy)return;
   setBusy(true);setError('');
   try{
    const dir=await saveAdminDirectory(session,directory);
-   const username=session.mode==='admin'?session.username:waUser.trim();
-   const password=session.mode==='admin'?session.password:waPassword;
-   if(!username||(!password&&!otp.trim()))
-    throw Error('اكتب بيانات موظف إدارة WHMCS لإثبات صلاحية صندوق واتساب.');
-   const result=await loginAdmin(session,dir,username,password,otp.trim());
-   // A WHMCS API Identifier/Secret never authenticates the module's admin browser.
-   // Password used for the explicit session is transient and not persisted.
-   if(session.mode==='api')setWaPassword('');
+   if(!session.username||!session.password)
+    throw Error('بيانات Admin Legacy مش موجودة في اتصال WHMCS المحفوظ.');
+   const result=await loginAdmin(session,dir,session.username,session.password,otp.trim());
    setNeedsOtp(result.needsOtp);
    if(result.ready){
     setNeedsOtp(false);setOtp('');
@@ -190,9 +184,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     <Icon name="shield-check-outline" color={C.green} size={27}/>
     <View style={{flex:1,gap:3}}>
      <T size={16} weight="800">اتصال WHMCS محفوظ</T>
-     <T size={12} color={C.muted}>{session.mode==='admin'
-     ?'هنستخدم حساب Admin المحفوظ بعد التأكد من المجلد وصلاحيات الموظف.'
-     :'اتصال API وحده مش بيعمل جلسة إدارة. للواتساب داخل التطبيق سجّل بحساب موظف مصرح له هنا؛ مش هنحفظ كلمة مروره.'}</T>
+     <T size={12} color={C.muted}>المطلوب فقط تحديد مسار لوحة الإدارة الصحيح، من غير تسجيل بيانات دخول جديدة.</T>
     </View>
    </View>
    <T weight="800" size={14}>مسار إدارة WHMCS</T>
@@ -202,25 +194,14 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     placeholderTextColor={C.muted} style={{color:C.text,textAlign:'left',
       backgroundColor:C.surface2,padding:13,borderColor:C.stroke,borderWidth:1,borderRadius:12}}/>
    <T color={C.muted} size={12}>اكتب اسم المجلد فقط (مثال: on) أو الصق رابط الإدارة اللي فاتحه في المتصفح.</T>
-   {session.mode==='api'&&!needsOtp?<View style={{gap:9}}>
-    <T size={12} weight="700">دخول إدارة WHMCS لصندوق واتساب</T>
-    <TextInput accessibilityLabel="اسم مستخدم موظف الإدارة" value={waUser}
-     onChangeText={setWaUser} placeholder="اسم مستخدم الإدارة" autoCapitalize="none"
-     placeholderTextColor={C.muted} style={{color:C.text,textAlign:'left',padding:14,
-      backgroundColor:C.surface2,borderWidth:1,borderColor:C.stroke,borderRadius:13}}/>
-    <TextInput accessibilityLabel="كلمة مرور الإدارة لصندوق واتساب" value={waPassword}
-     onChangeText={setWaPassword} placeholder="كلمة مرور WHMCS Admin" secureTextEntry
-     autoCapitalize="none" autoCorrect={false} placeholderTextColor={C.muted}
-     style={{color:C.text,textAlign:'left',padding:14,backgroundColor:C.surface2,
-      borderWidth:1,borderColor:C.stroke,borderRadius:13}}/>
-   </View>:null}
-   {needsOtp?<TextInput accessibilityLabel="رمز التحقق بخطوتين" value={otp}
-    onChangeText={setOtp} keyboardType="number-pad" placeholder="رمز التحقق"
-    placeholderTextColor={C.muted} style={{color:C.text,textAlign:'center',
-     padding:13,backgroundColor:C.surface2,borderWidth:1,borderColor:C.stroke,borderRadius:13}}/>:null}
-   <Action label={busy?'جارٍ الربط...':needsOtp?'تأكيد رمز التحقق':'الاتصال بصندوق واتساب الأصلي'}
-    icon="whatsapp" disabled={busy} onPress={()=>void connectSaved()}/>
-   <T size={11} color={C.muted}>نستخدم نفس موديول واتساب الحالي من غير تغيير ملفاته. وضع API يحتاج تسجيل دخول WHMCS Admin مستقل للوصول لواجهة الموديول؛ لا نخزّن كلمة المرور المُدخلة هنا.</T>
+   {session.mode==='admin'?<>
+    {needsOtp?<TextInput accessibilityLabel="رمز التحقق بخطوتين" value={otp} onChangeText={setOtp}
+      keyboardType="number-pad" placeholder="رمز التحقق" placeholderTextColor={C.muted}
+      style={{color:C.text,textAlign:'center',padding:13,backgroundColor:C.surface2,borderRadius:12}}/>:null}
+    <Action label={busy?'جارٍ الربط...':needsOtp?'تأكيد رمز التحقق':'ربط محادثات واتساب بالبيانات المحفوظة'}
+      icon="whatsapp" disabled={busy} onPress={()=>void connectSaved()}/>
+    <T size={11} color={C.muted}>هيستخدم اسم مستخدم وكلمة مرور Admin Legacy المحفوظين مسبقًا في نفس التطبيق. لو WHMCS طلب التحقق بخطوتين، هنطلب الرمز فقط.</T>
+   </>:<T size={12} color={C.muted}>اتصال API Credentials الحالي لا يفتح جلسة إدارة WHMCS. افتح Inbox بالمتصفح اللي مسجل فيه بالفعل، من غير إضافة أو بيانات دخول جديدة في التطبيق.</T>}
    <Action secondary icon="open-in-new" label={openingBrowser?'جارٍ الفتح...':'فتح Inbox الموجود باستخدام المتصفح'}
     disabled={openingBrowser} onPress={()=>void openBrowser()}/>
    <T size={11} color={C.muted}>نفس موديول whatsapp_notifications الموجود، من غير Plugin جديد أو تعديل الويبهوك.</T>
