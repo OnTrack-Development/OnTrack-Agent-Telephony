@@ -55,8 +55,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.24');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,35);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.25');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,36);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
@@ -193,3 +193,14 @@ assert.ok(get('mobile/src/components/AdminAccess.tsx').includes('اختبار ف
 // Original WHMCS addon route avoids the host-level 403 for direct addon PHP files.
 assert.ok(get('mobile/src/lib/whatsapp.ts').includes('/index.php?m=telegramnotify&route=mobile_whatsapp'));
 assert.ok(!get('mobile/src/lib/whatsapp.ts').includes("+'/modules/addons/telegramnotify/mobile_whatsapp.php'"));
+
+// Native WhatsApp should be independent from parent page scroll; composer stays pinned.
+assert.ok(get('mobile/App.tsx').includes("page==='whatsapp'"));
+assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('threadScroll.current?.scrollToEnd'));
+assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('restoreHistoryOffset.current'));
+assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('keyboardShouldPersistTaps="handled"'));
+assert.ok(!get('mobile/src/screens/WhatsApp.tsx').includes("Alert.alert('تم إرسال واتساب'"));
+assert.ok(!get('mobile/src/screens/WhatsApp.tsx').includes("Alert.alert('إرسال واتساب'"));
+assert.ok(get('mobile/App.tsx').includes('telegramWhatsAppReady(session)'));
+assert.ok(get('mobile/App.tsx').includes('restoreTelegramWhatsApp(session)'));
+assert.ok(get('mobile/src/lib/notifications.ts').includes('testDeviceNotification'));
