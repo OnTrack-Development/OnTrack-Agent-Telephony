@@ -6,5 +6,5 @@
   "sha256": "9005dc79c01759e1520e21bb4c8e621c887b215753c427592acbd31576d004f3",
   "size_bytes": 29471332,
   "release_notes": "WHMCS v0.3.25: WhatsApp chat opens at newest message, scrolling does not move the pinned keyboard-aware reply composer, sending no longer shows confirmation or success popups, foreground TelegramNotify WhatsApp polling and WHMCS notification cadence repaired, and local Android notification test added. Background push still requires an authenticated server-side FCM sender.",
-  "published_at": "2026-10-11T17:34:40Z"
+  "published_at": "2026-10-11T18:02:16Z"
 }
