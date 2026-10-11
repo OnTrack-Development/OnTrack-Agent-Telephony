@@ -17,7 +17,7 @@ jobs:
           set -euo pipefail
           URL="https://services.ontrackegy.com/modules/addons/telegramnotify/mobile_whatsapp.php"
           echo "=== Cross-check server routes (no credentials) ==="
-          for route in "/" "/clientarea.php" "/modules/addons/whatsapp_notifications/webhook.php" "/modules/addons/telegramnotify/whmcs.json" "/modules/addons/telegramnotify/telegramnotify.php" "/modules/addons/telegramnotify/admin/ui_renderer.php" "/modules/addons/telegramnotify/cron/telegramnotify_cron.php" "/modules/addons/whatsapp_notifications/ajax.php?module=whatsapp_notifications" "/modules/addons/ai_support_agent/admin_snapshot.php" "/modules/addons/telegramnotify/mobile_whatsapp.php"; do
+          for route in "/" "/clientarea.php" "/modules/addons/whatsapp_notifications/webhook.php" "/modules/addons/telegramnotify/whmcs.json" "/index.php?m=telegramnotify" "/index.php?m=telegramnotify%26route=mobile_whatsapp" "/modules/addons/telegramnotify/telegramnotify.php" "/modules/addons/telegramnotify/admin/ui_renderer.php" "/modules/addons/telegramnotify/cron/telegramnotify_cron.php" "/modules/addons/whatsapp_notifications/ajax.php?module=whatsapp_notifications" "/modules/addons/ai_support_agent/admin_snapshot.php" "/modules/addons/telegramnotify/mobile_whatsapp.php"; do
             echo "ROUTE=$route"
             curl --silent --show-error --max-time 12 --connect-timeout 6 --max-redirs 0 -o /tmp/tgwa-route-b -D /tmp/tgwa-route-h -w 'HTTP=%{http_code} TYPE=%{content_type} BYTES=%{size_download} IP=%{remote_ip}\n' "https://services.ontrackegy.com$route" || true
             echo "SERVER_HEADERS=$(grep -Ei '^(server|x-litespeed|x-powered-by|x-robots-tag|content-type|www-authenticate|x-mod-security):' /tmp/tgwa-route-h | tr '\n' ';' | cut -c1-250)"
