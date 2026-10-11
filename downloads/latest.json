@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.26",
-  "version_code": 37,
-  "filename": "WHMCS-v0.3.26-ARM64-release-signed.apk",
-  "sha256": "f40f2af48e03f02455808c3fafc6e1d0316fff46783bf0b766164fd571a05f46",
-  "size_bytes": 29968044,
-  "release_notes": "WHMCS v0.3.26: WhatsApp inline image preview, secure image/document picker and upload via existing TelegramNotify v3.4.4; optional app lock OFF/startup-only/5-minute grace/immediate plus biometric preference; optional FCM device enrollment. Background WhatsApp push requires external Firebase Admin Service Account configuration and active TelegramNotify Cron on WHMCS.",
-  "published_at": "2026-10-11T19:02:41Z"
+  "version_name": "0.3.27",
+  "version_code": 38,
+  "filename": "WHMCS-v0.3.27-ARM64-release-signed.apk",
+  "sha256": "f52b3909bd7b8b18944cfc3ddf01e43147a62c0ccd964b6d50709e5f9e7af473",
+  "size_bytes": 29972140,
+  "release_notes": "WHMCS v0.3.27: WhatsApp detects supported TelegramNotify media operations before photo/document upload, displays actionable gateway update and PHP size-limit errors and offers image retry. Existing app lock preferences and FCM registration are preserved. Live media preview/send requires the existing TelegramNotify addon upgraded to v3.4.5. Background push additionally needs an external Firebase service-account key and running TelegramNotify cron.",
+  "published_at": "2026-10-11T19:16:38Z"
 }
