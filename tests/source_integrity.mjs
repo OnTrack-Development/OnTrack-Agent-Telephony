@@ -55,8 +55,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.27');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,38);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.28');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,39);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
@@ -206,11 +206,17 @@ assert.ok(get('mobile/App.tsx').includes('restoreTelegramWhatsApp(session)'));
 assert.ok(get('mobile/src/lib/notifications.ts').includes('testDeviceNotification'));
 
 assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('sendWhatsAppMedia('));
-assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('whatsappImageSource('));
+assert.ok(get('mobile/src/lib/whatsapp.ts').includes('whatsappImageSource('));
 assert.ok(get('mobile/src/lib/whatsapp.ts').includes('chat_send_media'));
 assert.ok(get('mobile/src/lib/lockPreferences.ts').includes('after_5m'));
 assert.ok(get('mobile/App.tsx').includes('shouldLockOnResume('));
 assert.ok(get('mobile/src/screens/Settings.tsx').includes('saveLockPolicy('));
 
 assert.ok(get('mobile/src/lib/whatsapp.ts').includes('whatsAppMediaStatus'));
-assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('v3.4.5'));
+assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('v3.4.6'));
+
+// Authenticated private media and native multipart upload must not use JS FormData or unauthenticated <Image> headers.
+assert.ok(get('mobile/src/lib/whatsapp.ts').includes('FileSystem.downloadAsync(source.uri'));
+assert.ok(get('mobile/src/lib/whatsapp.ts').includes('FileSystem.createUploadTask(endpoint'));
+assert.ok(get('mobile/src/lib/whatsapp.ts').includes('clearWhatsAppImage'));
+assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('NativeChatImage'));

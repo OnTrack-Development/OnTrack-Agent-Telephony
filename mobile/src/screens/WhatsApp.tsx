@@ -7,8 +7,48 @@ import {C} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Empty,Header,Icon,Notice,Pill,Search,T} from '../components/UI';
 import {adminSessionReady,checkedAdminUrl,loginAdmin,loginWhatsAppWithBrowser,saveAdminDirectory,savedAdminDirectory,validateAdminDirectory} from '../lib/adminSession';
-import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,sendWhatsAppMedia,whatsappImageSource,whatsAppMediaStatus,UploadAsset,registerWhatsAppPush,unregisterWhatsAppPush,getWhatsAppRetryAfterMs,pairTelegramWhatsApp,restoreTelegramWhatsApp,forgetTelegramWhatsApp,telegramWhatsAppReady} from '../lib/whatsapp';
+import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,sendWhatsAppMedia,whatsappImageSource,downloadWhatsAppImage,clearWhatsAppImage,whatsAppMediaStatus,UploadAsset,registerWhatsAppPush,unregisterWhatsAppPush,getWhatsAppRetryAfterMs,pairTelegramWhatsApp,restoreTelegramWhatsApp,forgetTelegramWhatsApp,telegramWhatsAppReady} from '../lib/whatsapp';
 import {ingestNotificationSnapshot,whatsAppNotifications} from '../lib/notifications';
+
+
+/** Private cached picture download with actionable HTTP errors and clean-up. */
+function NativeChatImage({session,conversationId,message,autoLoad,onOpen}:{
+ session:Session;conversationId:number;message:WaMessage;autoLoad:boolean;onOpen:(uri:string)=>void
+}){
+ const [local,setLocal]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(false);
+ const [attempt,setAttempt]=useState(autoLoad?1:0);
+ const owned=useRef<string[]>([]);
+ useEffect(()=>{
+  if(attempt<=0)return;
+  let active=true;
+  setLoading(true);setError('');
+  void downloadWhatsAppImage(session,conversationId,message).then(uri=>{
+   if(!active){void clearWhatsAppImage(uri);return;}
+   owned.current.push(uri);setLocal(uri);
+  }).catch(e=>{
+   if(active)setError(e instanceof Error?e.message:'تعذر قراءة الصورة من سيرفر WHMCS.');
+  }).finally(()=>{if(active)setLoading(false);});
+  return()=>{active=false;};
+ },[session,conversationId,message.id,attempt]);
+ useEffect(()=>()=>{for(const uri of owned.current)void clearWhatsAppImage(uri);owned.current=[];},[]);
+ return <View style={{gap:6,maxWidth:240}}>
+  {local?<Pressable accessibilityRole="imagebutton" accessibilityLabel="فتح الصورة بملء الشاشة"
+   onPress={()=>onOpen(local)}>
+   <Image source={{uri:local}} resizeMode="cover" style={{width:240,height:185,borderRadius:13}}
+    onError={()=>{setError('تم استلام البيانات لكن Android لا يستطيع قراءة تنسيق الصورة.');setLocal('');}}/>
+  </Pressable>:null}
+  {!local?<>
+   {loading?<View style={{height:100,justifyContent:'center',alignItems:'center'}}>
+    <ActivityIndicator color={C.green}/><T color={C.muted} size={11}>جارٍ تحميل الصورة...</T>
+   </View>:null}
+   {error?<T color={C.orange} size={11}>{error}</T>:null}
+   {!loading?<Pressable accessibilityRole="button" accessibilityLabel="تحميل الصورة أو إعادة المحاولة"
+    onPress={()=>setAttempt(x=>x+1)} style={{padding:10,backgroundColor:C.surface2,borderRadius:10}}>
+    <T color={C.green} weight="800" size={12}>{error?'إعادة تحميل الصورة':'عرض الصورة'}</T>
+   </Pressable>:null}
+  </>:null}
+ </View>;
+}
 
 /** Browser cookies are distinct from API credentials. Reuse Chrome's *existing*
  * WHMCS administrator session without collecting another admin password. */
@@ -36,8 +76,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  const [connectStep,setConnectStep]=useState(''),[showLegacy,setShowLegacy]=useState(false);
  const [telegramKey,setTelegramKey]=useState(''),[telegramBusy,setTelegramBusy]=useState(false);
  const [attachment,setAttachment]=useState<UploadAsset|null>(null),[picking,setPicking]=useState(false);
- const [imagePreview,setImagePreview]=useState<{uri:string;headers:{Authorization:string}}|null>(null);
- const [imageFailures,setImageFailures]=useState<Record<number,boolean>>({});
+ const [imagePreview,setImagePreview]=useState<{uri:string}|null>(null);
  const threadScroll=useRef<ScrollView>(null),followNewest=useRef(true),historyHeight=useRef(0),
   historyScrollY=useRef(0),restoreHistoryOffset=useRef(false);
  const generation=useRef(0),readInFlight=useRef(false),sendInFlight=useRef(false),active=useRef(true),selectedId=useRef<number|null>(null);
@@ -192,7 +231,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   if(!session||busy)return;
   const stamp=++generation.current;
   followNewest.current=true;historyHeight.current=0;historyScrollY.current=0;restoreHistoryOffset.current=false;
-  setSelected(conversation);setMessages([]);setOlder(true);setDraft('');setAttachment(null);setImageFailures({});setBusy(true);setError('');setWindowAt(Date.now());setNow(Date.now());
+  setSelected(conversation);setMessages([]);setOlder(true);setDraft('');setAttachment(null);setBusy(true);setError('');setWindowAt(Date.now());setNow(Date.now());
   try{
    const data=await conversationMessages(session,conversation.id);
    if(!active.current||stamp!==generation.current)return;
@@ -221,7 +260,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   if(file.mimeType.startsWith('image/')&&file.size>5*1024*1024)
    throw Error('صور واتساب حدها 5 ميجابايت.');
   if(session&&!whatsAppMediaStatus(session).mediaSend)
-   throw Error('الصور والملفات تحتاج TelegramNotify v3.4.5 على WHMCS. تحديث APK وحده مش كفاية.');
+   throw Error('الصور والملفات تحتاج TelegramNotify v3.4.6 على WHMCS. تحديث APK وحده مش كفاية.');
   setAttachment(file);
  };
  const selectImage=async()=>{
@@ -464,35 +503,24 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   </>:null}
   {selected&&session&&!whatsAppMediaStatus(session).mediaSend?
    <Notice tone="warning" title="المرفقات مش مفعلة على السيرفر"
-    message="حدث نفس موديول TelegramNotify إلى v3.4.5. لسه تقدر تبعت رسايل نصية. مش محتاج موديول جديد."/>:null}
+    message="حدث نفس موديول TelegramNotify إلى v3.4.6. لسه تقدر تبعت رسايل نصية. مش محتاج موديول جديد."/>:null}
   {selected?<>
    {older&&messages.length?<Action secondary label={loadingOlder?'جارٍ جلب الأقدم...':'تحميل رسائل أقدم'}
     disabled={loadingOlder} onPress={()=>void more()}/>:null}
    <View style={{gap:9,paddingVertical:9,paddingHorizontal:4}}>
-    {messages.map(message=>{
+    {messages.map((message,index)=>{
      const outgoing=message.direction==='outgoing';
      return <View key={message.id} style={{alignItems:outgoing?'flex-end':'flex-start',width:'100%'}}>
       <View style={{maxWidth:'88%',minWidth:98,backgroundColor:outgoing?'#183A33':C.surface,
        borderRadius:19,borderTopLeftRadius:outgoing?19:5,borderTopRightRadius:outgoing?5:19,
        borderWidth:1,borderColor:outgoing?C.green+'40':C.stroke,paddingHorizontal:15,paddingVertical:11,gap:7}}>
-       {message.has_media&&['image','sticker'].includes(message.message_type)
-        &&session&&selected&&!imageFailures[message.id]
-        &&whatsappImageSource(session,selected.id,message)?<Pressable accessibilityRole="imagebutton"
-         accessibilityLabel="عرض صورة واتساب" onPress={()=>{
-          const source=whatsappImageSource(session,selected.id,message);
-          if(source)setImagePreview(source);
-         }}>
-         <Image source={whatsappImageSource(session,selected.id,message)!} resizeMode="cover"
-          onError={()=>setImageFailures(prev=>({...prev,[message.id]:true}))}
-          style={{height:185,width:240,maxWidth:'100%',borderRadius:13,backgroundColor:C.surface2}}/>
-        </Pressable>:null}
+       {message.has_media&&['image','sticker'].includes(message.message_type)&&session&&selected
+        &&whatsAppMediaStatus(session).imagePreview?
+        <NativeChatImage session={session} conversationId={selected.id} message={message}
+         autoLoad={index>=messages.length-20} onOpen={uri=>setImagePreview({uri})}/>:null}
        {message.has_media&&['image','sticker'].includes(message.message_type)&&session
-         &&!whatsAppMediaStatus(session).imagePreview?
-        <T size={11} color={C.orange}>معاينة الصور تحتاج تحديث TelegramNotify على السيرفر إلى v3.4.5.</T>:null}
-       {message.has_media&&imageFailures[message.id]?<Pressable onPress={()=>
-         setImageFailures(prev=>({...prev,[message.id]:false}))} accessibilityRole="button">
-        <T size={11} color={C.orange}>تعذر تحميل الصورة من Meta. اضغط لإعادة المحاولة؛ الصور القديمة قد تنتهي صلاحيتها.</T>
-       </Pressable>:null}
+        &&!whatsAppMediaStatus(session).imagePreview?
+        <T size={11} color={C.orange}>معاينة الصور تحتاج تحديث TelegramNotify إلى v3.4.6 على السيرفر.</T>:null}
        {message.body?<T size={13} style={{textAlign:'right'}}>{message.body}</T>:null}
        {!message.body&&!message.has_media?<T size={13}>رسالة {message.message_type}</T>:null}
        {message.has_media?<View style={{flexDirection:'row-reverse',alignItems:'center',gap:5}}>

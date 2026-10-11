@@ -41,6 +41,15 @@ function load(name){
  const context={exports:{},URL,URLSearchParams,setTimeout,clearTimeout,require(imported){
   if(imported==='react-native')return {NativeModules:{CommandAdminSession:native},Platform:{OS:'android'}};
   if(imported==='expo-crypto')return {randomUUID:()=>'c6271bf5-967c-4684-aa8c-6b7fa7e52714'};
+  if(imported==='expo-file-system/legacy')return {
+    cacheDirectory:'file:///test-cache/',
+    FileSystemUploadType:{MULTIPART:1},
+    downloadAsync:async()=>({uri:'file:///test-cache/example.img',status:200,headers:{'content-type':'image/jpeg'}}),
+    getInfoAsync:async()=>({exists:true,size:100}),
+    readAsStringAsync:async()=>'{"status":"error"}',
+    deleteAsync:async()=>{},
+    createUploadTask:()=>({uploadAsync:async()=>({status:200,body:'{"status":"success"}'}),cancelAsync:async()=>{}})
+  };
   if(imported==='expo-notifications')return {
     getPermissionsAsync:async()=>({granted:false}),
     getDevicePushTokenAsync:async()=>({data:''})
