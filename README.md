@@ -1,6 +1,6 @@
 # WHMCS Native Android App
 
-Current source: **v0.3.19, Android build 30**. Application ID remains `com.ontrackdevelopment.command` for upgrades using the existing release signature.
+Current source: **v0.3.20, Android build 31**. Application ID remains `com.ontrackdevelopment.command` for upgrades using the existing release signature.
 
 - Native React Native screens. No WebView, iframe or external-browser WhatsApp inbox.
 - WHMCS core operations use the existing `includes/api.php` API and server-side API permissions.
@@ -48,3 +48,10 @@ A custom branded, accessible in-app confirmation and alert modal replaces the sy
 The static OS splash is now a short first frame; an original React Native native-driver animated launch mark reveals the WHMCS identity, awaits only saved-session restoration, and transitions out to the main interface. Reduced-motion Android accessibility is honored, with no network dependency or fixed artificial loading delay. App routes animate subtly, and shared surface styles plus the home, navigation, directory, tickets, WhatsApp, client profile, connection and settings UI have been redesigned without replacing WHMCS authorization logic. Native Android device review is still required for visual acceptance.
 
 FCM remote notifications remain gated on authenticated WHMCS staff enrollment and **server-only** Firebase credentials. Do not assume that client Firebase config enables background pushes.
+
+## v0.3.20: Privacy, dashboard and launch
+Device unlock is required before restoring access to WHMCS records. A mandatory device-local 6–10 digit PIN is enrolled and confirmed, stored as a salted digest in secure OS storage, with retries restricted; where supported users can unlock using the OS biometric/device prompt. Re-entering from background locks the app again. This is local session protection, not a substitute for server WHMCS login/access permissions.
+
+Financial figures are hidden by default (including unpaid invoice totals), with an eye button to reveal. Revenue uses WHMCS GetStats's official today/month/year/all-time formatted values. Invoice face-value totals use GetInvoices(status=Unpaid), stay unavailable when the response is incomplete, and are grouped by currency rather than summing mixed currencies. These figures aren't a remaining-balance ledger when partially paid invoices exist. No fake demo numbers are substituted.
+
+The native opening frame and in-app wordmark now share the same background, with no invented native splash logo. WhatsApp remains integrated externally via the existing WHMCS admin inbox and requires an authenticated admin session; its stable module is not modified. Device-level QA and real WhatsApp authentication checks are still needed.

@@ -3,7 +3,7 @@
     "name": "WHMCS",
     "slug": "whmcs-admin",
     "scheme": "whmcsadmin",
-    "version": "0.3.19",
+    "version": "0.3.20",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -17,7 +17,7 @@
       "permissions": [
         "POST_NOTIFICATIONS"
       ],
-      "versionCode": 30,
+      "versionCode": 31,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#090D14"
@@ -35,13 +35,16 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#080D17",
-          "image": "./assets/icon.png",
-          "imageWidth": 175,
+          "backgroundColor": "#090D14",
           "dark": {
-            "backgroundColor": "#080D17",
-            "image": "./assets/icon.png"
+            "backgroundColor": "#090D14"
           }
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "استخدام البصمة لفتح WHMCS"
         }
       ]
     ],

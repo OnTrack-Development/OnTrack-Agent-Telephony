@@ -5,114 +5,83 @@ import {C} from '../theme';
 import {T} from './UI';
 
 /**
- * Original WHMCS motion identity: bars converge, a light sweep reveals the
- * wordmark, then the intro exits ONLY after local session restoration.
- * The native OS splash is the first frame. Never block on network requests.
- * All animations use the native driver; reduce-motion accessibility is honored.
+ * Typography-led original motion identity. The Android native splash is the
+ * SAME blank dark frame. No invented icon, particles, fake progress or network
+ * waiting. Native-driver opacity/transforms, and reduced-motion fallback.
  */
 export function AnimatedSplash({ready,onFinish}:{ready:boolean;onFinish:()=>void}){
- const entrance=useRef(new Animated.Value(0)).current;
  const reveal=useRef(new Animated.Value(0)).current;
- const breath=useRef(new Animated.Value(0)).current;
- const exit=useRef(new Animated.Value(1)).current;
- const [sequenceFinished,setSequenceFinished]=useState(false);
- const [reduceMotion,setReduceMotion]=useState(false);
- const hidden=useRef(false),finishing=useRef(false);
- const onFinishRef=useRef(onFinish);
- onFinishRef.current=onFinish;
+ const line=useRef(new Animated.Value(0)).current;
+ const subtitle=useRef(new Animated.Value(0)).current;
+ const leave=useRef(new Animated.Value(1)).current;
+ const [played,setPlayed]=useState(false),[reduced,setReduced]=useState(false);
+ const firstFrame=useRef(false),exiting=useRef(false);
+ const finish=useRef(onFinish);finish.current=onFinish;
 
  useEffect(()=>{
-  let mounted=true;
-  let active:Animated.CompositeAnimation|undefined;
-  const begin=async()=>{
-   let reduced=false;
-   try{reduced=await AccessibilityInfo.isReduceMotionEnabled();}catch{}
-   if(!mounted)return;
-   setReduceMotion(reduced);
-   if(reduced){
-    entrance.setValue(1);reveal.setValue(1);breath.setValue(1);
-    setSequenceFinished(true);
-    return;
+  let alive=true;
+  let animation:Animated.CompositeAnimation|undefined;
+  const start=async()=>{
+   let shouldReduce=false;
+   try{shouldReduce=await AccessibilityInfo.isReduceMotionEnabled();}catch{}
+   if(!alive)return;
+   setReduced(shouldReduce);
+   if(shouldReduce){
+    reveal.setValue(1);line.setValue(1);subtitle.setValue(1);setPlayed(true);return;
    }
-   active=Animated.sequence([
+   animation=Animated.sequence([
     Animated.parallel([
-     Animated.timing(entrance,{toValue:1,duration:680,
-      easing:Easing.out(Easing.cubic),useNativeDriver:true}),
-     Animated.timing(breath,{toValue:1,duration:760,
-      easing:Easing.inOut(Easing.quad),useNativeDriver:true})
+     Animated.timing(reveal,{toValue:1,duration:520,easing:Easing.out(Easing.cubic),useNativeDriver:true}),
+     Animated.timing(line,{toValue:1,duration:650,easing:Easing.out(Easing.cubic),useNativeDriver:true})
     ]),
-    Animated.timing(reveal,{toValue:1,duration:440,
-     easing:Easing.out(Easing.cubic),useNativeDriver:true}),
-    Animated.delay(220)
+    Animated.timing(subtitle,{toValue:1,duration:290,easing:Easing.out(Easing.quad),useNativeDriver:true}),
+    Animated.delay(130)
    ]);
-   active.start(({finished})=>{if(mounted&&finished)setSequenceFinished(true);});
+   animation.start(({finished})=>{if(alive&&finished)setPlayed(true);});
   };
-  void begin();
-  return()=>{mounted=false;active?.stop();};
- },[entrance,reveal,breath]);
+  void start();
+  return()=>{alive=false;animation?.stop();};
+ },[reveal,line,subtitle]);
 
  useEffect(()=>{
-  if(!ready||!sequenceFinished||finishing.current)return;
-  finishing.current=true;
-  if(reduceMotion){onFinishRef.current();return;}
-  const animation=Animated.timing(exit,{toValue:0,duration:340,
-   easing:Easing.inOut(Easing.cubic),useNativeDriver:true});
-  animation.start(({finished})=>{if(finished)onFinishRef.current();});
-  return()=>animation.stop();
- },[ready,sequenceFinished,reduceMotion,exit]);
+  if(!ready||!played||exiting.current)return;
+  exiting.current=true;
+  if(reduced){finish.current();return;}
+  const a=Animated.timing(leave,{toValue:0,duration:260,
+   easing:Easing.inOut(Easing.quad),useNativeDriver:true});
+  a.start(({finished})=>{if(finished)finish.current();});
+  return()=>a.stop();
+ },[ready,played,reduced,leave]);
 
- const markOpacity=entrance.interpolate({inputRange:[0,0.12,1],outputRange:[0,0.2,1]});
- const slide=entrance.interpolate({inputRange:[0,1],outputRange:[56,0]});
- const scale=entrance.interpolate({inputRange:[0,0.65,1],outputRange:[0.7,1.09,1]});
- const titleSlide=reveal.interpolate({inputRange:[0,1],outputRange:[24,0]});
- const glowScale=breath.interpolate({inputRange:[0,1],outputRange:[0.65,1.3]});
- const wipe=reveal.interpolate({inputRange:[0,1],outputRange:[-130,190]});
- return <Animated.View
-  accessibilityLabel="جاري تشغيل تطبيق إدارة WHMCS"
-  accessible
+ const titleShift=reveal.interpolate({inputRange:[0,1],outputRange:[22,0]});
+ const accentShift=line.interpolate({inputRange:[0,1],outputRange:[-135,0]});
+ const descShift=subtitle.interpolate({inputRange:[0,1],outputRange:[10,0]});
+ return <Animated.View accessible accessibilityLabel="جاري فتح إدارة WHMCS"
   onLayout={()=>{
-   if(hidden.current)return;
-   hidden.current=true;
-   // Let React Native paint this actual frame before dismissing the native splash.
+   if(firstFrame.current)return;firstFrame.current=true;
    requestAnimationFrame(()=>{void SplashScreen.hideAsync().catch(()=>{});});
   }}
-  style={{flex:1,backgroundColor:'#080B12',justifyContent:'center',alignItems:'center',
-   overflow:'hidden',opacity:exit}}>
-  <StatusBar barStyle="light-content" backgroundColor="#080B12"/>
-  <Animated.View pointerEvents="none" style={{position:'absolute',width:360,height:360,borderRadius:180,
-   backgroundColor:'#391822',opacity:breath.interpolate({inputRange:[0,1],outputRange:[0,0.52]}),
-   transform:[{scale:glowScale}]}}/>
-  <View style={{alignItems:'center',justifyContent:'center',gap:28}}>
-   <Animated.View style={{width:134,height:134,alignItems:'center',justifyContent:'center',
-    opacity:markOpacity,transform:[{translateY:slide},{scale}]}}>
-    <View style={{width:122,height:122,borderRadius:37,borderWidth:1,borderColor:'#57313B',
-     backgroundColor:'#151923',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
-     <Animated.View style={{position:'absolute',width:24,height:195,backgroundColor:'#F4445A',
-      opacity:0.19,transform:[{rotate:'38deg'},{translateX:wipe}]}}/>
-     <View style={{height:51,width:66,flexDirection:'row',alignItems:'flex-end',gap:8,transform:[{rotate:'-14deg'}]}}>
-      <View style={{width:13,height:30,borderRadius:5,backgroundColor:'#F54A60'}}/>
-      <View style={{width:13,height:49,borderRadius:5,backgroundColor:'#FA7282'}}/>
-      <View style={{width:13,height:38,borderRadius:5,backgroundColor:'#FFFFFF'}}/>
-     </View>
-     <View style={{position:'absolute',width:6,height:6,borderRadius:3,backgroundColor:C.red,
-      top:27,right:24}}/>
-    </View>
+  style={{flex:1,backgroundColor:'#090D14',justifyContent:'center',
+   alignItems:'center',opacity:leave}}>
+  <StatusBar backgroundColor="#090D14" barStyle="light-content"/>
+  <View style={{width:'100%',alignItems:'center',gap:16,paddingHorizontal:32}}>
+   <Animated.View style={{opacity:reveal,transform:[{translateY:titleShift}]}}>
+    <T size={49} color="#FAFBFF" weight="900" style={{
+     letterSpacing:4.7,writingDirection:'ltr',textAlign:'center'}}>WHMCS</T>
    </Animated.View>
-   <Animated.View style={{alignItems:'center',gap:7,
-    opacity:reveal,transform:[{translateY:titleSlide}]}}>
-    <T size={35} weight="900" color={C.white} style={{textAlign:'center',letterSpacing:2.6,writingDirection:'ltr'}}>WHMCS</T>
-    <T size={11} color="#B2BECC" weight="600" style={{textAlign:'center',letterSpacing:1.9,writingDirection:'ltr'}}>
+   <View style={{width:136,height:3,backgroundColor:'#252F3D',overflow:'hidden',borderRadius:3}}>
+    <Animated.View style={{backgroundColor:C.red,height:3,width:136,
+     transform:[{translateX:accentShift}]}}/>
+   </View>
+   <Animated.View style={{opacity:subtitle,transform:[{translateY:descShift}]}}>
+    <T color="#B0BCCA" size={11} weight="700"
+     style={{letterSpacing:3.7,writingDirection:'ltr',textAlign:'center'}}>
      ADMIN CONSOLE
     </T>
    </Animated.View>
   </View>
-  <View style={{position:'absolute',bottom:50,alignItems:'center',gap:12,minHeight:46}}>
-   {!ready?<T size={12} color="#9FAABA" style={{textAlign:'center'}}>بنجهّز مساحة العمل بأمان...</T>:
-    <T size={12} color="#9FAABA" style={{textAlign:'center'}}>كل حاجة في مكانها</T>}
-   <View style={{width:72,height:3,borderRadius:3,backgroundColor:'#34323C',overflow:'hidden'}}>
-    <Animated.View style={{width:'100%',height:'100%',backgroundColor:C.red,
-     transform:[{translateX:entrance.interpolate({inputRange:[0,1],outputRange:[-72,0]})}]}}/>
-   </View>
-  </View>
+  <Animated.View style={{position:'absolute',bottom:55,opacity:subtitle}}>
+   <T size={10} color="#7D8B9F" style={{textAlign:'center'}}>SECURE OPERATIONS</T>
+  </Animated.View>
  </Animated.View>;
 }

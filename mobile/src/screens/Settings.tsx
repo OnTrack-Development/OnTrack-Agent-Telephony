@@ -6,8 +6,8 @@ import type {Session} from '../types';
 import {Action,Card,Header,Icon,ItemRow,Notice,Pill,Section,T} from '../components/UI';
 import {enableDeviceNotifications,verifyNativeFcmSetup} from '../lib/notifications';
 
-export function Settings({session,demo,onLogout,capabilities,errors}:{
- session:Session|null;demo:boolean;onLogout:()=>void;
+export function Settings({session,demo,onLogout,onLock,capabilities,errors}:{
+ session:Session|null;demo:boolean;onLogout:()=>void;onLock?:()=>void;
  capabilities:Record<string,boolean>;errors:Record<string,string>;
 }){
  const firebaseTest=()=>{
@@ -78,6 +78,19 @@ export function Settings({session,demo,onLogout,capabilities,errors}:{
    {Object.entries(errors).map(([key,value])=>
     <Notice key={key} tone="warning" title={key} message={value}/>)}
   </View>:null}
+  <Section title="قفل التطبيق"/>
+  <Card style={{gap:12}}>
+   <View style={{flexDirection:'row-reverse',gap:10,alignItems:'center'}}>
+    <Icon name="fingerprint" size={25} color={C.green}/>
+    <View style={{flex:1,gap:4}}>
+     <T size={14} weight="800">تأمين الدخول</T>
+     <T color={C.muted} size={11}>رمز سري محلي + بصمة عند توفرها</T>
+    </View>
+   </View>
+   <Notice tone="info" title="القفل إلزامي"
+    message="يتم قفل جلسة WHMCS فور انتقال التطبيق للخلفية. رمز القفل محفوظ مشفّرًا على الجهاز، ولا يُرسل إلى الشركة."/>
+   {session&&!demo?<Action secondary icon="lock-outline" label="قفل التطبيق الآن" onPress={()=>onLock?.()}/>:null}
+  </Card>
   <Section title="إدارة الجلسة"/>
   <Card style={{gap:13}}>
    <Notice tone="warning" title="بيانات الجهاز"

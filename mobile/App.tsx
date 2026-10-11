@@ -6,6 +6,8 @@ import {SafeAreaProvider,SafeAreaView,useSafeAreaInsets} from 'react-native-safe
 import {UpdateGate} from './src/components/UpdateGate';
 import {AnimatedSplash} from './src/components/AnimatedSplash';
 import {PageMotion} from './src/components/PageMotion';
+import {AppLock} from './src/components/AppLock';
+import {loadFinancialSummary,FinancialSummary} from './src/lib/financial';
 import * as SplashScreen from 'expo-splash-screen';
 void SplashScreen.preventAutoHideAsync().catch(()=>{});
 import type {DemoState,Page,Session} from './src/types';
@@ -80,6 +82,10 @@ function CommandApp(){
   return()=>{shown.remove();hidden.remove();};
  },[]);
  const [introFinished,setIntroFinished]=useState(false);
+ const [unlocked,setUnlocked]=useState(false),unlockedRef=useRef(false);
+ const [moneyVisible,setMoneyVisible]=useState(false);
+ const [finance,setFinance]=useState<FinancialSummary|null>(null),[financeError,setFinanceError]=useState(''),[financeBusy,setFinanceBusy]=useState(false);
+ const financeRequest=useRef(false);
  const [initializing,setInitializing]=useState(true),[session,setSession]=useState<Session|null>(null),[demo,setDemo]=useState(false);
  const [data,setData]=useState<DemoState>(empty),[page,setPage]=useState<Page>('home'),[loading,setLoading]=useState(false);
  const [ticketReload,setTicketReload]=useState(0);
@@ -88,6 +94,7 @@ function CommandApp(){
  const [error,setError]=useState(''),[errors,setErrors]=useState<Record<string,string>>({}),[caps,setCaps]=useState<Record<string,boolean>>({}),[totals,setTotals]=useState<Record<string,number|null>>({}),[moreBusy,setMoreBusy]=useState(false),[lastSync,setLastSync]=useState(''),[history,setHistory]=useState<Page[]>([]),[detail,setDetail]=useState<{title:string,lines:[string,string][]}|null>(null);
  const refreshInFlight=useRef(false),lastRefreshAt=useRef<Record<string,number>>({}),retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null),generation=useRef(0);
  const refresh=useCallback(async(s:Session,force=false,section?:SectionKey)=>{
+  if(!unlockedRef.current)return;
   const current=pageRef.current;
   const wanted=section||(current==='home'?'tickets':(['clients','invoices','services','orders','domains'].includes(current)?current as SectionKey:undefined));
   if(!wanted)return;
@@ -138,13 +145,23 @@ function CommandApp(){
   }finally{refreshInFlight.current=false;setLoading(false);}
  },[]);
  useEffect(()=>()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);},[]);
- useEffect(()=>{let active=true;loadSession().then(s=>{if(!active)return;setSession(s);setInitializing(false);if(s)void refresh(s);}).catch(()=>setInitializing(false));return()=>{active=false;};},[refresh]);
+ useEffect(()=>{let active=true;loadSession().then(s=>{if(!active)return;setSession(s);setInitializing(false);}).catch(()=>setInitializing(false));return()=>{active=false;};},[refresh]);
 
  // Keep the native launch surface until AnimatedSplash has painted its first frame.
 
- useEffect(()=>{if(!session||demo)return;const listener=AppState.addEventListener('change',s=>{if(s==='active')void refresh(session);});return()=>listener.remove();},[session,demo,refresh]);
  useEffect(()=>{
   if(!session||demo)return;
+  const listener=AppState.addEventListener('change',state=>{
+   if(state==='background'){
+    // Always lock immediately; do not expose a previous dashboard snapshot after resume.
+    unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);
+    setFinance(null);setFinanceError('');
+   }else if(state==='active'&&unlockedRef.current)void refresh(session);
+  });
+  return()=>listener.remove();
+ },[session,demo,refresh]);
+ useEffect(()=>{
+  if(!session||demo||!unlocked)return;
   let disposed=false;
   void enableDeviceNotifications().catch(()=>{});
   const sections:SectionKey[]=['tickets','orders','clients','invoices','services','domains'];
@@ -165,9 +182,9 @@ function CommandApp(){
    if(state==='active')void tick();
   });
   return()=>{disposed=true;clearInterval(timer);foreground.remove();};
- },[session,demo]);
+ },[session,demo,unlocked]);
  useEffect(()=>{
-  if(!session||demo)return;
+  if(!session||demo||!unlocked)return;
   let destroyed=false,reading=false;
   const poll=async()=>{
    if(destroyed||reading||AppState.currentState!=='active'
@@ -180,12 +197,12 @@ function CommandApp(){
   };
   const timer=setInterval(()=>void poll(),120000);
   return()=>{destroyed=true;clearInterval(timer);};
- },[session,demo]);
+ },[session,demo,unlocked]);
  useEffect(()=>{
-  if(!session||demo)return;
+  if(!session||demo||!unlocked)return;
   if(['clients','invoices','services','orders','domains'].includes(page))
    void refresh(session,false,page as SectionKey);
- },[session,page,demo,refresh]);
+ },[session,page,demo,unlocked,refresh]);
  const navigate=(p:Page)=>{setNotificationTarget(null);if(p!==page){setHistory(h=>[...h,page].slice(-20));setPage(p);}setDetail(null);};
  const routeNotification=(payload:any)=>{
   if(!payload||typeof payload!=='object')return;
@@ -233,9 +250,10 @@ function CommandApp(){
  const connect=async(config:Session)=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;
    const result=await connectApi(config);
    if(!result.ok||!result.data){Alert.alert('WHMCS رفض الاتصال',result.error||'تحقق من بيانات API والصلاحيات');return;}
-   lastRefreshAt.current={};setSession(result.data);setDemo(false);setHistory([]);setPage('home');await refresh(result.data,true,'tickets');
+   lastRefreshAt.current={};unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);setFinance(null);
+   setSession(result.data);setDemo(false);setHistory([]);setPage('home');
  };
- const logout=async()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;await resetAdminSessions();await signOut();setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
+ const logout=async()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;await resetAdminSessions();await signOut();unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);setFinance(null);setFinanceError('');setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
  const reply=async(id:number,text:string,identity?:{clientId:number;contactId:number;name:string;email:string})=>{
   if(demo){setData(d=>({...d,tickets:d.tickets.map(t=>t.id===id?{...t,status:'Answered',message:text}:t)}));Alert.alert('وضع تجريبي','تم تعديل البيانات المحلية فقط.');return true;}
   if(!session)return false; // WHMCS enforces actual reply permission; list/read failures aren't reply denials.
@@ -255,9 +273,27 @@ function CommandApp(){
   return [initial,...arr.map((m:any,i:number)=>({id:String(m.id||i),message:String(m.message||''),name:String(m.name||m.admin||''),date:String(m.date||''),admin:!!m.admin}))].filter(x=>x.message);
  };
  if(!introFinished)return <AnimatedSplash ready={!initializing} onFinish={()=>setIntroFinished(true)}/>;
+ if(session&&!demo&&!unlocked)return <AppLock session={session} onUnlock={()=>{
+  unlockedRef.current=true;setUnlocked(true);void refresh(session,true,'tickets');
+ }}/>;
+
  if(!session&&!demo)return <Connect onPair={connect} onDemo={()=>{setDemo(true);setData(JSON.parse(JSON.stringify(seed)));setCaps({'tickets.read':true,'tickets.reply':true,'whatsapp.read':true,'whatsapp.send':true,'ai.read':true});setPage('home');}}/>;
  const body=()=>{
-  if(page==='home')return <Home data={data} demo={demo} navigate={navigate} capabilities={caps} totals={totals}/>;
+  if(page==='home')return <Home data={data} demo={demo} navigate={navigate} capabilities={caps} totals={totals}
+    financial={finance} financialError={financeError} financialBusy={financeBusy} moneyVisible={moneyVisible}
+    onToggleMoney={()=>{
+     if(moneyVisible){setMoneyVisible(false);return;}
+     setMoneyVisible(true);
+     if(demo){setFinanceError('القيم المالية غير متاحة في العرض التجريبي.');return;}
+     if(!session||finance||financeRequest.current)return;
+     financeRequest.current=true;setFinanceBusy(true);setFinanceError('');
+     void loadFinancialSummary(session).then(value=>{
+      if(unlockedRef.current)setFinance(value);
+     }).catch(e=>{
+      if(unlockedRef.current)setFinanceError(e instanceof Error?e.message:'تعذر تحميل إحصاءات WHMCS');
+     }).finally(()=>{financeRequest.current=false;setFinanceBusy(false);});
+    }}/>;
+
   if(page==='tickets')return <Tickets session={session} tickets={data.tickets} reloadSignal={ticketReload} onReply={reply} demo={demo} onComposerFocus={revealComposer} onDetailChange={setTicketDetailOpen}
    focusTicket={notificationTarget?.page==='tickets'&&notificationTarget.id?{id:notificationTarget.id,number:String(notificationTarget.id),subject:'',customer:'',department:'',priority:'Medium',status:'Open',updated:''}:undefined}
    onClose={()=>setNotificationTarget(null)}/>;
@@ -280,7 +316,7 @@ function CommandApp(){
      </Pressable>)}
     </View>
    </View>;
-  if(page==='settings')return <Settings session={session} demo={demo} onLogout={logout} capabilities={caps} errors={errors}/>;
+  if(page==='settings')return <Settings session={session} demo={demo} onLogout={logout} capabilities={caps} errors={errors} onLock={()=>{unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);setFinance(null);}}/>;
   if(page==='explorer')return demo?<View><T color={C.orange}>دليل API يحتاج ربط WHMCS حقيقي (غير متاح في الديمو).</T></View>:session?<Explorer session={session} onDetails={(title,lines)=>setDetail({title,lines})}/>:null;
   return <Directory session={session} page={page} data={data} onDetails={(title,lines)=>setDetail({title,lines})} total={totals[page]} error={errors[page]} loading={moreBusy} onLoadMore={()=>loadMore(page as 'clients'|'invoices'|'services'|'orders'|'domains')} onReload={()=>session&&void refresh(session,true,page as SectionKey)}
   onComposerFocus={revealComposer} focusRecordId={notificationTarget?.page===page?notificationTarget.id||undefined:undefined} onFocusExit={()=>setNotificationTarget(null)}/>;
