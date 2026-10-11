@@ -6,5 +6,5 @@
   "sha256": "18a6a33c910bc5bee6cd41358d28d0e4ca25d763b2c2627d483efcae69d4a2d0",
   "size_bytes": 30392931,
   "release_notes": "WHMCS v0.3.17: configured OnTrack WHMCS Firebase Android app, native FCM enrollment test without exposing the device token; remote push needs an authenticated multi-tenant backend.",
-  "published_at": "2026-10-11T02:04:05Z"
+  "published_at": "2026-10-11T02:46:31Z"
 }
