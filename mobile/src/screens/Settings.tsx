@@ -4,7 +4,7 @@ import {Alert} from '../components/Feedback';
 import {C} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Header,Icon,ItemRow,Notice,Pill,Section,T} from '../components/UI';
-import {enableDeviceNotifications,verifyNativeFcmSetup} from '../lib/notifications';
+import {enableDeviceNotifications,verifyNativeFcmSetup,testDeviceNotification} from '../lib/notifications';
 
 export function Settings({session,demo,onLogout,onLock,capabilities,errors}:{
  session:Session|null;demo:boolean;onLogout:()=>void;onLock?:()=>void;
@@ -49,6 +49,11 @@ export function Settings({session,demo,onLogout,onLock,capabilities,errors}:{
      Alert.alert(ok?'تم السماح بالإشعارات':'إشعارات Android',
       ok?'إذن الجهاز جاهز.':'اسمح بالإشعارات من إعدادات Android.')
     ).catch(()=>Alert.alert('تنبيهات الجهاز','تعذّر الحصول على الإذن.'))}/>
+   <Action icon="bell-ring" secondary label="إرسال إشعار تجريبي على الجهاز" onPress={()=>
+    void testDeviceNotification().then(result=>{
+     if(result==='permission_denied')
+      Alert.alert('إشعارات Android مقفولة','افتح إعدادات التطبيق من Android ← الإشعارات، واسمح بإشعارات WHMCS وقناة واتساب.');
+    }).catch(()=>Alert.alert('اختبار الإشعارات','تعذر إرسال إشعار محلي. راجع إعدادات إشعارات Android.'))}/>
    <Action label="اختبار اتصال Firebase للجهاز" secondary
     icon="shield-check-outline" onPress={firebaseTest}/>
    <Notice tone="info" title="حالة الإشعارات اللحظية"
