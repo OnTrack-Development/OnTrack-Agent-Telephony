@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.22",
-  "version_code": 33,
-  "filename": "WHMCS-v0.3.22-ARM64-release-signed.apk",
-  "sha256": "dfd204b7aa59efa8cde9d46fa2d5f58da91515c40f8b57e2921c96c84d44d1c7",
-  "size_bytes": 29459044,
-  "release_notes": "WHMCS v0.3.22: native WhatsApp inbox, conversation search and unread filter, message bubbles and delivery states, and authorised in-app WHMCS admin sign-in for the original whatsapp_notifications addon. No new WHMCS modules and no webhook changes. Live WHMCS authentication and send/receive require on-device validation.",
-  "published_at": "2026-10-11T15:55:38Z"
+  "version_name": "0.3.23",
+  "version_code": 34,
+  "filename": "WHMCS-v0.3.23-ARM64-release-signed.apk",
+  "sha256": "299c8fdd60ae70b0b9dfeb519a92f5b8c8bb7eec996423c6165f67e2f3ef3740",
+  "size_bytes": 29467236,
+  "release_notes": "WHMCS v0.3.23: optional WhatsApp conversation gateway via the already installed TelegramNotify v3.4.1 addon, secure admin-issued pairing key, read/reply in app with unchanged WhatsApp webhook and Meta service. Update existing TelegramNotify files on the WHMCS server before enabling the new pairing route; live operator validation required.",
+  "published_at": "2026-10-11T16:05:45Z"
 }
