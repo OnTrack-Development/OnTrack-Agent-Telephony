@@ -1,11 +1,13 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
-import {ActivityIndicator,AppState,BackHandler,Linking,Pressable,ScrollView,TextInput,View} from 'react-native';
+import {ActivityIndicator,AppState,BackHandler,Image,Linking,Modal,Pressable,ScrollView,TextInput,View} from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import {Alert} from '../components/Feedback';
 import {C} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Empty,Header,Icon,Notice,Pill,Search,T} from '../components/UI';
 import {adminSessionReady,checkedAdminUrl,loginAdmin,loginWhatsAppWithBrowser,saveAdminDirectory,savedAdminDirectory,validateAdminDirectory} from '../lib/adminSession';
-import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,getWhatsAppRetryAfterMs,pairTelegramWhatsApp,restoreTelegramWhatsApp,forgetTelegramWhatsApp,telegramWhatsAppReady} from '../lib/whatsapp';
+import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,sendWhatsAppMedia,whatsappImageSource,UploadAsset,getWhatsAppRetryAfterMs,pairTelegramWhatsApp,restoreTelegramWhatsApp,forgetTelegramWhatsApp,telegramWhatsAppReady} from '../lib/whatsapp';
 import {ingestNotificationSnapshot,whatsAppNotifications} from '../lib/notifications';
 
 /** Browser cookies are distinct from API credentials. Reuse Chrome's *existing*
@@ -33,11 +35,14 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  const [adminUser,setAdminUser]=useState(''),[adminPass,setAdminPass]=useState('');
  const [connectStep,setConnectStep]=useState(''),[showLegacy,setShowLegacy]=useState(false);
  const [telegramKey,setTelegramKey]=useState(''),[telegramBusy,setTelegramBusy]=useState(false);
+ const [attachment,setAttachment]=useState<UploadAsset|null>(null),[picking,setPicking]=useState(false);
+ const [imagePreview,setImagePreview]=useState<{uri:string;headers:{Authorization:string}}|null>(null);
+ const [imageFailures,setImageFailures]=useState<Record<number,boolean>>({});
  const threadScroll=useRef<ScrollView>(null),followNewest=useRef(true),historyHeight=useRef(0),
   historyScrollY=useRef(0),restoreHistoryOffset=useRef(false);
  const generation=useRef(0),readInFlight=useRef(false),sendInFlight=useRef(false),active=useRef(true),selectedId=useRef<number|null>(null);
  selectedId.current=selected?.id||null;
- const close=()=>{followNewest.current=true;historyHeight.current=0;restoreHistoryOffset.current=false;generation.current++;setSelected(null);setMessages([]);setDraft('');setError('');};
+ const close=()=>{followNewest.current=true;historyHeight.current=0;restoreHistoryOffset.current=false;generation.current++;setSelected(null);setMessages([]);setDraft('');setAttachment(null);setImagePreview(null);setError('');};
  useEffect(()=>{active.current=true;return()=>{active.current=false;generation.current++;};},[]);
  useEffect(()=>{let mounted=true;
   setDirectoryLoaded(false);
@@ -185,7 +190,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   if(!session||busy)return;
   const stamp=++generation.current;
   followNewest.current=true;historyHeight.current=0;historyScrollY.current=0;restoreHistoryOffset.current=false;
-  setSelected(conversation);setMessages([]);setOlder(true);setDraft('');setBusy(true);setError('');setWindowAt(Date.now());setNow(Date.now());
+  setSelected(conversation);setMessages([]);setOlder(true);setDraft('');setAttachment(null);setImageFailures({});setBusy(true);setError('');setWindowAt(Date.now());setNow(Date.now());
   try{
    const data=await conversationMessages(session,conversation.id);
    if(!active.current||stamp!==generation.current)return;
@@ -201,18 +206,60 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
    setMessages(prev=>[...data.messages.filter(x=>!prev.some(y=>y.id===x.id)),...prev].sort((a,b)=>a.id-b.id));setOlder(data.messages.length===120);
   }catch(e){if(stamp===generation.current)report(e);}finally{if(active.current)setLoadingOlder(false);}
  };
+ const validateAsset=(file:UploadAsset)=>{
+  if(!file.uri||!file.mimeType||!file.name||file.size<=0)throw Error('الملف المختار غير صالح.');
+  const allowed=['image/jpeg','image/png','application/pdf','text/plain',
+   'application/msword','application/vnd.ms-excel','application/vnd.ms-powerpoint',
+   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+   'application/vnd.openxmlformats-officedocument.presentationml.presentation'];
+  if(!allowed.includes(file.mimeType))throw Error('نوع الملف غير مدعوم في واتساب. اختر JPG أو PNG أو PDF أو ملف Office.');
+  if(file.size>16*1024*1024)throw Error('الملف أكبر من 16 ميجابايت.');
+  if(file.mimeType.startsWith('image/')&&file.size>5*1024*1024)
+   throw Error('صور واتساب حدها 5 ميجابايت.');
+  setAttachment(file);
+ };
+ const selectImage=async()=>{
+  if(!selected||picking||sending||!windowOpen)return;
+  setPicking(true);setError('');
+  try{
+   const r=await ImagePicker.launchImageLibraryAsync({mediaTypes:['images'],allowsEditing:false,
+    quality:0.9,exif:false});
+   if(r.canceled||!r.assets.length)return;
+   const asset=r.assets[0]!;
+   validateAsset({uri:asset.uri,name:asset.fileName||'photo.jpg',
+    mimeType:asset.mimeType||'image/jpeg',size:asset.fileSize||0});
+  }catch(e){report(e);}finally{if(active.current)setPicking(false);}
+ };
+ const selectFile=async()=>{
+  if(!selected||picking||sending||!windowOpen)return;
+  setPicking(true);setError('');
+  try{
+   const r=await DocumentPicker.getDocumentAsync({type:['image/jpeg','image/png','application/pdf',
+    'text/plain','application/msword','application/vnd.ms-excel','application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    copyToCacheDirectory:true,multiple:false});
+   if(r.canceled||!r.assets.length)return;
+   const asset=r.assets[0]!;
+   validateAsset({uri:asset.uri,name:asset.name,mimeType:asset.mimeType||'application/octet-stream',
+    size:asset.size||0});
+  }catch(e){report(e);}finally{if(active.current)setPicking(false);}
+ };
  const remaining=selected?Math.max(0,selected.window.remaining_seconds-Math.floor((now-windowAt)/1000)):0;
  const windowOpen=!!selected?.window.open&&remaining>0;
  const send=async()=>{
-  if(!session||!selected||!draft.trim()||!windowOpen||sendInFlight.current)return;
-  const id=selected.id,text=draft.trim(),stamp=generation.current;
+  if(!session||!selected||(!draft.trim()&&!attachment)||!windowOpen||sendInFlight.current)return;
+  const id=selected.id,text=draft.trim(),file=attachment,stamp=generation.current;
   sendInFlight.current=true;setSending(true);
   let accepted=false;
   try{
-   await sendWhatsAppText(session,id,text);
+   if(file)await sendWhatsAppMedia(session,id,file,text);
+   else await sendWhatsAppText(session,id,text);
    accepted=true;
    if(active.current&&stamp===generation.current){
-    setDraft('');setError('');followNewest.current=true;
+    setDraft('');setAttachment(null);setError('');followNewest.current=true;
    }
    // Refreshing is a separate read: failure must never encourage sending twice.
    try{
@@ -420,8 +467,19 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
       <View style={{maxWidth:'88%',minWidth:98,backgroundColor:outgoing?'#183A33':C.surface,
        borderRadius:19,borderTopLeftRadius:outgoing?19:5,borderTopRightRadius:outgoing?5:19,
        borderWidth:1,borderColor:outgoing?C.green+'40':C.stroke,paddingHorizontal:15,paddingVertical:11,gap:7}}>
-       <T size={13} style={{textAlign:'right'}}>{message.body||message.media_filename||
-        (message.has_media?'مرفق '+message.message_type:'رسالة '+message.message_type)}</T>
+       {message.has_media&&['image','sticker'].includes(message.message_type)
+        &&session&&selected&&!imageFailures[message.id]
+        &&whatsappImageSource(session,selected.id,message)?<Pressable accessibilityRole="imagebutton"
+         accessibilityLabel="عرض صورة واتساب" onPress={()=>{
+          const source=whatsappImageSource(session,selected.id,message);
+          if(source)setImagePreview(source);
+         }}>
+         <Image source={whatsappImageSource(session,selected.id,message)!} resizeMode="cover"
+          onError={()=>setImageFailures(prev=>({...prev,[message.id]:true}))}
+          style={{height:185,width:240,maxWidth:'100%',borderRadius:13,backgroundColor:C.surface2}}/>
+        </Pressable>:null}
+       {message.body?<T size={13} style={{textAlign:'right'}}>{message.body}</T>:null}
+       {!message.body&&!message.has_media?<T size={13}>رسالة {message.message_type}</T>:null}
        {message.has_media?<View style={{flexDirection:'row-reverse',alignItems:'center',gap:5}}>
         <Icon name="paperclip" size={13} color={C.muted}/>
         <T color={C.muted} size={11}>{message.media_filename||message.message_type}</T>
@@ -442,9 +500,27 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   </ScrollView>
   {selected?<View style={{paddingTop:9,paddingBottom:8,backgroundColor:C.bg,borderTopWidth:1,borderTopColor:C.stroke}}>
    <Card style={{gap:11,padding:13}}>
+    {attachment?<View style={{flexDirection:'row-reverse',alignItems:'center',gap:8,padding:9,
+     borderRadius:12,backgroundColor:C.surface2}}>
+     <Icon name={attachment.mimeType.startsWith('image/')?'image':'file-document-outline'} color={C.green} size={20}/>
+     <T size={12} style={{flex:1}} lines={1}>{attachment.name}</T>
+     <Pressable accessibilityLabel="إلغاء المرفق" onPress={()=>setAttachment(null)}>
+      <Icon name="close-circle" color={C.orange} size={22}/>
+     </Pressable>
+    </View>:null}
     {!windowOpen?<Notice tone="warning" title="نافذة واتساب مغلقة"
      message="مينفعش تبعت رسالة نصية عادية بعد مرور 24 ساعة من آخر رسالة واردة. استنى رسالة جديدة من العميل أو استخدم قالب Meta معتمد في الواجهة الأصلية."/>:null}
-    <View style={{flexDirection:'row-reverse',alignItems:'flex-end',gap:9}}>
+    <View style={{flexDirection:'row-reverse',alignItems:'flex-end',gap:7}}>
+     <Pressable accessibilityRole="button" accessibilityLabel="اختيار صورة واتساب"
+      disabled={!windowOpen||sending||picking} onPress={()=>void selectImage()}
+      style={{padding:9,opacity:!windowOpen||sending?0.4:1}}>
+      <Icon name="image-plus" size={24} color={C.green}/>
+     </Pressable>
+     <Pressable accessibilityRole="button" accessibilityLabel="إرفاق ملف واتساب"
+      disabled={!windowOpen||sending||picking} onPress={()=>void selectFile()}
+      style={{padding:9,opacity:!windowOpen||sending?0.4:1}}>
+      <Icon name="paperclip" size={24} color={C.muted}/>
+     </Pressable>
      <TextInput accessibilityLabel="اكتب رسالة واتساب" multiline value={draft}
       onChangeText={setDraft} maxLength={4096} editable={windowOpen&&!sending}
       onFocus={onComposerFocus} placeholder={windowOpen?'اكتب ردك هنا...':'الرد غير متاح حتى تصل رسالة جديدة'}
@@ -452,14 +528,24 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
        color:C.text,borderWidth:1,borderColor:C.stroke,borderRadius:17,
        paddingHorizontal:14,paddingVertical:12,textAlign:'right',textAlignVertical:'top',fontSize:14}}/>
      <Pressable accessibilityRole="button" accessibilityLabel="إرسال رسالة واتساب" onPress={send}
-      disabled={sending||busy||!draft.trim()||!windowOpen}
+      disabled={sending||busy||(!draft.trim()&&!attachment)||!windowOpen}
       style={({pressed})=>({width:53,height:53,alignItems:'center',justifyContent:'center',
-       borderRadius:18,backgroundColor:C.green,opacity:sending||busy||!draft.trim()||!windowOpen?0.38:pressed?0.7:1})}>
+       borderRadius:18,backgroundColor:C.green,opacity:sending||busy||(!draft.trim()&&!attachment)||!windowOpen?0.38:pressed?0.7:1})}>
       {sending?<ActivityIndicator color={C.bg}/>:<Icon name="send" size={21} color={C.bg}/>}
      </Pressable>
     </View>
     <T color={C.muted} size={10}>{draft.length}/4096 حرف • يتم الإرسال عبر موديول واتساب الأصلي</T>
    </Card>
   </View>:null}
+  <Modal visible={!!imagePreview} transparent animationType="fade" onRequestClose={()=>setImagePreview(null)}>
+   <View style={{flex:1,backgroundColor:'#000E',justifyContent:'center',padding:14}}>
+    <Pressable accessibilityRole="button" accessibilityLabel="إغلاق معاينة الصورة"
+     onPress={()=>setImagePreview(null)} style={{alignSelf:'flex-end',padding:15}}>
+     <Icon name="close" size={28} color="#FFF"/>
+    </Pressable>
+    {imagePreview?<Image source={imagePreview} resizeMode="contain"
+     style={{flex:1,width:'100%'}}/>:null}
+   </View>
+  </Modal>
  </View>;
 }
