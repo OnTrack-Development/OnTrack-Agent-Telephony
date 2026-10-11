@@ -27,8 +27,16 @@ function storageKey(session:Session):string{
 function safe(input:string,max:number):string{
  return input.replace(/[\r\n\t]+/g,' ').trim().slice(0,max);
 }
-/** Current app process needs an actual notification permission. This does not register
- * remote FCM delivery or assert background push support. */
+// Register presentation behavior as soon as the module loads; setting it only
+// after a user permission prompt can swallow the first foreground banner.
+Notifications.setNotificationHandler({
+ handleNotification:async()=>({
+  shouldShowBanner:true,shouldShowList:true,shouldPlaySound:true,shouldSetBadge:false
+ })
+});
+/** Foreground local notifications require Android permission + HIGH channels.
+ * Genuine background push separately requires an authenticated FCM sender.
+ */
 export async function enableDeviceNotifications():Promise<boolean>{
  if(Platform.OS==='android'){
   for(const category of Object.keys(channel) as NoticeCategory[]){
@@ -40,16 +48,26 @@ export async function enableDeviceNotifications():Promise<boolean>{
    });
   }
  }
- Notifications.setNotificationHandler({
-  handleNotification:async()=>({
-   shouldShowBanner:true,shouldShowList:true,shouldPlaySound:true,shouldSetBadge:false
-  })
- });
  const prior=await Notifications.getPermissionsAsync();
  let approved=prior.granted;
  if(!approved){const response=await Notifications.requestPermissionsAsync();approved=response.granted;}
  ready=approved;
  return approved;
+}
+/** Visible confirmation that this particular device has the OS permission
+ * and can display a local banner. Does not claim background FCM availability.
+ */
+export async function testDeviceNotification():Promise<'sent'|'permission_denied'>{
+ const permitted=await enableDeviceNotifications();
+ if(!permitted)return 'permission_denied';
+ await Notifications.scheduleNotificationAsync({
+  content:{
+   title:'WHMCS • اختبار الإشعارات',
+   body:'إشعارات التطبيق المحليّة شغالة. إشعارات الخلفية تحتاج ربط FCM بالسيرفر.',
+   ...(Platform.OS==='android'?{channelId:channel.whatsapp}:{})
+  },trigger:null
+ });
+ return 'sent';
 }
 async function readSeen(session:Session):Promise<SeenMap>{
  const key=storageKey(session);
@@ -123,10 +141,12 @@ export function whmcsSectionNotifications(category:Exclude<NoticeCategory,'whats
      'حالة الدومين: '+status};
  });
 }
-export function whatsAppNotifications(rows:Array<{id:number;unread_count:number;last_message_at:string}>):NoticeInput[]{
+export function whatsAppNotifications(rows:Array<{id:number;unread_count:number;last_message_at:string;display_name?:string;last_message_preview?:string}>):NoticeInput[]{
  return rows.filter(row=>row.unread_count>0).slice(0,100).map(row=>({
   category:'whatsapp',id:row.id,revision:String(row.last_message_at)+'|'+String(row.unread_count),
-  title:'رسالة واتساب جديدة',body:'يوجد تحديث في محادثة #'+row.id
+  title:'واتساب • '+safe(String(row.display_name||'رسالة جديدة'),70),
+  // Don't expose a customer's full message preview on an unattended lock screen.
+  body:'رسالة جديدة من '+safe(String(row.display_name||'العميل'),65)
  }));
 }
 

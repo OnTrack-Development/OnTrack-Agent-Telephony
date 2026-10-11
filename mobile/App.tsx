@@ -26,7 +26,7 @@ import {Explorer} from './src/screens/Explorer';
 import {resetAdminSessions,adminSessionReady} from './src/lib/adminSession';
 import * as Notifications from 'expo-notifications';
 import {enableDeviceNotifications,ingestNotificationSnapshot,whmcsSectionNotifications,whatsAppNotifications} from './src/lib/notifications';
-import {listConversations,getWhatsAppRetryAfterMs} from './src/lib/whatsapp';
+import {listConversations,getWhatsAppRetryAfterMs,telegramWhatsAppReady,restoreTelegramWhatsApp} from './src/lib/whatsapp';
 const empty:DemoState={tickets:[],clients:[],invoices:[],services:[],orders:[],domains:[],chats:[],agents:[],queue:[]};
 const nav:{page:Page,label:string,icon:string}[]=[
  {page:'home',label:'الرئيسية',icon:'view-dashboard-outline'},
@@ -166,7 +166,8 @@ function CommandApp(){
   void enableDeviceNotifications().catch(()=>{});
   const sections:SectionKey[]=['tickets','orders','clients','invoices','services','domains'];
   let index=0,busy=false;
-  // One WHMCS read every 100 s, rotating sections, to avoid concurrent polling / HTTP 429.
+  // Rotate WHMCS notifications every 30s while the app is open; a full cycle
+  // takes about 3 minutes. Calls remain serial and obey the shared 429 cooldown.
   const tick=async()=>{
    if(disposed||busy||AppState.currentState!=='active'||getApiRetryAfterMs()>0)return;
    busy=true;
@@ -177,7 +178,7 @@ function CommandApp(){
      await ingestNotificationSnapshot(session,section,whmcsSectionNotifications(section,result.records));
    }catch{}finally{busy=false;}
   };
-  const timer=setInterval(()=>void tick(),100000);
+  const timer=setInterval(()=>void tick(),30000);
   const foreground=AppState.addEventListener('change',state=>{
    if(state==='active')void tick();
   });
@@ -186,17 +187,21 @@ function CommandApp(){
  useEffect(()=>{
   if(!session||demo||!unlocked)return;
   let destroyed=false,reading=false;
+  // Restore the previously paired TelegramNotify key when WHMCS unlocks, not only
+  // when the operator visits WhatsApp. Otherwise global notification polling never starts.
+  void restoreTelegramWhatsApp(session).then(ready=>{if(ready&&!destroyed)void poll();}).catch(()=>{});
   const poll=async()=>{
    if(destroyed||reading||AppState.currentState!=='active'
-      ||!adminSessionReady(session)||getWhatsAppRetryAfterMs(session)>0)return;
+      ||!(adminSessionReady(session)||telegramWhatsAppReady(session))||getWhatsAppRetryAfterMs(session)>0)return;
    reading=true;
    try{
     const r=await listConversations(session);
     if(!destroyed)await ingestNotificationSnapshot(session,'whatsapp',whatsAppNotifications(r.conversations));
    }catch{}finally{reading=false;}
   };
-  const timer=setInterval(()=>void poll(),120000);
-  return()=>{destroyed=true;clearInterval(timer);};
+  const timer=setInterval(()=>void poll(),20000);
+  const foreground=AppState.addEventListener('change',state=>{if(state==='active')void poll();});
+  return()=>{destroyed=true;clearInterval(timer);foreground.remove();};
  },[session,demo,unlocked]);
  useEffect(()=>{
   if(!session||demo||!unlocked)return;
@@ -341,15 +346,19 @@ function CommandApp(){
   </View>
   {Object.keys(errors).length>0&&!demo?<View style={{paddingHorizontal:18,paddingTop:10}}><Notice tone="warning" title={Object.values(errors).some(x=>/429/.test(x))?'اتصال WHMCS مشغول مؤقتًا':'بعض البيانات لم تُحمّل'} message="اضغط لإعادة المحاولة عند استقرار الاتصال" onPress={()=>{if(session)void refresh(session,true);}}/></View>:null}
   {error?<View style={{paddingHorizontal:18,paddingTop:8}}><Notice tone="danger" title="تعذر تحديث البيانات" message={error} onPress={()=>session&&void refresh(session)}/></View>:null}
-  <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}>
-   <ScrollView ref={pageScroll} key={page} keyboardDismissMode={Platform.OS==='ios'?'interactive':'none'} keyboardShouldPersistTaps="handled"
+  <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':'height'}>
+   {page==='whatsapp'
+    ?<View style={{flex:1,paddingHorizontal:18,paddingTop:15}}>
+      {body()}
+     </View>
+    :<ScrollView ref={pageScroll} key={page} keyboardDismissMode={Platform.OS==='ios'?'interactive':'none'} keyboardShouldPersistTaps="handled"
     automaticallyAdjustKeyboardInsets={Platform.OS==='ios'}
      onScroll={event=>{scrollOffset.current=event.nativeEvent.contentOffset.y}} scrollEventThrottle={16}
      onContentSizeChange={()=>{if(composerFocused.current&&keyboardVisible)revealFocusedInput();}}
     contentContainerStyle={{padding:18,paddingBottom:keyboardVisible?keyboardPadding+insets.bottom+140:Math.max(35,insets.bottom+24)}}
     refreshControl={<RefreshControl refreshing={loading} tintColor={C.red} onRefresh={()=>page==='tickets'?setTicketReload(x=>x+1):session?void refresh(session,true):undefined}/>}>
     <PageMotion key={page}>{body()}</PageMotion>
-   </ScrollView>
+   </ScrollView>}
   </KeyboardAvoidingView>
   {!keyboardVisible&&!ticketDetailOpen?<View style={{flexDirection:'row-reverse',
    borderTopWidth:1,borderTopColor:C.stroke,backgroundColor:C.surface,
