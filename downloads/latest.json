@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.23",
-  "version_code": 34,
-  "filename": "WHMCS-v0.3.23-ARM64-release-signed.apk",
-  "sha256": "299c8fdd60ae70b0b9dfeb519a92f5b8c8bb7eec996423c6165f67e2f3ef3740",
+  "version_name": "0.3.24",
+  "version_code": 35,
+  "filename": "WHMCS-v0.3.24-ARM64-release-signed.apk",
+  "sha256": "de092ae0bb2cecb7bb7e320481cdca2bc6ab59108c652624cadde39305e19df3",
   "size_bytes": 29467236,
-  "release_notes": "WHMCS v0.3.23: optional WhatsApp conversation gateway via the already installed TelegramNotify v3.4.1 addon, secure admin-issued pairing key, read/reply in app with unchanged WhatsApp webhook and Meta service. Update existing TelegramNotify files on the WHMCS server before enabling the new pairing route; live operator validation required.",
-  "published_at": "2026-10-11T16:44:33Z"
+  "release_notes": "WHMCS v0.3.24: fix server-side HTTP 403 on direct TelegramNotify PHP endpoint by routing through the supported WHMCS index.php addon entrypoint, with original WhatsApp module unchanged. Existing TelegramNotify v3.4.2 must be installed on WHMCS before pairing.",
+  "published_at": "2026-10-11T17:01:19Z"
 }
