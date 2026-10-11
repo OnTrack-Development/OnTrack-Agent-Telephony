@@ -27,7 +27,7 @@ import {Explorer} from './src/screens/Explorer';
 import {resetAdminSessions,adminSessionReady} from './src/lib/adminSession';
 import * as Notifications from 'expo-notifications';
 import {enableDeviceNotifications,ingestNotificationSnapshot,whmcsSectionNotifications,whatsAppNotifications} from './src/lib/notifications';
-import {listConversations,getWhatsAppRetryAfterMs,telegramWhatsAppReady,restoreTelegramWhatsApp} from './src/lib/whatsapp';
+import {listConversations,getWhatsAppRetryAfterMs,telegramWhatsAppReady,restoreTelegramWhatsApp,registerWhatsAppPush,unregisterWhatsAppPush} from './src/lib/whatsapp';
 const empty:DemoState={tickets:[],clients:[],invoices:[],services:[],orders:[],domains:[],chats:[],agents:[],queue:[]};
 const nav:{page:Page,label:string,icon:string}[]=[
  {page:'home',label:'الرئيسية',icon:'view-dashboard-outline'},
@@ -213,7 +213,13 @@ function CommandApp(){
   let destroyed=false,reading=false;
   // Restore the previously paired TelegramNotify key when WHMCS unlocks, not only
   // when the operator visits WhatsApp. Otherwise global notification polling never starts.
-  void restoreTelegramWhatsApp(session).then(ready=>{if(ready&&!destroyed)void poll();}).catch(()=>{});
+  void restoreTelegramWhatsApp(session).then(ready=>{
+   if(!ready||destroyed)return;
+   void poll();
+   void enableDeviceNotifications().then(ok=>{
+    if(ok&&!destroyed)void registerWhatsAppPush(session).catch(()=>{});
+   }).catch(()=>{});
+  }).catch(()=>{});
   const poll=async()=>{
    if(destroyed||reading||AppState.currentState!=='active'
       ||!(adminSessionReady(session)||telegramWhatsAppReady(session))||getWhatsAppRetryAfterMs(session)>0)return;
@@ -282,7 +288,11 @@ function CommandApp(){
    lastRefreshAt.current={};unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);setFinance(null);
    setSession(result.data);setDemo(false);setHistory([]);setPage('home');
  };
- const logout=async()=>{generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;await resetAdminSessions();await signOut();unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);setFinance(null);setFinanceError('');setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
+ const logout=async()=>{
+  if(session&&telegramWhatsAppReady(session)){
+   try{await unregisterWhatsAppPush(session);}catch{}
+  }
+  generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;await resetAdminSessions();await signOut();unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);setFinance(null);setFinanceError('');setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
  const reply=async(id:number,text:string,identity?:{clientId:number;contactId:number;name:string;email:string})=>{
   if(demo){setData(d=>({...d,tickets:d.tickets.map(t=>t.id===id?{...t,status:'Answered',message:text}:t)}));Alert.alert('وضع تجريبي','تم تعديل البيانات المحلية فقط.');return true;}
   if(!session)return false; // WHMCS enforces actual reply permission; list/read failures aren't reply denials.
