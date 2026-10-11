@@ -223,7 +223,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     }
    }catch(_refreshError){
     if(active.current&&stamp===generation.current)
-     setError('الرسالة اتبعت، لكن تحديث المحادثة اتأخر. متكررش إرسال نفس الرسالة.');
+     setError('الرسالة اتبعت، لكن تحديث المحادثة اتأخر. لا تُعد الإرسال لتجنب تكرار الرسالة.');
    }
   }catch(e){
    if(stamp===generation.current&&!accepted)report(e);
