@@ -67,7 +67,7 @@ export function AppLock({session,onUnlock}:{session:Session;onUnlock:()=>void}){
     fallbackLabel:'استخدم رمز قفل الجهاز',disableDeviceFallback:false,cancelLabel:'إلغاء'
    });
    if(result.success&&active.current)onUnlockRef.current();
-   else if(active.current&&!['user_cancel','system_cancel'].includes(result.error||''))setMessage('لم يتم التحقق. جرّب البصمة أو رمز التطبيق.');
+   else if(active.current&&!['user_cancel','system_cancel'].includes(result.success?'':result.error||''))setMessage('لم يتم التحقق. جرّب البصمة أو رمز التطبيق.');
   }catch{if(active.current)setMessage('التحقق الحيوي غير متاح. استخدم رمز التطبيق.');}
   finally{request.current=false;if(active.current)setBusy(false);}
  };
