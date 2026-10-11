@@ -284,8 +284,8 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
      <T size={12} color={C.muted}>نفس موديول واتساب الحالي من غير أي إضافات على السيرفر</T>
     </View>
    </View>
-   <Notice title="من موديول تيليجرام الموجود"
-    message="افتح إضافات WHMCS ← TelegramNotify، واضغط Generate Mobile Key. انسخ الرمز هنا. مش محتاج موديول جديد أو جلسة Admin في التطبيق."/>
+   <Notice title="من TelegramNotify v3.4.2 الموجود"
+    message="افتح إضافات WHMCS ← TelegramNotify v3.4.2، واضغط Generate Mobile Key. انسخ الرمز هنا. مش محتاج موديول جديد أو جلسة Admin في التطبيق."/>
    <T weight="800" size={12}>رمز ربط TelegramNotify</T>
    <TextInput accessibilityLabel="رمز ربط واتساب من TelegramNotify" value={telegramKey}
     onChangeText={setTelegramKey} autoCapitalize="none" autoCorrect={false}
