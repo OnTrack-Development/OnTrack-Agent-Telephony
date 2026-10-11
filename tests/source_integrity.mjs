@@ -55,8 +55,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.16');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,27);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.17');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,28);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
@@ -64,6 +64,15 @@ assert.ok(!get('mobile/src/screens/WhatsApp.tsx').includes('<AdminAccess key={er
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('whatsappAccessDiagnostic'));
 assert.ok(get('mobile/src/components/AdminAccess.tsx').includes('Administrator'));
 
+const firebase=JSON.parse(get('mobile/google-services.json'));
+assert.equal(firebase.project_info.project_id,'ontrack-whmcs-push');
+assert.ok(firebase.client.some(c=>c.client_info?.android_client_info?.package_name==='com.ontrackdevelopment.command'));
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.googleServicesFile,'./google-services.json');
+assert.ok(!Object.prototype.hasOwnProperty.call(firebase,'private_key'));
+assert.ok(get('mobile/src/lib/notifications.ts').includes('Notifications.getDevicePushTokenAsync()'));
+assert.ok(get('mobile/src/screens/Settings.tsx').includes('verifyNativeFcmSetup'));
+assert.ok(!get('mobile/src/lib/notifications.ts').includes('console.log(token'));
+console.log('PASS: Firebase Android app client config, token readiness without disclosing device token or backend secrets');
 console.log('PASS: source integrity plus ticket external ID, pagination, safe areas, Android Back, version increment and demo isolation');
 
 const updateCode=get('mobile/src/components/UpdateGate.tsx');

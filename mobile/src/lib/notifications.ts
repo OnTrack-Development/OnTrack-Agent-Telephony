@@ -129,3 +129,24 @@ export function whatsAppNotifications(rows:Array<{id:number;unread_count:number;
   title:'رسالة واتساب جديدة',body:'يوجد تحديث في محادثة #'+row.id
  }));
 }
+
+/**
+ * Test FCM enrollment for THIS Android app only.
+ * A native FCM token is a device routing address: never log it, show it,
+ * forward it to a third party, or mistake it for WHMCS authentication.
+ * Delivery when the app is closed also requires a separate authenticated,
+ * tenant-isolated backend sender + registration API.
+ */
+export async function verifyNativeFcmSetup():Promise<{ready:boolean;reason:'ready'|'android_only'|'permission_denied'|'token_unavailable'}>{
+ if(Platform.OS!=='android')return {ready:false,reason:'android_only'};
+ const permitted=await enableDeviceNotifications();
+ if(!permitted)return {ready:false,reason:'permission_denied'};
+ try{
+  const token=await Notifications.getDevicePushTokenAsync();
+  if(typeof token.data!=='string'||!token.data.trim())return {ready:false,reason:'token_unavailable'};
+  // Deliberately do not persist the token until authenticated registration exists.
+  return {ready:true,reason:'ready'};
+ }catch{
+  return {ready:false,reason:'token_unavailable'};
+ }
+}

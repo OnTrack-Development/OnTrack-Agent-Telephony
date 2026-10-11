@@ -47,6 +47,21 @@ jobs:
       - name: Generate native Android project
         working-directory: mobile
         run: CI=1 npx expo prebuild --platform android --no-install
+      - name: Verify Firebase native Android configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s mobile/android/app/google-services.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          config=json.loads(Path('mobile/android/app/google-services.json').read_text())
+          assert config['project_info']['project_id']=='ontrack-whmcs-push'
+          assert any(c['client_info']['android_client_info']['package_name']=='com.ontrackdevelopment.command'
+                     for c in config['client'])
+          assert 'private_key' not in config
+          print('PASS: Firebase client configuration was included in native Android project')
+          PY
       - name: Install native OnTrack update manager after Expo prebuild
         run: python3 mobile/scripts/prepare_native_update.py
       - name: Select installed Android NDK
@@ -131,7 +146,7 @@ jobs:
           test "$BYTES" -lt 73304381
       - uses: actions/upload-artifact@v4
         with:
-          name: WHMCS-v0.3.16-ARM64-signed
+          name: WHMCS-v0.3.17-ARM64-signed
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Publish GitHub Release with APK and ZIP
@@ -142,13 +157,13 @@ jobs:
           set -euo pipefail
           mkdir -p out
           APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-          cp "$APK" out/WHMCS-v0.3.16-ARM64-release-signed.apk
-          (cd out && zip -9 WHMCS-v0.3.16-ARM64-release-signed.zip WHMCS-v0.3.16-ARM64-release-signed.apk)
+          cp "$APK" out/WHMCS-v0.3.17-ARM64-release-signed.apk
+          (cd out && zip -9 WHMCS-v0.3.17-ARM64-release-signed.zip WHMCS-v0.3.17-ARM64-release-signed.apk)
           BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v0.3.16: service management and provisioning confirmations; full order line items and actions; client ticket replies and notes; notification taps route to records. Background remote push still requires a separately configured server sender. Existing WhatsApp addon remains unchanged. Signed ARM64 APK bytes: ${BYTES}."
-          gh release create "whmcs-v0.3.16-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
+          NOTES="WHMCS v0.3.17: registered Android app in OnTrack WHMCS Firebase project and enabled native FCM device enrollment diagnostic. Remote instant push still requires a secure tenant-isolated sender and authenticated device registration. Existing WHMCS and WhatsApp logic unchanged. Signed ARM64 APK bytes: ${BYTES}."
+          gh release create "whmcs-v0.3.17-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
-            --title "WHMCS v0.3.16 (Android build 27)" \
+            --title "WHMCS v0.3.17 (Android build 28)" \
             --notes "$NOTES"
           echo "Signed APK published; APK release published after successful workflow completion."
       # GitHub-hosted release publishing uses GITHUB_TOKEN; trigger the downstream

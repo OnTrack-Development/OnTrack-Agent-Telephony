@@ -3,7 +3,7 @@
     "name": "WHMCS",
     "slug": "whmcs-admin",
     "scheme": "whmcsadmin",
-    "version": "0.3.16",
+    "version": "0.3.17",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -14,13 +14,16 @@
     "android": {
       "package": "com.ontrackdevelopment.command",
       "edgeToEdgeEnabled": true,
-      "permissions": ["POST_NOTIFICATIONS"],
-      "versionCode": 27,
+      "permissions": [
+        "POST_NOTIFICATIONS"
+      ],
+      "versionCode": 28,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#081322"
       },
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "googleServicesFile": "./google-services.json"
     },
     "ios": {
       "bundleIdentifier": "com.ontrackdevelopment.command",
@@ -29,7 +32,18 @@
     "plugins": [
       "expo-secure-store",
       "expo-notifications",
-      ["expo-splash-screen",{"backgroundColor":"#080D17","image":"./assets/icon.png","imageWidth":175,"dark":{"backgroundColor":"#080D17","image":"./assets/icon.png"}}]
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#080D17",
+          "image": "./assets/icon.png",
+          "imageWidth": 175,
+          "dark": {
+            "backgroundColor": "#080D17",
+            "image": "./assets/icon.png"
+          }
+        }
+      ]
     ],
     "icon": "./assets/icon.png"
   }

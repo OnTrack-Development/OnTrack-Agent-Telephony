@@ -1,6 +1,6 @@
 # WHMCS Native Android App
 
-Current source: **v0.3.16, Android build 27**. Application ID remains `com.ontrackdevelopment.command` for upgrades using the existing release signature.
+Current source: **v0.3.17, Android build 28**. Application ID remains `com.ontrackdevelopment.command` for upgrades using the existing release signature.
 
 - Native React Native screens. No WebView, iframe or external-browser WhatsApp inbox.
 - WHMCS core operations use the existing `includes/api.php` API and server-side API permissions.
@@ -34,3 +34,9 @@ Native WhatsApp sends text and displays message/media metadata. Opening/download
 Native service form supports the documented UpdateClientProduct fields and confirmed module Create/Suspend/Unsuspend/Terminate/ChangePackage commands. WHMCS enforces staff API permissions. Orders show the external order number, line items, payment status, and explicit Accept/Cancel/Fraud/Pending controls. Refund and delete remain admin-only rather than falsely claiming an API refund. Client-owned tickets open the shared ticket editor after ID/ownership checks.
 
 Notification taps (including cold launch) can target a ticket, order, invoice, client or service by ID. This does **not** enable remote background push: Firebase/FCM credentials, device-token registration and a WHMCS event sender are still required; local polling alone cannot provide instant alerts with the app closed.
+
+## v0.3.17 Firebase Android client enrollment
+
+Firebase project ID: `ontrack-whmcs-push`; Android package: `com.ontrackdevelopment.command`. The Firebase Android **client** configuration is stored as `mobile/google-services.json`, referenced from `expo.android.googleServicesFile`. The file contains public app identifiers, **not** a Firebase service-account private key. GitHub Actions verifies that Expo prebuild copies it into the Android native project. Do not commit service account JSON or FCM OAuth access tokens. Restrict the Firebase API key to Firebase APIs as Google recommends.
+
+Settings has a native FCM enrollment test that obtains the device's native FCM token, verifies it exists, and discards it without logging, displaying, or transmitting it. This intentionally does not enable background delivery. Production push requires (1) a secure service-account identity on the backend, (2) a separate authenticated device registration service for each WHMCS installation, (3) strictly isolated tenant/staff/device mapping and revocation, (4) event hooks for new tickets, orders and clients, and (5) FCM HTTP v1 sending with authorized record IDs. Do not use WHMCS API keys or Firebase client API keys as a substitute for server authentication.

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "69575855891",
+    "project_id": "ontrack-whmcs-push",
+    "storage_bucket": "ontrack-whmcs-push.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:69575855891:android:e209f921d7fa36b33e14e6",
+        "android_client_info": {
+          "package_name": "com.ontrackdevelopment.command"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBrr9YdtMXK2gyeAtUgUkpXJ58CKJzeXbo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
