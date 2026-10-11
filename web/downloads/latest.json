@@ -6,5 +6,5 @@
   "sha256": "b13bbaab5ca594467ae33acb22cab4bf5d982330ceed551073f36e8f5d120dcb",
   "size_bytes": 29450852,
   "release_notes": "WHMCS v0.3.21: opt-in biometric enrollment after secure PIN, automatic fingerprint unlock with PIN fallback, explicit native WhatsApp administrator authentication and OTP for API-only WHMCS connections. Existing WhatsApp module unchanged; live permission and connectivity checks still required.",
-  "published_at": "2026-10-11T13:03:24Z"
+  "published_at": "2026-10-11T15:17:00Z"
 }
