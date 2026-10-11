@@ -87,6 +87,9 @@ public final class CommandAdminSessionModule extends ReactContextBaseJavaModule 
             CookieManager.getInstance().setAcceptCookie(true);
             browser.setWebViewClient(new WebViewClient() {
                 @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                    // CAPTCHA/SSO widgets may load third-party frames; never navigate
+                    // the main administrator window away from the WHMCS HTTPS origin.
+                    if (!request.isForMainFrame()) return false;
                     try {
                         URI next = new URI(request.getUrl().toString());
                         URI root = new URI(base + "/");
