@@ -16,6 +16,17 @@ jobs:
         run: |
           set -euo pipefail
           URL="https://services.ontrackegy.com/modules/addons/telegramnotify/mobile_whatsapp.php"
+          echo "=== Cross-check server routes (no credentials) ==="
+          for route in "/" "/clientarea.php" "/modules/addons/whatsapp_notifications/webhook.php" "/modules/addons/telegramnotify/whmcs.json" "/modules/addons/telegramnotify/telegramnotify.php" "/modules/addons/telegramnotify/mobile_whatsapp.php"; do
+            echo "ROUTE=$route"
+            curl --silent --show-error --max-time 12 --connect-timeout 6 --max-redirs 0 -o /tmp/tgwa-route-b -D /tmp/tgwa-route-h -w 'HTTP=%{http_code} TYPE=%{content_type} BYTES=%{size_download} IP=%{remote_ip}\n' "https://services.ontrackegy.com$route" || true
+            python3 - <<'PY'
+          import pathlib,re
+          b=pathlib.Path('/tmp/tgwa-route-b').read_bytes() if pathlib.Path('/tmp/tgwa-route-b').exists() else b''
+          title=re.search(r'<title[^>]*>(.*?)</title>',b.decode('utf8',errors='replace'),re.I|re.S)
+          print('HTML_TITLE='+repr(title.group(1).strip()[:70] if title else '<none>'))
+          PY
+          done
           for verb in GET POST; do
             echo "=== ${verb} without credentials ==="
             if [ "$verb" = POST ]; then
