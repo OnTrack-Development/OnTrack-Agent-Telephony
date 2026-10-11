@@ -16,11 +16,11 @@ export function existingWhatsAppInboxUrl(baseUrl:string,directory:string):string
 }
 /** Dates from WHMCS are server-local database timestamps; display the clock portion without guessing a timezone. */
 export function waClock(timestamp:string):string {
- const match=String(timestamp||'').match(/(?:^|[ T])([01]?\\d|2[0-3]):([0-5]\\d)(?::\\d\\d)?/);
+ const match=String(timestamp||'').match(/(?:^|[ T])([01]?\d|2[0-3]):([0-5]\d)(?::\d\d)?/);
  return match?match[1]!.padStart(2,'0')+':'+match[2]!:String(timestamp||'').slice(0,16);
 }
 function waAvatar(name:string):string {
- const parts=String(name||'').trim().split(/\\s+/).filter(Boolean);
+ const parts=String(name||'').trim().split(/\s+/).filter(Boolean);
  return (parts.length>1?parts[0]![0]+parts[1]![0]:(parts[0]||'WA').slice(0,2)).toUpperCase();
 }
 export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{session:Session|null;demo:boolean;onComposerFocus?:()=>void;onDetailChange?:(active:boolean)=>void}){
