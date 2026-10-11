@@ -39,7 +39,7 @@ const services=load('serviceManagement'),order=load('orderManagement');
  assert.equal(params.notes,'manual adjustment');
  assert.equal('servicepassword' in params,false);
  assert.throws(()=>services.serviceUpdate(52,service,draft,92),/لا توجد تغييرات/);
- assert.throws(()=>services.serviceUpdate(52,service,next,93),/ملكية/);
+ assert.throws(()=>services.serviceUpdate(52,service,next,93),/مالكها|ملكية/);
  assert.throws(()=>services.serviceUpdate(52,service,{...draft,nextduedate:'2026-02-30'},92),/التاريخ/);
  let result=await services.executeModuleAction(session,'ModuleSuspend',52,92);
  assert.equal(result.ok,true);
