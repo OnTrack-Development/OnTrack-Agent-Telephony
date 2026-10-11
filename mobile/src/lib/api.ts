@@ -122,7 +122,12 @@ export async function loadPage(session:Session,key:SectionKey,start=0,limit=50):
   if(key==='clients')return {id:n(x.id),name:s(x.companyname||`${s(x.firstname)} ${s(x.lastname)}`.trim()),email:s(x.email),status:strStatus(x.status),services:n(x.productsnum),initials:s(x.firstname||x.companyname).slice(0,2)} as Client;
   if(key==='invoices')return {id:n(x.id),customer:s(x.firstname||x.userid),amount:n(x.total),currency:s(x.currencycode||x.currency||''),status:strStatus(x.status),due:s(x.duedate)} as Invoice;
   if(key==='services')return {id:n(x.id),domain:s(x.domain),customer:s(x.clientid),plan:s(x.name||x.productname),status:strStatus(x.status),renewal:s(x.nextduedate)} as Service;
-  if(key==='orders')return {id:n(x.id),customer:s(x.userid||x.clientname),product:s(x.names||x.lineitems||'طلب'),amount:n(x.amount),status:strStatus(x.status),created:s(x.date)} as Order;
+  if(key==='orders'){
+   const lines=listOf(x,'lineitems','lineitem');
+   const description=lines.map((line:any)=>s(line.product||line.description||line.domain)).filter(Boolean).slice(0,2).join('، ');
+   return {id:n(x.id),ordernum:s(x.ordernum),invoiceid:n(x.invoiceid),customer:s(x.name||x.userid||x.clientname),
+    product:description||s(x.names)||'طلب',amount:n(x.amount),status:strStatus(x.status),created:s(x.date)} as Order;
+  }
   return {id:n(x.id),name:s(x.domainname||x.domain),customer:s(x.userid),expiry:s(x.expirydate||x.nextduedate),status:strStatus(x.status)} as Domain;
  });
  return {ok:true,records,total};

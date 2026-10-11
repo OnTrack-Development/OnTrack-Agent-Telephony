@@ -5,6 +5,8 @@ import type {DemoState,Page,Client,Session} from '../types';
 import {ClientProfile} from './ClientProfile';
 import {RecordDetails} from './RecordDetails';
 import {InvoiceActions} from '../components/InvoiceActions';
+import {orderTitle} from '../lib/orderManagement';
+import {callApi} from '../lib/api';
 import {Action,Card,Empty,Header,Icon,Pill,Search,T} from '../components/UI';
 
 const config:Record<string,{title:string;subtitle:string;icon:string;key:keyof DemoState}>={
@@ -46,7 +48,7 @@ export function listRecordSummary(page:Page,r:any):{title:string;primary:string;
   secondary:r.customer?'العميل: '+r.customer:''
  };
  if(page==='orders')return {
-  title:'طلب #'+r.id,primary:[r.product,r.created].filter(Boolean).join(' • '),
+  title:orderTitle(r),primary:[r.product,r.created].filter(Boolean).join(' • '),
   secondary:r.customer?'العميل: '+r.customer:''
  };
  if(page==='domains')return {
@@ -56,15 +58,33 @@ export function listRecordSummary(page:Page,r:any):{title:string;primary:string;
  };
  return {title:str(r.name)||'عميل #'+r.id,primary:str(r.email),secondary:'عميل #'+r.id};
 }
-export function Directory({page,data,onDetails,total,error,loading,onLoadMore,session,onReload}:{
+export function Directory({page,data,onDetails,total,error,loading,onLoadMore,session,onReload,onComposerFocus,focusRecordId,onFocusExit}:{
  page:Page;data:DemoState;onDetails:(title:string,lines:[string,string][])=>void;total?:number|null;error?:string;
+ onComposerFocus?:()=>void;focusRecordId?:number;onFocusExit?:()=>void;
  loading?:boolean;onLoadMore:()=>void;session?:Session|null;onReload?:()=>void;
 }){
  const cfg=config[page], [q,setQ]=useState(''),[filter,setFilter]=useState<Filter>('focus');
  const [selectedClient,setSelectedClient]=useState<Client|null>(null);
  const [selected,setSelected]=useState<{id:number;[key:string]:any}|null>(null);
+ const [focusError,setFocusError]=useState('');
  const [invoiceSelection,setInvoiceSelection]=useState<number[]>([]);
  useEffect(()=>{setSelected(null);setSelectedClient(null);setInvoiceSelection([]);setQ('');setFilter(page==='clients'?'all':'focus');},[page]);
+ useEffect(()=>{
+  if(!session||!Number.isSafeInteger(focusRecordId)||!focusRecordId||focusRecordId<1)return;
+  let active=true;setFocusError('');
+  if(page!=='clients'){
+   setSelected({id:focusRecordId});return()=>{active=false;};
+  }
+  void callApi(session,'GetClientsDetails',{clientid:focusRecordId}).then(result=>{
+   if(!active)return;
+   const row:any=(result.data as any)?.client||result.data;
+   if(!result.ok||Number(row?.id||row?.userid)!==focusRecordId){
+    setFocusError(result.error||'تعذر تأكيد بيانات العميل من WHMCS');return;
+   }
+   setSelectedClient({id:focusRecordId,name:[row.firstname,row.lastname].filter(Boolean).join(' ')||String(row.companyname||''),email:String(row.email||''),status:String(row.status||''),initials:'',services:0});
+  });
+  return()=>{active=false;};
+ },[focusRecordId,page,session]);
  useEffect(()=>{
   if(!selected&&!selectedClient)return;
   const sub=BackHandler.addEventListener('hardwareBackPress',()=>{
@@ -82,9 +102,9 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
  const selectedInvoices=page==='invoices'?records.filter((r:any)=>invoiceSelection.includes(Number(r.id))).map((r:any)=>({id:Number(r.id),status:str(r.status)})):[];
  const toggleInvoice=(id:number)=>setInvoiceSelection(prev=>prev.includes(id)?prev.filter(n=>n!==id):prev.length<15?[...prev,id]:prev);
  if(!cfg)return null;
- if(page==='clients'&&selectedClient&&session)return <ClientProfile session={session} client={selectedClient} onBack={()=>setSelectedClient(null)}/>;
+ if(page==='clients'&&selectedClient&&session)return <ClientProfile session={session} client={selectedClient} onComposerFocus={onComposerFocus} onBack={()=>{setSelectedClient(null);onFocusExit?.();}}/>;
  if(selected)return <RecordDetails key={page+'-'+selected.id} page={page} item={selected}
-  session={session||null} onBack={()=>setSelected(null)} onChanged={onReload}/>;
+  session={session||null} onBack={()=>{setSelected(null);onFocusExit?.();}} onChanged={onReload}/>;
  return <View style={{gap:13,paddingBottom:26}}>
   <Header title={cfg.title} subtitle={cfg.subtitle} right={<Icon name={cfg.icon} color={C.red} size={28}/>}/>
   <Search value={q} onChange={setQ} placeholder={'بحث في '+cfg.title+'...'}/>
@@ -113,6 +133,7 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
   </View>:null}
   {loading?<ActivityIndicator color={C.red}/>:null}
   {error?<Card><T color={C.orange} size={12}>{error}</T></Card>:null}
+  {focusError?<Card><T color={C.orange} size={12}>{focusError}</T></Card>:null}
   <View style={{gap:9}}>
    {shown.length?shown.map((r:any)=>{
     const d=listRecordSummary(page,r);

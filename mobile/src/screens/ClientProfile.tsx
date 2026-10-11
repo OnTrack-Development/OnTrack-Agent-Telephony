@@ -1,6 +1,10 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {ActivityIndicator,Pressable,ScrollView,View} from 'react-native';
+import {ActivityIndicator,Alert,Pressable,ScrollView,View} from 'react-native';
 import {RecordDetails} from './RecordDetails';
+import {Tickets} from './Tickets';
+import {mapTicket,fetchTicketDetail} from '../lib/tickets';
+import {replyToTicket} from '../lib/api';
+import {orderTitle} from '../lib/orderManagement';
 import type {Client,Session} from '../types';
 import {C} from '../theme';
 import {Action,Card,Header,Icon,Pill,T} from '../components/UI';
@@ -12,7 +16,7 @@ const tabs:{id:ClientTab;name:string}[]=[
  {id:'contacts',name:'جهات الاتصال'},{id:'emails',name:'البريد المرسل'},
  {id:'quotes',name:'عروض الأسعار'},{id:'transactions',name:'المعاملات المالية'}
 ];
-const text=(x:unknown)=>x===null||x===undefined?'':typeof x==='object'?JSON.stringify(x):String(x).trim();
+const text=(x:unknown)=>x===null||x===undefined?'':typeof x==='object'?'':String(x).trim();
 const forbidden=/password|secret|token|private.?key|auth|كلمة.?المرور|^message$|^body$|^headers$/i;
 function DataSection({title,fields}:{title:string,fields:ProfileField[]}){
  return <Card style={{gap:9,marginBottom:13}}>
@@ -28,7 +32,7 @@ function recordTitle(tab:ClientTab,row:Record<string,unknown>){
  if(tab==='domains')return text(row.domainname||row.domain||'دومين');
  if(tab==='invoices')return 'فاتورة #'+text(row.invoicenum||row.id);
  if(tab==='tickets')return text(row.title||row.subject||'تذكرة')+' #'+text(row.tid||row.id);
- if(tab==='orders')return 'طلب #'+text(row.id);
+ if(tab==='orders')return orderTitle(row);
  if(tab==='emails')return text(row.subject)||'رسالة بريد #'+text(row.id);
  if(tab==='quotes')return text(row.subject)||'عرض سعر #'+text(row.id);
  if(tab==='transactions')return 'معاملة #'+text(row.id);
@@ -45,12 +49,13 @@ function recordSubtitle(tab:ClientTab,row:Record<string,unknown>){
  if(tab==='transactions')return [text(row.date),text(row.amountin),text(row.gateway)].filter(Boolean).join(' • ');
  return [text(row.email),text(row.phonenumber)].filter(Boolean).join(' • ');
 }
-export function ClientProfile({session,client,onBack}:{session:Session;client:Client;onBack:()=>void}){
+export function ClientProfile({session,client,onBack,onComposerFocus}:{session:Session;client:Client;onBack:()=>void;onComposerFocus?:()=>void}){
  const [tab,setTab]=useState<ClientTab>('overview'),[summary,setSummary]=useState<ClientSummary|null>(null);
  const [records,setRecords]=useState<Partial<Record<ClientTab,ClientTabResult>>>({});
  const [errors,setErrors]=useState<Partial<Record<ClientTab,string>>>({});
  const [busy,setBusy]=useState(false);
  const [opened,setOpened]=useState<{tab:'services'|'invoices'|'orders'|'domains';row:Record<string,unknown>}|null>(null);
+ const [openedTicket,setOpenedTicket]=useState<Record<string,unknown>|null>(null);
  const current=useRef(0);
  useEffect(()=>{
   const id=++current.current;
@@ -73,8 +78,19 @@ export function ClientProfile({session,client,onBack}:{session:Session;client:Cl
   else setErrors(prev=>({...prev,[next]:r.error||'تعذر قراءة البيانات'}));
  };
  const selected=records[tab];
+ if(openedTicket)return <Tickets key={'client-ticket-'+openedTicket.id} session={session} tickets={[]}
+  demo={false} focusTicket={mapTicket(openedTicket)} expectedClientId={client.id} onClose={()=>setOpenedTicket(null)}
+  onComposerFocus={onComposerFocus} onReply={async(id,reply,identity)=>{
+   const checked=await fetchTicketDetail(session,id);
+   if(!checked.ok||!checked.detail||checked.detail.clientId!==client.id){
+    Alert.alert('رفض','التذكرة لا تطابق ملكية العميل.');return false;
+   }
+   const result=await replyToTicket(session,id,reply,identity);
+   if(!result.ok){Alert.alert('تعذر الرد',result.error||'رفض WHMCS العملية');return false;}
+   Alert.alert('تم','تم تسجيل الرد على التذكرة');void select('tickets',true);return true;
+  }}/>;
  if(opened)return <RecordDetails page={opened.tab} item={{...opened.row,id:Number(opened.row.id)}}
-   session={session} onBack={()=>setOpened(null)} onChanged={()=>{setOpened(null);void select(opened.tab,true);}}/>;
+  session={session} expectedClientId={client.id} onBack={()=>setOpened(null)} onChanged={()=>void select(opened.tab,true)}/>;
  return <View style={{gap:12,paddingBottom:28}}>
   <Pressable onPress={onBack} style={{alignSelf:'flex-end',flexDirection:'row-reverse',gap:8,alignItems:'center'}}>
     <Icon name="arrow-right" color={C.blue}/><T color={C.blue} weight="700">كل العملاء</T>
@@ -103,9 +119,10 @@ export function ClientProfile({session,client,onBack}:{session:Session;client:Cl
   {tab!=='overview'&&selected?<View style={{gap:10}}>
    <T size={12} color={C.muted}>{selected.total===null?selected.records.length+' سجل محمّل':selected.records.length+' من '+selected.total}</T>
    {selected.records.map((item,i)=> {
-    const canManage=['services','invoices','orders','domains'].includes(tab)&&Number(item.id)>0;
+    const canManage=['services','invoices','orders','domains','tickets'].includes(tab)&&Number(item.id)>0;
     return <Pressable key={String(item.id||i)} disabled={!canManage} onPress={()=>{
-      if(canManage)setOpened({tab:tab as 'services'|'invoices'|'orders'|'domains',row:item});
+      if(tab==='tickets'&&canManage)setOpenedTicket(item);
+      else if(canManage)setOpened({tab:tab as 'services'|'invoices'|'orders'|'domains',row:item});
      }} style={{backgroundColor:C.surface,borderWidth:1,borderColor:C.stroke,borderRadius:14,padding:14,gap:7}}>
      <View style={{flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center',gap:9}}>
       <View style={{flex:1,gap:3}}>

@@ -1,7 +1,7 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,Alert,BackHandler,Pressable,ScrollView,TextInput,View} from 'react-native';
 import type {Session,Ticket} from '../types';
-import {getApiRetryAfterMs} from '../lib/api';
+import {getApiRetryAfterMs,callApi} from '../lib/api';
 import {C} from '../theme';
 import {adminSessionReady} from '../lib/adminSession';
 import {TicketAdminData,readTicketAdmin,returnTicketToAi} from '../lib/ticketAdmin';
@@ -21,9 +21,10 @@ const sections:{id:QueueKind;label:string}[]=[
 const showPlain=(input:string)=>input.replace(/<br\s*\/?\s*>/gi,'\n').replace(/<\/p>/gi,'\n')
  .replace(/<[^>]*>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').trim();
 
-export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFocus,onDetailChange}:{
+export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFocus,onDetailChange,focusTicket,expectedClientId,onClose}:{
  session:Session|null;tickets:Ticket[];onReply:(id:number,text:string,identity?:{clientId:number;contactId:number;name:string;email:string})=>Promise<boolean>;
- demo:boolean;reloadSignal?:number;onComposerFocus?:(nativeInputHandle?:number)=>void;onDetailChange?:(active:boolean)=>void
+ demo:boolean;reloadSignal?:number;onComposerFocus?:(nativeInputHandle?:number)=>void;onDetailChange?:(active:boolean)=>void;
+ focusTicket?:Ticket;expectedClientId?:number;onClose?:()=>void
 }){
  const [mode,setMode]=useState<QueueKind>('awaiting'),[search,setSearch]=useState('');
  const [assigned,setAssigned]=useState<Collection>(empty);
@@ -31,7 +32,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
  const [selected,setSelected]=useState<Ticket|null>(null),[detail,setDetail]=useState<TicketDetail|null>(null);
  const [detailError,setDetailError]=useState(''),[detailLoading,setDetailLoading]=useState(false);
  const [profile,setProfile]=useState<OperatorProfile|null>(null);
- const [reply,setReply]=useState(''),[withSignature,setWithSignature]=useState(true),[sending,setSending]=useState(false);
+ const [reply,setReply]=useState(''),[noteDraft,setNoteDraft]=useState(''),[withSignature,setWithSignature]=useState(true),[sending,setSending]=useState(false);
  const [changing,setChanging]=useState(false),[statuses,setStatuses]=useState<string[]>(['Open','Customer-Reply','Answered','Closed']);
  const [showStatus,setShowStatus]=useState(false),[showPriority,setShowPriority]=useState(false);
  const [reloadCounter,setReloadCounter]=useState(0);
@@ -39,7 +40,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
  const aiBusy=useRef(false);
  const selectionGeneration=useRef(0);
  const queueRequestGeneration=useRef({assigned:0,general:0});
- const close=()=>{selectionGeneration.current++;setSelected(null);setDetail(null);setReply('');setDetailError('');setShowPriority(false);setShowStatus(false);setAdminData(null);setAdminError('');};
+ const close=()=>{selectionGeneration.current++;setSelected(null);setDetail(null);setReply('');setNoteDraft('');setDetailError('');setShowPriority(false);setShowStatus(false);setAdminData(null);setAdminError('');if(focusTicket)onClose?.();};
  useEffect(()=>{onDetailChange?.(selected!==null);return()=>onDetailChange?.(false);},[selected!==null]);
  useEffect(()=>{
   if(!selected)return;
@@ -70,6 +71,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
   });
  },[session,mode,demo]);
  useEffect(()=>{
+  if(focusTicket)return;
   if(demo){
    setAssigned({...empty(),rows:tickets.filter(t=>(t.flag||0)>0&&isActionable(t.status))});
    setGeneral({...empty(),rows:tickets.filter(t=>ticketMatchesQueue(t.status,mode))});
@@ -99,9 +101,13 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
   const result=await fetchTicketDetail(session,ticket.id);
   if(generation!==selectionGeneration.current)return;
   setDetailLoading(false);
-  if(result.ok&&result.detail){setDetail(result.detail);if(adminSessionReady(session))void loadAdmin(ticket.id);}
+  if(result.ok&&result.detail){
+   if(expectedClientId&&result.detail.clientId!==expectedClientId){setDetailError('تم منع فتح تذكرة غير مملوكة للعميل المحدد.');return;}
+   setDetail(result.detail);if(adminSessionReady(session))void loadAdmin(ticket.id);
+  }
   else setDetailError(result.error||'تعذر فتح التذكرة');
  };
+ useEffect(()=>{if(focusTicket?.id)void open(focusTicket);},[focusTicket?.id]);
  const loadAdmin=async(id:number)=>{
   if(!session)return;
   const stamp=selectionGeneration.current;setAdminError('');
@@ -122,7 +128,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
   ],{cancelable:false});
  };
  const updateField=(field:'priority'|'status',value:string)=>{
-  if(!selected||!session||changing||demo)return;
+  if(!selected||!session||changing||demo||(expectedClientId&&detail?.clientId!==expectedClientId))return;
   Alert.alert('تأكيد التعديل',`هل تريد تغيير ${field==='priority'?'الأولوية':'الحالة'} إلى ${value}؟`,[
    {text:'إلغاء',style:'cancel'},
    {text:'تأكيد',onPress:async()=>{
@@ -139,7 +145,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
   ]);
  };
  const send=()=>{
-  if(!selected||!reply.trim()||sending)return;
+  if(!selected||!reply.trim()||sending||(expectedClientId&&detail?.clientId!==expectedClientId))return;
   const signature=profile?.signature||'';
   const body=replyWithSignature(reply,signature,withSignature);
   Alert.alert('تأكيد الرد','سيتم إرسال الرد الحقيقي إلى العميل في WHMCS. هل تريد المتابعة؟',[
@@ -156,6 +162,26 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
       }
      }
     }finally{setSending(false);}
+   }}
+  ]);
+ };
+ const saveNote=()=>{
+  if(!session||!selected||!noteDraft.trim()||changing||(expectedClientId&&detail?.clientId!==expectedClientId))return;
+  const id=selected.id,text=noteDraft.trim();
+  Alert.alert('ملاحظة داخلية','إضافة ملاحظة داخلية للتذكرة #'+id+'؟',[
+   {text:'إلغاء',style:'cancel'},
+   {text:'حفظ',onPress:async()=>{
+    setChanging(true);
+    try{
+     const confirmed=await fetchTicketDetail(session,id);
+     if(!confirmed.ok||!confirmed.detail||(expectedClientId&&confirmed.detail.clientId!==expectedClientId)){
+      Alert.alert('مرفوض','تعذر التحقق من ملكية التذكرة');return;
+     }
+     const r=await callApi(session,'AddTicketNote',{ticketid:id,message:text});
+     if(!r.ok){Alert.alert('فشل',r.error||'رفض WHMCS الملاحظة');return;}
+     setNoteDraft('');Alert.alert('تم','تم حفظ الملاحظة الداخلية');
+     const updated=await fetchTicketDetail(session,id);if(updated.ok&&updated.detail)setDetail(updated.detail);
+    }finally{setChanging(false);}
    }}
   ]);
  };
@@ -246,6 +272,14 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
     {detail.notes.map(n=><Card key={n.id} style={{marginBottom:9,gap:6}}>
      <T size={12} color={C.orange}>{n.name} • {n.date}</T><T>{showPlain(n.message)}</T>
     </Card>)}</>:null}
+   {!demo?<Card style={{marginTop:13,gap:10}}>
+    <T weight="800" size={16}>إضافة ملاحظة داخلية</T>
+    <TextInput multiline value={noteDraft} onChangeText={setNoteDraft}
+     onFocus={()=>onComposerFocus?.()} placeholder="ملاحظة لا يراها العميل"
+     placeholderTextColor={C.muted}
+     style={{color:C.text,backgroundColor:C.surface2,borderRadius:10,textAlign:'right',minHeight:90,textAlignVertical:'top',padding:12}}/>
+    <Action compact secondary disabled={changing||!noteDraft.trim()||!detail} label="حفظ الملاحظة" onPress={saveNote}/>
+   </Card>:null}
    <Card style={{marginTop:18,gap:13}}>
     <T weight="900" size={17}>الرد على العميل</T>
     <TextInput multiline numberOfLines={5} value={reply} onChangeText={setReply}

@@ -6,6 +6,9 @@ import {Action,Card,Header,Icon,Pill,T} from '../components/UI';
 import {callApi,listOf} from '../lib/api';
 import {InvoiceEditor} from '../components/InvoiceEditor';
 import {InvoiceActions} from '../components/InvoiceActions';
+import {ServiceManagement} from '../components/ServiceManagement';
+import {OrderManagement} from '../components/OrderManagement';
+import {orderTitle} from '../lib/orderManagement';
 
 type DetailPage='services'|'invoices'|'orders'|'domains';
 type RecordItem={id:number;status?:string;[key:string]:any};
@@ -15,7 +18,7 @@ const itemList=(d:any,root:string,singular:string):RecordItem[]=>listOf(d,root,s
 const statusColor=(s:string)=>/^(active|paid|accepted)$/i.test(s)?C.green:/pending|unpaid|suspended|overdue/i.test(s)?C.orange:C.muted;
 const headline=(page:DetailPage,item:RecordItem)=>
  page==='invoices'?'فاتورة #'+val(item.invoicenum||item.id):
- page==='orders'?'طلب #'+val(item.ordernum||item.id):
+ page==='orders'?orderTitle(item):
  page==='services'?val(item.name||item.productname||item.plan||item.domain||'الخدمة'):
  val(item.domainname||item.name||'الدومين');
 const sections:Record<DetailPage,{action:string;params:(id:number)=>Record<string,number>;root?:string;singular?:string}>={
@@ -46,14 +49,15 @@ function Row({label,value}:{label:string;value:string}){
   <T size={13} weight="600" style={{flex:1.5}}>{value}</T>
  </View>;
 }
-export function RecordDetails({page,item,session,onBack,onChanged}:{
- page:Page;item:RecordItem;session:Session|null;onBack:()=>void;onChanged?:()=>void;
+export function RecordDetails({page,item,session,onBack,onChanged,expectedClientId}:{
+ page:Page;item:RecordItem;session:Session|null;onBack:()=>void;onChanged?:()=>void;expectedClientId?:number;
 }){
  const type=page as DetailPage;
  const [data,setData]=useState<RecordItem|null>(null),[busy,setBusy]=useState(false),[working,setWorking]=useState(false);
  const [error,setError]=useState(''),[editing,setEditing]=useState(false),[notes,setNotes]=useState('');
  const [dateEditing,setDateEditing]=useState(false),[dueDate,setDueDate]=useState('');
  const request=useRef(0);
+ const [related,setRelated]=useState<{page:'services'|'invoices';id:number}|null>(null);
  const load=async()=>{
   if(!session){setData(item);return;}
   const tick=++request.current;setBusy(true);setError('');
@@ -64,6 +68,10 @@ export function RecordDetails({page,item,session,onBack,onChanged}:{
   const response:any=r.data||{};
   const found=cfg.root?itemList(response,cfg.root,cfg.singular||'').find(x=>detailIdentityMatches(type,x,item.id)):response;
   if(!found||!detailIdentityMatches(type,found,item.id)){setError('WHMCS لم يؤكد بيانات السجل المطلوب؛ تم منع عرض بيانات سجل مختلف.');return;}
+  if(expectedClientId){
+   const owner=Number(type==='services'?(found.clientid||found.userid):found.userid||found.clientid);
+   if(owner!==expectedClientId){setData(null);setError('تم منع عرض سجل لا يطابق ملكية العميل المحدد.');return;}
+  }
   setData(found);setNotes(val(found.notes));setDueDate(val(found.duedate||found.nextduedate));
  };
  useEffect(()=>{setData(null);setEditing(false);void load();return()=>{request.current++};},[type,item.id,session]);
@@ -105,6 +113,9 @@ export function RecordDetails({page,item,session,onBack,onChanged}:{
     {invoiceid:item.id,duedate:dueDate.trim()}:{serviceid:item.id,nextduedate:dueDate.trim()},'تم تعديل الاستحقاق في WHMCS.'));
  };
  const status=val(read.status||item.status)||'غير معروف';
+ if(related)return <RecordDetails page={related.page} item={{id:related.id}} session={session}
+    expectedClientId={expectedClientId||Number(data?.userid||data?.clientid)||undefined}
+    onBack={()=>setRelated(null)} onChanged={()=>{setRelated(null);onChanged?.();void load();}}/>;
  return <View style={{gap:13,paddingBottom:35}}>
   <Pressable onPress={onBack} style={{alignSelf:'flex-end',flexDirection:'row-reverse',alignItems:'center',gap:5,paddingVertical:6}}>
    <Icon name="arrow-right" color={C.blue} size={20}/><T color={C.blue}>رجوع للقائمة</T>
@@ -114,7 +125,7 @@ export function RecordDetails({page,item,session,onBack,onChanged}:{
   {busy?<ActivityIndicator color={C.red}/>:null}
   {error?<Card style={{gap:9}}><T color={C.orange}>{error}</T>
    <Action compact secondary label="إعادة المحاولة" onPress={()=>void load()}/></Card>:null}
-  {data?<Card style={{gap:5}}>
+  {data&&type!=='orders'?<Card style={{gap:5}}>
    <T size={16} weight="800">البيانات الأساسية</T>
    {facts[type].map(([field,label])=><Row key={field} label={label} value={val(read[field]|| (field==='name'?read.productname:''))}/>)}
    {type==='services'?<Row label="العميل" value={val(read.clientid||read.userid)}/>:null}
@@ -128,9 +139,15 @@ export function RecordDetails({page,item,session,onBack,onChanged}:{
    </View>)}
    {!itemList(data,'items','item').length?<T color={C.muted} size={12}>لا توجد بنود متاحة</T>:null}
   </Card>:null}
+  {data&&type==='services'&&session?<ServiceManagement session={session} data={data} id={item.id}
+    expectedClientId={expectedClientId} onChanged={()=>{onChanged?.();void load();}}/>:null}
+   {data&&type==='orders'&&session?<OrderManagement session={session} order={data} id={item.id}
+    onOpenService={id=>setRelated({page:'services',id})}
+    onOpenInvoice={id=>setRelated({page:'invoices',id})}
+    onChanged={()=>{onChanged?.();void load();}}/>:null}
   {data&&type==='invoices'?<><InvoiceEditor session={session} invoice={data} invoiceId={item.id} onChanged={()=>{onChanged?.();void load();}}/>
    <InvoiceActions session={session} targets={[{id:item.id,status:status}]} onChanged={()=>{onChanged?.();void load();}}/></>:null}
-  {data&&(type==='invoices'||type==='services')?<Card style={{gap:11}}>
+  {data&&type==='invoices'?<Card style={{gap:11}}>
    <View style={{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between'}}>
     <T weight="800">ملاحظات {type==='invoices'?'الفاتورة':'الخدمة'}</T>
     {!editing?<Pressable onPress={()=>setEditing(true)}><Icon name="pencil-outline" color={C.blue}/></Pressable>:null}
@@ -143,7 +160,7 @@ export function RecordDetails({page,item,session,onBack,onChanged}:{
      <View style={{flex:1}}><Action label="إلغاء" secondary onPress={()=>{setEditing(false);setNotes(val(data.notes))}}/></View>
     </View></>:<T color={C.muted} size={13}>{val(data.notes)||'بدون ملاحظات'}</T>}
   </Card>:null}
-  {data&&(type==='invoices'||type==='services')?<Card style={{gap:10}}>
+  {data&&type==='invoices'?<Card style={{gap:10}}>
    <T weight="800">تاريخ الاستحقاق والتجديد</T>
    {dateEditing?<><TextInput value={dueDate} onChangeText={setDueDate}
     placeholder="YYYY-MM-DD" placeholderTextColor={C.muted} keyboardType="numbers-and-punctuation"
@@ -157,16 +174,6 @@ export function RecordDetails({page,item,session,onBack,onChanged}:{
       <Icon name="calendar-edit" color={C.blue} size={17}/><T color={C.blue} size={12}>تعديل</T>
      </Pressable>
     </View>}
-  </Card>:null}
-  {data&&type==='orders'&&/^pending$/i.test(status)?<Card style={{gap:12}}>
-   <T weight="800">إدارة الطلب</T>
-   <T size={12} color={C.muted}>تنفيذ الإجراءات يتطلب تأكيدًا، وصلاحية API فعلية. قبول الطلب هنا لا يشغّل التفعيل الآلي أو إرسال رسائل ترحيب.</T>
-   <Action disabled={working} icon="check-circle-outline" label="قبول الطلب"
-    onPress={()=>confirm('قبول الطلب',`هل تريد قبول الطلب #${item.id}؟ لن يتم تفعيل الخدمة آليًا.`,
-     ()=>void doAction('AcceptOrder',{orderid:item.id,autosetup:0,sendemail:0,sendregistrar:0},'تم قبول الطلب.'))}/>
-   <Action disabled={working} secondary icon="close-circle-outline" label="إلغاء الطلب"
-    onPress={()=>confirm('إلغاء طلب معلّق',`تأكيد إلغاء الطلب #${item.id} داخل WHMCS؟`,
-     ()=>void doAction('CancelOrder',{orderid:item.id,cancelsub:0},'تم إلغاء الطلب.'))}/>
   </Card>:null}
   {!data&&!busy&&!error?<Card><T color={C.muted}>البيانات التفصيلية غير متاحة.</T></Card>:null}
  </View>;

@@ -1,6 +1,6 @@
 # WHMCS Native Android App
 
-Current source: **v0.3.15, Android build 26**. Application ID remains `com.ontrackdevelopment.command` for upgrades using the existing release signature.
+Current source: **v0.3.16, Android build 27**. Application ID remains `com.ontrackdevelopment.command` for upgrades using the existing release signature.
 
 - Native React Native screens. No WebView, iframe or external-browser WhatsApp inbox.
 - WHMCS core operations use the existing `includes/api.php` API and server-side API permissions.
@@ -29,3 +29,8 @@ Tests cover ticket queues and replies, client ownership, directories, native mod
 ## Current limits
 
 Native WhatsApp sends text and displays message/media metadata. Opening/downloading attachments, voice-message playback and media upload are not implemented in this release. The native admin adapter requires a compatible WHMCS login form and existing employee access; module integrations have mock-contract coverage and still require a signed-in live device check.
+
+## v0.3.16 management scope
+Native service form supports the documented UpdateClientProduct fields and confirmed module Create/Suspend/Unsuspend/Terminate/ChangePackage commands. WHMCS enforces staff API permissions. Orders show the external order number, line items, payment status, and explicit Accept/Cancel/Fraud/Pending controls. Refund and delete remain admin-only rather than falsely claiming an API refund. Client-owned tickets open the shared ticket editor after ID/ownership checks.
+
+Notification taps (including cold launch) can target a ticket, order, invoice, client or service by ID. This does **not** enable remote background push: Firebase/FCM credentials, device-token registration and a WHMCS event sender are still required; local polling alone cannot provide instant alerts with the app closed.

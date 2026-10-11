@@ -79,6 +79,7 @@ function CommandApp(){
  const [initializing,setInitializing]=useState(true),[session,setSession]=useState<Session|null>(null),[demo,setDemo]=useState(false);
  const [data,setData]=useState<DemoState>(empty),[page,setPage]=useState<Page>('home'),[loading,setLoading]=useState(false);
  const [ticketReload,setTicketReload]=useState(0);
+ const [notificationTarget,setNotificationTarget]=useState<{page:SectionKey|'whatsapp';id:number|null}|null>(null);
  const pageRef=useRef<Page>('home');pageRef.current=page;
  const [error,setError]=useState(''),[errors,setErrors]=useState<Record<string,string>>({}),[caps,setCaps]=useState<Record<string,boolean>>({}),[totals,setTotals]=useState<Record<string,number|null>>({}),[moreBusy,setMoreBusy]=useState(false),[lastSync,setLastSync]=useState(''),[history,setHistory]=useState<Page[]>([]),[detail,setDetail]=useState<{title:string,lines:[string,string][]}|null>(null);
  const refreshInFlight=useRef(false),lastRefreshAt=useRef<Record<string,number>>({}),retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null),generation=useRef(0);
@@ -140,7 +141,7 @@ function CommandApp(){
   if(!session||demo)return;
   let disposed=false;
   void enableDeviceNotifications().catch(()=>{});
-  const sections:SectionKey[]=['tickets','invoices','orders','services','domains'];
+  const sections:SectionKey[]=['tickets','orders','clients','invoices','services','domains'];
   let index=0,busy=false;
   // One WHMCS read every 100 s, rotating sections, to avoid concurrent polling / HTTP 429.
   const tick=async()=>{
@@ -179,16 +180,33 @@ function CommandApp(){
   if(['clients','invoices','services','orders','domains'].includes(page))
    void refresh(session,false,page as SectionKey);
  },[session,page,demo,refresh]);
- const navigate=(p:Page)=>{if(p!==page){setHistory(h=>[...h,page].slice(-20));setPage(p);}setDetail(null);};
+ const navigate=(p:Page)=>{setNotificationTarget(null);if(p!==page){setHistory(h=>[...h,page].slice(-20));setPage(p);}setDetail(null);};
+ const routeNotification=(payload:any)=>{
+  if(!payload||typeof payload!=='object')return;
+  const kind=payload.section;
+  const categories=['tickets','orders','clients','invoices','services','domains','whatsapp'];
+  if(typeof kind!=='string'||!categories.includes(kind))return;
+  const id=Number(payload.id);
+  const verified=Number.isSafeInteger(id)&&id>0?id:null;
+  navigate(kind as Page);
+  setNotificationTarget({page:kind as SectionKey|'whatsapp',id:verified});
+ };
  useEffect(()=>{
   const sub=Notifications.addNotificationResponseReceivedListener(response=>{
-   const target=response.notification.request.content.data?.section;
-   const pageName=target==='whatsapp'||target==='tickets'||target==='invoices'||target==='orders'
-    ||target==='services'||target==='domains'?target:null;
-   if(pageName)navigate(pageName);
+   routeNotification(response.notification.request.content.data);
+   void Notifications.clearLastNotificationResponseAsync().catch(()=>{});
   });
   return()=>sub.remove();
  },[page]);
+ useEffect(()=>{
+  let active=true;
+  void Notifications.getLastNotificationResponseAsync().then(response=>{
+   if(!active||!response)return;
+   routeNotification(response.notification.request.content.data);
+   void Notifications.clearLastNotificationResponseAsync().catch(()=>{});
+  }).catch(()=>{});
+  return()=>{active=false;};
+ },[]);
  const backRef=useRef<()=>boolean>(()=>false);
  backRef.current=()=>{
   if(detail){setDetail(null);return true;}
@@ -234,13 +252,16 @@ function CommandApp(){
  if(!session&&!demo)return <Connect onPair={connect} onDemo={()=>{setDemo(true);setData(JSON.parse(JSON.stringify(seed)));setCaps({'tickets.read':true,'tickets.reply':true,'whatsapp.read':true,'whatsapp.send':true,'ai.read':true});setPage('home');}}/>;
  const body=()=>{
   if(page==='home')return <Home data={data} demo={demo} navigate={navigate} capabilities={caps} totals={totals}/>;
-  if(page==='tickets')return <Tickets session={session} tickets={data.tickets} reloadSignal={ticketReload} onReply={reply} demo={demo} onComposerFocus={revealComposer} onDetailChange={setTicketDetailOpen}/>;
+  if(page==='tickets')return <Tickets session={session} tickets={data.tickets} reloadSignal={ticketReload} onReply={reply} demo={demo} onComposerFocus={revealComposer} onDetailChange={setTicketDetailOpen}
+   focusTicket={notificationTarget?.page==='tickets'&&notificationTarget.id?{id:notificationTarget.id,number:String(notificationTarget.id),subject:'',customer:'',department:'',priority:'Medium',status:'Open',updated:''}:undefined}
+   onClose={()=>setNotificationTarget(null)}/>;
   if(page==='whatsapp')return <WhatsApp session={session} demo={demo} onComposerFocus={revealComposer} onDetailChange={setTicketDetailOpen}/>;
   if(page==='ai')return <AiOps agents={data.agents} queue={data.queue} session={session} demo={demo}/>;
   if(page==='more')return <View><T size={26} weight="900">كل الأقسام</T><T color={C.muted} style={{marginBottom:20}}>إدارة WHMCS والموديولات من مكان واحد</T><View style={{flexDirection:'row-reverse',flexWrap:'wrap',gap:12}}>{menu.map(m=><Pressable key={m.page} onPress={()=>navigate(m.page)} style={{width:'47%',padding:17,backgroundColor:C.surface,borderWidth:1,borderColor:C.stroke,borderRadius:18,gap:10}}><Icon name={m.icon} size={25} color={C.red}/><T weight="800" size={15}>{m.label}</T><Icon name="arrow-left" size={17} color={C.muted}/></Pressable>)}</View></View>;
   if(page==='settings')return <Settings session={session} demo={demo} onLogout={logout} capabilities={caps} errors={errors}/>;
   if(page==='explorer')return demo?<View><T color={C.orange}>دليل API يحتاج ربط WHMCS حقيقي (غير متاح في الديمو).</T></View>:session?<Explorer session={session} onDetails={(title,lines)=>setDetail({title,lines})}/>:null;
-  return <Directory session={session} page={page} data={data} onDetails={(title,lines)=>setDetail({title,lines})} total={totals[page]} error={errors[page]} loading={moreBusy} onLoadMore={()=>loadMore(page as 'clients'|'invoices'|'services'|'orders'|'domains')} onReload={()=>session&&void refresh(session,true,page as SectionKey)}/>;
+  return <Directory session={session} page={page} data={data} onDetails={(title,lines)=>setDetail({title,lines})} total={totals[page]} error={errors[page]} loading={moreBusy} onLoadMore={()=>loadMore(page as 'clients'|'invoices'|'services'|'orders'|'domains')} onReload={()=>session&&void refresh(session,true,page as SectionKey)}
+  onComposerFocus={revealComposer} focusRecordId={notificationTarget?.page===page?notificationTarget.id||undefined:undefined} onFocusExit={()=>setNotificationTarget(null)}/>;
  };
  const currentTab=nav.some(n=>n.page===page)?page:'more';
  return <View style={{flex:1,backgroundColor:C.bg}}><StatusBar barStyle="light-content" translucent={false} backgroundColor={C.bg}/>
