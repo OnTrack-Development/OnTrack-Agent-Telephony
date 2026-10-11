@@ -1,0 +1,41 @@
+name: Diagnose existing TelegramNotify WhatsApp Gateway
+on:
+  push:
+    branches: [fix/tgwa-non-json-diagnostic-20261011]
+    paths: ['.github/workflows/diagnose-tgwa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe public endpoint without any customer token
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://services.ontrackegy.com/modules/addons/telegramnotify/mobile_whatsapp.php"
+          for verb in GET POST; do
+            echo "=== ${verb} without credentials ==="
+            if [ "$verb" = POST ]; then
+              curl --silent --show-error --max-time 12 --connect-timeout 6 --max-redirs 0 -X POST "$URL" -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{"action":"status"}' -D /tmp/tgwa-h -o /tmp/tgwa-b -w 'HTTP=%{http_code} TYPE=%{content_type} REMOTE_IP=%{remote_ip} LOCATION=%{redirect_url} BYTES=%{size_download}\n' || true
+            else
+              curl --silent --show-error --max-time 12 --connect-timeout 6 --max-redirs 0 "$URL" -H 'Accept: application/json' -D /tmp/tgwa-h -o /tmp/tgwa-b -w 'HTTP=%{http_code} TYPE=%{content_type} REMOTE_IP=%{remote_ip} LOCATION=%{redirect_url} BYTES=%{size_download}\n' || true
+            fi
+            python3 - <<'PY'
+          import json,pathlib,re
+          p=pathlib.Path('/tmp/tgwa-b')
+          if not p.exists():
+              print('No response body from remote host');continue_flag=True
+          else:
+              b=p.read_bytes()
+              try:
+                  data=json.loads(b)
+                  print('JSON=True status='+str(data.get('status',''))+' message='+str(data.get('message',''))[:120])
+              except Exception:
+                  text=b.decode('utf-8',errors='replace')
+                  title=re.search(r'<title[^>]*>(.*?)</title>',text,re.I|re.S)
+                  print('JSON=False TITLE='+repr(title.group(1).strip()[:100] if title else '<none>')+' FIRST_20_BYTES='+repr(b[:20]))
+          PY
+          done
