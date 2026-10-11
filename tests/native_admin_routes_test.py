@@ -23,7 +23,7 @@ with tempfile.TemporaryDirectory() as folder:
   'android/webkit/WebSettings.java':'public class WebSettings {public void setJavaScriptEnabled(boolean b){} public void setDomStorageEnabled(boolean b){} }',
   'android/webkit/WebView.java':'public class WebView {public WebView(android.app.Activity a){} public WebSettings getSettings(){return null;} public void setWebViewClient(WebViewClient c){} public void evaluateJavascript(String s,ValueCallback<String> c){} public void loadUrl(String s){} public void destroy(){} }',
   'android/webkit/WebViewClient.java':'public class WebViewClient {public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){return false;} public void onPageFinished(WebView v,String u){} }',
-  'android/webkit/WebResourceRequest.java':'public interface WebResourceRequest {Object getUrl();}',
+  'android/webkit/WebResourceRequest.java':'public interface WebResourceRequest {Object getUrl(); boolean isForMainFrame();}',
   'android/webkit/ValueCallback.java':'public interface ValueCallback<T> {void onReceiveValue(T value);}',
   'android/webkit/CookieManager.java':'public class CookieManager {public static CookieManager getInstance(){return new CookieManager();} public void setAcceptCookie(boolean b){} public String getCookie(String url){return "";} public void removeAllCookies(ValueCallback<Boolean> callback){} public void flush(){} }',
  }
