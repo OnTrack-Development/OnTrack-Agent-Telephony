@@ -9,6 +9,7 @@ import {Action,Card,Header,Icon,ItemRow,Notice,Pill,Section,T} from '../componen
 import {enableDeviceNotifications,verifyNativeFcmSetup,testDeviceNotification} from '../lib/notifications';
 import {LockPolicy,readLockPolicy,saveLockPolicy} from '../lib/lockPreferences';
 import {biometricChoiceKey} from '../components/AppLock';
+import {restoreTelegramWhatsApp,registerWhatsAppPush,whatsAppPushStatus} from '../lib/whatsapp';
 
 export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabilities,errors}:{
  session:Session|null;demo:boolean;onLogout:()=>void;onLock?:()=>void;onLockPolicyChange?:(policy:LockPolicy)=>void;
@@ -55,6 +56,31 @@ export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabi
   }catch(e){Alert.alert('البصمة',e instanceof Error?e.message:'تعذر تغيير إعداد البصمة.');}
   finally{setBioBusy(false);}
  };
+ const enableBackgroundPush=async()=>{
+  if(!session)return;
+  try{
+   const ok=await enableDeviceNotifications();
+   if(!ok){Alert.alert('الإشعارات متوقفة','اسمح بإشعارات WHMCS من إعدادات Android أولًا.');return;}
+   const paired=await restoreTelegramWhatsApp(session);
+   if(!paired)throw Error('ربط واتساب عبر TelegramNotify مطلوب أولًا.');
+   const result=await registerWhatsAppPush(session);
+   if(result!=='registered')throw Error(result==='fcm_unavailable'?
+    'Firebase غير متاح على الجهاز. تأكد من Google Play Services.':'لم تتم الموافقة على إشعارات Android.');
+   Alert.alert('إشعارات الخلفية','تم تسجيل هذا الجهاز على سيرفر الإشعارات. اختبار التوصيل الفعلي يتطلب وصول رسالة جديدة وتشغيل Cron.');
+  }catch(e){Alert.alert('إعداد إشعارات الخلفية',e instanceof Error?e.message:'تعذر ربط الجهاز بالإشعارات.');}
+ };
+ const checkBackgroundPush=async()=>{
+  if(!session)return;
+  try{
+   const paired=await restoreTelegramWhatsApp(session);
+   if(!paired)throw Error('اربط TelegramNotify من صفحة واتساب أولًا.');
+   const s=await whatsAppPushStatus(session);
+   Alert.alert('حالة FCM على السيرفر',s.configured?
+    'إرسال FCM مهيأ على السيرفر. عدد الأجهزة المسجلة: '+s.registered_devices+
+    '. يلزم تشغيل Cron واختبار رسالة جديدة للتأكد من التسليم.':
+    'مفاتيح FCM Service Account غير مهيأة على السيرفر. الإشعارات والتطبيق مقفول لن تصل حتى يتم إعدادها.');
+  }catch(e){Alert.alert('حالة FCM',e instanceof Error?e.message:'تعذر فحص خدمة FCM.');}
+ };
  const firebaseTest=()=>{
   void verifyNativeFcmSetup().then(result=>{
    const text=result.ready?
@@ -99,10 +125,14 @@ export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabi
      if(result==='permission_denied')
       Alert.alert('إشعارات Android مقفولة','افتح إعدادات التطبيق من Android ← الإشعارات، واسمح بإشعارات WHMCS وقناة واتساب.');
     }).catch(()=>Alert.alert('اختبار الإشعارات','تعذر إرسال إشعار محلي. راجع إعدادات إشعارات Android.'))}/>
+   <Action secondary icon="bell-badge-outline" label="ربط إشعارات واتساب والتطبيق مقفول"
+    onPress={()=>void enableBackgroundPush()}/>
+   <Action secondary icon="cloud-check-outline" label="فحص حالة إرسال FCM على السيرفر"
+    onPress={()=>void checkBackgroundPush()}/>
    <Action label="اختبار اتصال Firebase للجهاز" secondary
     icon="shield-check-outline" onPress={firebaseTest}/>
    <Notice tone="info" title="حالة الإشعارات اللحظية"
-    message="مكوّن Firebase موجود في التطبيق. وصول Push والجهاز مغلق يحتاج إكمال تسجيل الأجهزة والموظفين على السيرفر."/>
+    message="إشعارات الخلفية تستخدم Firebase FCM عبر TelegramNotify المثبّت. يجب تجهيز مفتاح Service Account آمن على السيرفر وتشغيل Cron؛ نجاح ربط الجهاز وحده لا يثبت وصول التنبيهات."/>
   </Card>
   <Section title="التحديثات"/>
   <Card style={{gap:13}}>
