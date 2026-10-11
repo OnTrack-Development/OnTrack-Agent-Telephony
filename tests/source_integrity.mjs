@@ -206,7 +206,7 @@ assert.ok(get('mobile/App.tsx').includes('restoreTelegramWhatsApp(session)'));
 assert.ok(get('mobile/src/lib/notifications.ts').includes('testDeviceNotification'));
 
 assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('sendWhatsAppMedia('));
-assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('whatsappImageSource('));
+assert.ok(get('mobile/src/lib/whatsapp.ts').includes('whatsappImageSource('));
 assert.ok(get('mobile/src/lib/whatsapp.ts').includes('chat_send_media'));
 assert.ok(get('mobile/src/lib/lockPreferences.ts').includes('after_5m'));
 assert.ok(get('mobile/App.tsx').includes('shouldLockOnResume('));
