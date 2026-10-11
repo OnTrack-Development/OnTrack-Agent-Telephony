@@ -5,7 +5,7 @@ import {C} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Empty,Header,Icon,Notice,Pill,Search,T} from '../components/UI';
 import {adminSessionReady,checkedAdminUrl,loginAdmin,loginWhatsAppWithBrowser,saveAdminDirectory,savedAdminDirectory,validateAdminDirectory} from '../lib/adminSession';
-import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,getWhatsAppRetryAfterMs} from '../lib/whatsapp';
+import {WaConversation,WaMessage,conversationMessages,listConversations,markConversationRead,prepareWhatsApp,sendWhatsAppText,getWhatsAppRetryAfterMs,pairTelegramWhatsApp,restoreTelegramWhatsApp,forgetTelegramWhatsApp,telegramWhatsAppReady} from '../lib/whatsapp';
 import {ingestNotificationSnapshot,whatsAppNotifications} from '../lib/notifications';
 
 /** Browser cookies are distinct from API credentials. Reuse Chrome's *existing*
@@ -32,6 +32,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
  const [needsOtp,setNeedsOtp]=useState(false),[otp,setOtp]=useState('');
  const [adminUser,setAdminUser]=useState(''),[adminPass,setAdminPass]=useState('');
  const [connectStep,setConnectStep]=useState(''),[showLegacy,setShowLegacy]=useState(false);
+ const [telegramKey,setTelegramKey]=useState(''),[telegramBusy,setTelegramBusy]=useState(false);
  const generation=useRef(0),readInFlight=useRef(false),sendInFlight=useRef(false),active=useRef(true),selectedId=useRef<number|null>(null);
  selectedId.current=selected?.id||null;
  const close=()=>{generation.current++;setSelected(null);setMessages([]);setDraft('');setError('');};
@@ -41,12 +42,24 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   if(session)void savedAdminDirectory(session).then(dir=>{if(mounted){setDirectory(dir);setDirectoryLoaded(true);}}).catch(()=>{if(mounted)setDirectoryLoaded(true);});
   return()=>{mounted=false;};
  },[session]);
+ useEffect(()=>{
+  if(!session||demo)return;
+  let alive=true;
+  void restoreTelegramWhatsApp(session).then(async ready=>{
+   if(!ready||!alive)return;
+   const list=await listConversations(session);
+   if(!alive||!active.current)return;
+   setRows(list.conversations);setUnread(list.unread);setConnected(true);setError('');
+   void ingestNotificationSnapshot(session,'whatsapp',whatsAppNotifications(list.conversations));
+  }).catch(()=>{});
+  return()=>{alive=false;};
+ },[session,demo]);
  useEffect(()=>{onDetailChange?.(!!selected);return()=>onDetailChange?.(false);},[!!selected]);
  useEffect(()=>{if(!selected)return;const sub=BackHandler.addEventListener('hardwareBackPress',()=>{close();return true;});return()=>sub.remove();},[!!selected]);
  const report=(e:unknown)=>{
   if(!active.current)return;
   setError(e instanceof Error?e.message:'تعذر الاتصال');
-  if(session&&!adminSessionReady(session)){setConnected(false);setRows([]);setMessages([]);setSelected(null);}
+  if(session&&!adminSessionReady(session)&&!telegramWhatsAppReady(session)){setConnected(false);setRows([]);setMessages([]);setSelected(null);}
  };
  const refresh=useCallback(async()=>{
   if(!session||demo||!connected||readInFlight.current||getWhatsAppRetryAfterMs(session)>0||AppState.currentState!=='active')return;
@@ -76,6 +89,28 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   return()=>{clearTimeout(timer);clearInterval(poll);resume.remove();};
  },[refresh,selected?.id]);
  useEffect(()=>{if(!selected)return;const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[!!selected]);
+ const connectWithTelegram=async()=>{
+  if(!session||busy||telegramBusy)return;
+  setTelegramBusy(true);setError('');
+  try{
+   await pairTelegramWhatsApp(session,telegramKey);
+   const list=await listConversations(session);
+   if(active.current){
+    setTelegramKey('');setRows(list.conversations);setUnread(list.unread);
+    setConnected(true);setConnectStep('محادثات واتساب اتربطت بموديول TelegramNotify الحالي.');
+    void ingestNotificationSnapshot(session,'whatsapp',whatsAppNotifications(list.conversations));
+   }
+  }catch(e){
+   if(session)await forgetTelegramWhatsApp(session).catch(()=>{});
+   report(e);
+  }finally{if(active.current)setTelegramBusy(false);}
+ };
+ const disconnectTelegram=async()=>{
+  if(!session)return;
+  await forgetTelegramWhatsApp(session);
+  setConnected(false);setSelected(null);setMessages([]);setRows([]);setUnread(0);
+  setConnectStep('تم فصل الربط. تقدر تولد رمز جديد من الموديول.');
+ };
  const connectWithBrowser=async()=>{
   if(!session||busy||!directoryLoaded)return;
   setBusy(true);setError('');setConnectStep('افتح تسجيل الدخول داخل التطبيق وأكمل التحقق بخطوتين إن وجد...');
@@ -230,7 +265,7 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
     </View>
     {connected?<View style={{flexDirection:'row-reverse',alignItems:'center',gap:7,marginTop:5}}>
      <View style={{height:7,width:7,borderRadius:5,backgroundColor:C.green}}/>
-     <T color={C.green} size={11}>متصل بمحادثات WHMCS</T>
+     <T color={C.green} size={11}>{session&&telegramWhatsAppReady(session)?'متصل عبر TelegramNotify':'متصل بمحادثات WHMCS'}</T>
      <T color={C.muted} size={10}>• تحديث كل 15 ثانية أثناء فتح التطبيق</T>
     </View>:null}
    </View>}
@@ -249,16 +284,27 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
      <T size={12} color={C.muted}>نفس موديول واتساب الحالي من غير أي إضافات على السيرفر</T>
     </View>
    </View>
-   <Notice title="أول مرة فقط"
-    message="سجل دخول الموظف المصرح له في لوحة WHMCS داخل النافذة الآمنة. بعدها تظهر المحادثات وتقدر ترد من التطبيق."/>
+   <Notice title="من موديول تيليجرام الموجود"
+    message="افتح إضافات WHMCS ← TelegramNotify، واضغط Generate Mobile Key. انسخ الرمز هنا. مش محتاج موديول جديد أو جلسة Admin في التطبيق."/>
+   <T weight="800" size={12}>رمز ربط TelegramNotify</T>
+   <TextInput accessibilityLabel="رمز ربط واتساب من TelegramNotify" value={telegramKey}
+    onChangeText={setTelegramKey} autoCapitalize="none" autoCorrect={false}
+    secureTextEntry placeholder="الصق رمز الربط 64 حرف" placeholderTextColor={C.muted}
+    style={{color:C.text,textAlign:'left',backgroundColor:C.surface2,padding:15,borderColor:C.stroke,
+     borderWidth:1,borderRadius:15,fontSize:14}}/>
+   <Action label={telegramBusy?'جارٍ ربط واتساب...':'ربط محادثات واتساب عبر تيليجرام'} icon="whatsapp"
+    disabled={telegramBusy||busy||!/^[a-f0-9]{64}$/i.test(telegramKey.trim())}
+    onPress={()=>void connectWithTelegram()}/>
+   <Notice title="بديل لو احتجته"
+    message="تسجيل دخول WHMCS Admin القديم موجود تحت، لكن مش مطلوب بعد تفعيل الربط من TelegramNotify."/>
    <T weight="800" size={12}>مجلد إدارة WHMCS</T>
    <TextInput accessibilityLabel="مجلد إدارة WHMCS" value={directory}
     onChangeText={v=>{setDirectory(v);setNeedsOtp(false);setOtp('');setError('');}}
     autoCapitalize="none" autoCorrect={false} placeholder="admin أو رابط الإدارة"
     placeholderTextColor={C.muted} style={{color:C.text,textAlign:'left',backgroundColor:C.surface2,
      padding:15,borderColor:C.stroke,borderWidth:1,borderRadius:15,fontSize:15}}/>
-   <Action label={busy?'جارٍ الاتصال...':'اتصال وعرض المحادثات'} icon="whatsapp" disabled={busy||!directoryLoaded}
-    onPress={()=>void connectWithBrowser()}/>
+   <Action secondary label={busy?'جارٍ الاتصال...':'بديل: تسجيل دخول WHMCS Admin'} icon="account-key"
+    disabled={busy||!directoryLoaded} onPress={()=>void connectWithBrowser()}/>
    {connectStep?<T size={11} color={C.muted}>{connectStep}</T>:null}
    <Pressable accessibilityRole="button" onPress={()=>setShowLegacy(v=>!v)} style={{alignSelf:'center',padding:7}}>
     <T color={C.muted} size={12}>{showLegacy?'إخفاء خيارات الدخول التقليدية':'خيارات الدخول التقليدية'} </T>
@@ -286,6 +332,10 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   </Card>:null}
   {busy?<View style={{alignItems:'center',padding:8}}><ActivityIndicator color={C.green}/></View>:null}
   {connected&&!selected?<>
+   {telegramWhatsAppReady(session)?<Pressable accessibilityRole="button" onPress={()=>void disconnectTelegram()}
+    style={{alignSelf:'flex-end',paddingVertical:4}}>
+    <T size={11} color={C.muted}>فصل اتصال TelegramNotify</T>
+   </Pressable>:null}
    <View style={{flexDirection:'row-reverse',gap:8,alignItems:'center'}}>
     <View style={{flex:1}}><Search value={search}
      onChange={v=>{generation.current++;setSearch(v);}} placeholder="ابحث بالاسم أو رقم الهاتف"/></View>

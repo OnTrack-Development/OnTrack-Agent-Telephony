@@ -1,8 +1,75 @@
 import type {Session} from '../types';
+import * as SecureStore from 'expo-secure-store';
+import {md5} from 'js-md5';
+import {validateBaseUrl} from './api';
 import {adminPage,adminRequest,adminSessionStamp} from './adminSession';
 export interface WaWindow {open:boolean;expires_at:string|null;remaining_seconds:number}
 export interface WaConversation {id:number;display_name:string;phone:string;client_id:number|null;last_message_preview:string;last_message_at:string;unread_count:number;window:WaWindow}
 export interface WaMessage {id:number;direction:'incoming'|'outgoing';body:string;message_type:string;status:string;timestamp:string;media_filename:string;has_media:boolean;error_text:string}
+const telegramGatewayKeys=new WeakMap<Session,string>();
+const gatewayKey=(session:Session)=>
+ 'whmcs-tg-wa-v1-'+md5(validateBaseUrl(session.baseUrl)+'|'+(session.mode==='admin'?session.username:session.identifier));
+export const telegramWhatsAppReady=(session:Session)=>telegramGatewayKeys.has(session);
+/**
+ * TelegramNotify ALREADY exists in WHMCS. The updated existing addon exposes
+ * a narrowly scoped, admin-bound WhatsApp Inbox gateway; no new addon/bot or
+ * Meta token is provisioned on the phone.
+ */
+async function telegramGatewayRequest(session:Session,key:string,action:string,
+  params:Record<string,string|number>={}):Promise<any>{
+ const endpoint=validateBaseUrl(session.baseUrl)+'/modules/addons/telegramnotify/mobile_whatsapp.php';
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),20000);
+ let response:Response;
+ try{
+  response=await fetch(endpoint,{
+   method:'POST',signal:controller.signal,
+   headers:{'Accept':'application/json','Content-Type':'application/json',
+    'Authorization':'Bearer '+key},
+   body:JSON.stringify({action,...params})
+  });
+ }catch(_e){
+  if(action==='chat_send')throw Error('نتيجة إرسال واتساب غير مؤكدة. راجع المحادثة قبل إعادة إرسال الرسالة.');
+  throw Error('تعذر الاتصال بمنفذ واتساب في موديول TelegramNotify. تأكد إنه اتحدّث على السيرفر.');
+ }finally{clearTimeout(timeout);}
+ let result:any;
+ try{result=await response.json();}catch{
+  if(action==='chat_send')throw Error('نتيجة إرسال واتساب غير مؤكدة. راجع المحادثة قبل المحاولة مرة أخرى.');
+  throw Error('TelegramNotify رجّع استجابة غير صالحة. تأكد من تحديث الموديول الموجود.');
+ }
+ if(response.status===429){applyRateLimit(session);assertWhatsAppNotThrottled(session);}
+ if(response.status===401)throw Error('رمز ربط واتساب غير صالح أو اتلغى. جدده من إعدادات TelegramNotify.');
+ if(response.status===404)throw Error('ملف الربط مش موجود على السيرفر. حدّث موديول TelegramNotify الحالي أولًا.');
+ if(response.status>=500&&action==='chat_send')
+  throw Error('نتيجة إرسال واتساب غير مؤكدة بسبب خطأ بالخادم. راجع المحادثة قبل إعادة الإرسال.');
+ if(!response.ok||result?.status!=='success')
+  throw Error(String(result?.message||'تعذر تنفيذ طلب واتساب من TelegramNotify.'));
+ rateLimit.delete(session);
+ return result;
+}
+export async function restoreTelegramWhatsApp(session:Session):Promise<boolean>{
+ const key=await SecureStore.getItemAsync(gatewayKey(session)).catch(()=>null);
+ if(!key||!/^[a-f0-9]{64}$/.test(key))return false;
+ try{
+  await telegramGatewayRequest(session,key,'status');
+  telegramGatewayKeys.set(session,key);
+  return true;
+ }catch{return false;}
+}
+export async function pairTelegramWhatsApp(session:Session,keyInput:string):Promise<void>{
+ const key=keyInput.trim().toLowerCase();
+ if(!/^[a-f0-9]{64}$/.test(key))
+  throw Error('رمز الربط 64 حرفًا، بتاخده من إعدادات موديول TelegramNotify الحالي.');
+ await telegramGatewayRequest(session,key,'status');
+ await SecureStore.setItemAsync(gatewayKey(session),key,
+  {keychainAccessible:SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY});
+ telegramGatewayKeys.set(session,key);
+}
+export async function forgetTelegramWhatsApp(session:Session):Promise<void>{
+ telegramGatewayKeys.delete(session);
+ await SecureStore.deleteItemAsync(gatewayKey(session));
+}
+
 const csrf=new WeakMap<Session,{token:string;stamp:string}>();
 const rateLimit=new WeakMap<Session,{until:number;strikes:number}>();
 export function getWhatsAppRetryAfterMs(session:Session):number {
@@ -30,6 +97,8 @@ export async function prepareWhatsApp(session:Session):Promise<void>{
 }
 async function call(session:Session,action:'chat_list'|'chat_messages'|'chat_mark_read'|'chat_send',params:Record<string,string|number>={},write=false):Promise<any>{
  assertWhatsAppNotThrottled(session);
+ const gateway=telegramGatewayKeys.get(session);
+ if(gateway)return telegramGatewayRequest(session,gateway,action,params);
  if(csrf.get(session)?.stamp!==adminSessionStamp(session))await prepareWhatsApp(session);
  const query=new URLSearchParams({ajax_action:action});
  if(!write)Object.entries(params).forEach(([k,v])=>query.set(k,String(v)));
