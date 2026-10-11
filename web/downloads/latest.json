@@ -6,5 +6,5 @@
   "sha256": "f40f2af48e03f02455808c3fafc6e1d0316fff46783bf0b766164fd571a05f46",
   "size_bytes": 29968044,
   "release_notes": "WHMCS v0.3.26: WhatsApp inline image preview, secure image/document picker and upload via existing TelegramNotify v3.4.4; optional app lock OFF/startup-only/5-minute grace/immediate plus biometric preference; optional FCM device enrollment. Background WhatsApp push requires external Firebase Admin Service Account configuration and active TelegramNotify Cron on WHMCS.",
-  "published_at": "2026-10-11T18:14:17Z"
+  "published_at": "2026-10-11T19:02:41Z"
 }
