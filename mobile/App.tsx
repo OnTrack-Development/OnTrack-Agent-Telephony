@@ -166,7 +166,8 @@ function CommandApp(){
   void enableDeviceNotifications().catch(()=>{});
   const sections:SectionKey[]=['tickets','orders','clients','invoices','services','domains'];
   let index=0,busy=false;
-  // One WHMCS read every 100 s, rotating sections, to avoid concurrent polling / HTTP 429.
+  // Rotate WHMCS notifications every 30s while the app is open; a full cycle
+  // takes about 3 minutes. Calls remain serial and obey the shared 429 cooldown.
   const tick=async()=>{
    if(disposed||busy||AppState.currentState!=='active'||getApiRetryAfterMs()>0)return;
    busy=true;
@@ -177,7 +178,7 @@ function CommandApp(){
      await ingestNotificationSnapshot(session,section,whmcsSectionNotifications(section,result.records));
    }catch{}finally{busy=false;}
   };
-  const timer=setInterval(()=>void tick(),100000);
+  const timer=setInterval(()=>void tick(),30000);
   const foreground=AppState.addEventListener('change',state=>{
    if(state==='active')void tick();
   });
