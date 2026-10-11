@@ -33,7 +33,15 @@ async function call(session:Session,action:'chat_list'|'chat_messages'|'chat_mar
  if(csrf.get(session)?.stamp!==adminSessionStamp(session))await prepareWhatsApp(session);
  const query=new URLSearchParams({ajax_action:action});
  if(!write)Object.entries(params).forEach(([k,v])=>query.set(k,String(v)));
- const result=await adminRequest(session,path+(write?'':'&'+query.toString()),write?'POST':'GET',write?{ajax_action:action,...params}:{},write?{'X-WA-CSRF':csrf.get(session)!.token}:{});
+ let result;
+ try{
+  result=await adminRequest(session,path+(write?'':'&'+query.toString()),write?'POST':'GET',write?{ajax_action:action,...params}:{},write?{'X-WA-CSRF':csrf.get(session)!.token}:{});
+ }catch(error){
+  if(action==='chat_send')throw Error('نتيجة إرسال واتساب غير مؤكدة بسبب انقطاع الاتصال. راجع المحادثة قبل أي محاولة إرسال جديدة؛ ممكن تكون الرسالة اتبعت بالفعل.');
+  throw error;
+ }
+ if(action==='chat_send'&&result.status>=500)
+  throw Error('موديول واتساب رجّع خطأ غير متوقع بعد الإرسال. راجع سجل المحادثة قبل إعادة الرسالة لمنع التكرار.');
  if(result.status===429){applyRateLimit(session);assertWhatsAppNotThrottled(session);}
  let json:any;try{json=JSON.parse(result.body);}catch{csrf.delete(session);throw Error('لم يرجع واتساب بيانات صالحة؛ أعد الاتصال.');}
  if(result.status===403){csrf.delete(session);throw Error('انتهت صلاحية رمز واتساب؛ أعد تحميل المحادثات قبل المحاولة.');}
