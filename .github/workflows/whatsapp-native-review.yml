@@ -3,11 +3,12 @@ on:
   push:
     branches:
       - fix/whatsapp-native-existing-addon-only-20261011
+      - feat/whatsapp-from-installed-telegramnotify-20261011
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: whmcs-whatsapp-native-review
+  group: whmcs-whatsapp-native-review-${{ github.ref_name }}
   cancel-in-progress: true
 jobs:
   review:
