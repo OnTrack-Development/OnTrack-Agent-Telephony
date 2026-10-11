@@ -153,6 +153,33 @@ async function proveAdminAccess(session:Session,state:AdminState):Promise<void>{
  if(!isVerifiedWhatsAppInbox(page.body))
   throw Error(whatsappAccessDiagnostic(page.body,page.url,state.directory));
 }
+
+/** WHMCS addon already exposes a protected Inbox. Complete human admin login
+ * inside the app's same-origin WebView (supports 2FA/CAPTCHA) and then reuse
+ * its cookies via CommandAdminSession to render the existing native chat UI.
+ * There is no companion addon, custom PHP endpoint, or Meta token.
+ */
+export async function loginWhatsAppWithBrowser(session:Session,directory:string):Promise<void>{
+ const dir=validateAdminDirectory(directory,session.baseUrl);
+ const native=NativeModules.CommandAdminSession;
+ if(!native?.authorizeInWebView)throw Error('تحديث أندرويد مطلوب لفتح تسجيل دخول واتساب داخل التطبيق.');
+ const newState:AdminState={
+  directory:dir,key:validateBaseUrl(session.baseUrl)+'|'+dir+'|webview|'+(++epoch),
+  ready:false,username:'webview',revision:0
+ };
+ states.set(session,newState);
+ await native.authorizeInWebView(newState.key,validateBaseUrl(session.baseUrl),dir);
+ if(states.get(session)!==newState)throw Error('تغيرت جلسة WHMCS أثناء تسجيل الدخول.');
+ try{
+  await proveAdminAccess(session,newState);
+  newState.ready=true;newState.revision++;
+  await saveAdminDirectory(session,dir);
+ }catch(error){
+  newState.ready=false;
+  throw error;
+ }
+}
+
 export async function loginAdmin(session:Session,directory:string,username:string,password:string,otp=''):Promise<{ready:boolean;needsOtp:boolean}>{
  const dir=validateAdminDirectory(directory,session.baseUrl),name=username.trim();
  if(!name||(!password&&!otp))throw Error('اكتب اسم الموظف وكلمة المرور');
