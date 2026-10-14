@@ -43,7 +43,7 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Unit tests and typecheck
         working-directory: mobile
-        run: npm run typecheck && npm run test:source && node ../tests/ticket_workflow_test.cjs && node ../tests/invoice_workflow_test.cjs && node ../tests/mobile_management_test.cjs && node ../tests/financial_security_test.cjs && node ../tests/api_mock_test.cjs && node ../tests/client_profile_test.cjs && node ../tests/directory_ui_test.cjs && node ../tests/module_integration_test.cjs && python3 ../tests/build_workflow_test.py && python3 ../tests/native_admin_routes_test.py
+        run: npm run typecheck && npm run test:source && node ../tests/ticket_workflow_test.cjs && node ../tests/invoice_workflow_test.cjs && node ../tests/invoice_due_design_test.cjs && node ../tests/mobile_management_test.cjs && node ../tests/financial_security_test.cjs && node ../tests/api_mock_test.cjs && node ../tests/client_profile_test.cjs && node ../tests/directory_ui_test.cjs && node ../tests/module_integration_test.cjs && python3 ../tests/build_workflow_test.py && python3 ../tests/native_admin_routes_test.py
       - name: Generate native Android project
         working-directory: mobile
         run: CI=1 npx expo prebuild --platform android --no-install
