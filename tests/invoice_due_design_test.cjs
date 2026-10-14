@@ -33,5 +33,8 @@ assert.match(home,/invoiceCount\+' فاتورة'/);
 const dir=fs.readFileSync(path.join(__dirname,'../mobile/src/screens/Directory.tsx'),'utf8');
 assert.match(dir,/inv\.customer/);
 assert.match(dir,/invoiceDue\(inv\)/);
+assert.match(dir,/loadInvoiceCardPreview\(session,invoice\)/);
+assert.match(dir,/preview\.otherCount/);
+assert.match(dir,/paddingVertical:10/);
 assert.ok(!dir.includes("page==='invoices'?'عرض الملف':'التفاصيل'"));
 console.log('PASS: WHMCS invoice count, payment-aware red/green due labels, date edge cases, invoice cards and navigation');
