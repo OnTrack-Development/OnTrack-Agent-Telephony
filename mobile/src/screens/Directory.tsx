@@ -1,7 +1,8 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {ActivityIndicator,BackHandler,Pressable,View} from 'react-native';
 import {C} from '../theme';
-import type {DemoState,Page,Client,Session} from '../types';
+import type {DemoState,Page,Client,Session,Invoice} from '../types';
+import {invoiceDue,invoiceSort} from '../lib/invoicePresentation';
 import {ClientProfile} from './ClientProfile';
 import {RecordDetails} from './RecordDetails';
 import {InvoiceActions} from '../components/InvoiceActions';
@@ -16,11 +17,11 @@ const config:Record<string,{title:string;subtitle:string;icon:string;key:keyof D
  orders:{title:'الطلبات',subtitle:'متابعة طلبات العملاء',icon:'cart-outline',key:'orders'},
  domains:{title:'الدومينات',subtitle:'الدومينات والتجديدات',icon:'web',key:'domains'}
 };
-type Filter='focus'|'all'|'paid'|'closed';
+type Filter='focus'|'all'|'paid'|'closed'|'overdue'|'upcoming';
 const available:Record<string,{label:string;value:Filter}[]>={
  clients:[{label:'الكل',value:'all'},{label:'الفعّالة',value:'focus'},{label:'المغلقة',value:'closed'}],
  services:[{label:'الجارية',value:'focus'},{label:'الكل',value:'all'},{label:'الملغاة',value:'closed'}],
- invoices:[{label:'المستحقة',value:'focus'},{label:'الكل',value:'all'},{label:'المدفوعة',value:'paid'}],
+ invoices:[{label:'غير المدفوعة',value:'focus'},{label:'المتأخرة',value:'overdue'},{label:'القادمة',value:'upcoming'},{label:'الكل',value:'all'},{label:'المدفوعة',value:'paid'}],
  orders:[{label:'المعلّقة',value:'focus'},{label:'الكل',value:'all'},{label:'المكتملة',value:'paid'}],
  domains:[{label:'الفعّالة',value:'focus'},{label:'الكل',value:'all'},{label:'المنتهية',value:'closed'}]
 };
@@ -96,9 +97,16 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
  const records=useMemo(()=>cfg?(data[cfg.key] as any[]):[],[cfg?.key,data]);
  const shown=records.filter((r:any)=>{
   const details=listRecordSummary(page,r);
-  return matchesRecordStatus(page,str(r.status),filter) &&
-   [details.title,details.primary,details.secondary,str(r.id)].some(x=>x.toLowerCase().includes(q.trim().toLowerCase()));
- });
+  const isInvoice=page==='invoices';
+  const due=isInvoice?invoiceDue(r as Invoice):null;
+  const matching=(filter==='overdue'||filter==='upcoming')?isInvoice
+   &&matchesRecordStatus(page,str(r.status),'focus')
+   &&(filter==='overdue'?due?.kind==='overdue':due?.kind==='upcoming'||due?.kind==='today'):
+   matchesRecordStatus(page,str(r.status),filter);
+  return matching&&
+   [details.title,details.primary,details.secondary,str(r.id),str(r.customer),due?.label||'']
+     .some(x=>x.toLowerCase().includes(q.trim().toLowerCase()));
+ }).sort((a:any,b:any)=>page==='invoices'?invoiceSort(a as Invoice,b as Invoice):0);
  const selectedInvoices=page==='invoices'?records.filter((r:any)=>invoiceSelection.includes(Number(r.id))).map((r:any)=>({id:Number(r.id),status:str(r.status)})):[];
  const toggleInvoice=(id:number)=>setInvoiceSelection(prev=>prev.includes(id)?prev.filter(n=>n!==id):prev.length<15?[...prev,id]:prev);
  if(!cfg)return null;
@@ -141,6 +149,51 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
   <View style={{gap:9}}>
    {shown.length?shown.map((r:any)=>{
     const d=listRecordSummary(page,r);
+    if(page==='invoices'){
+     const inv=r as Invoice,due=invoiceDue(inv);
+     const dueColor=due.kind==='overdue'?C.red:
+      due.kind==='upcoming'||due.kind==='today'?C.green:
+      due.kind==='paid'?C.blue:C.muted;
+     return <Pressable key={String(inv.id)} accessibilityRole="button"
+      accessibilityLabel={'فاتورة '+inv.id+' • '+inv.customer+' • '+due.label}
+      onPress={()=>setSelected(inv)}
+      style={({pressed})=>({borderRadius:21,padding:15,gap:12,
+       backgroundColor:C.surface,borderWidth:1,borderColor:dueColor+'77',
+       borderRightWidth:4,borderRightColor:dueColor,opacity:pressed?0.8:1})}>
+      <View style={{flexDirection:'row-reverse',alignItems:'center',gap:10}}>
+       <Pressable accessibilityRole="checkbox"
+        accessibilityState={{checked:invoiceSelection.includes(inv.id)}}
+        accessibilityLabel={'تحديد فاتورة '+inv.id}
+        onPress={e=>{e.stopPropagation();toggleInvoice(inv.id);}}
+        style={{padding:5}}>
+        <Icon name={invoiceSelection.includes(inv.id)?'checkbox-marked':'checkbox-blank-outline'}
+         color={dueColor} size={21}/>
+       </Pressable>
+       <View style={{width:43,height:43,borderRadius:14,backgroundColor:dueColor+'1C',
+        alignItems:'center',justifyContent:'center'}}>
+        <Icon name="receipt-text-outline" color={dueColor} size={23}/>
+       </View>
+       <View style={{flex:1,gap:3}}>
+        <T size={15} weight="900" lines={2}>{inv.customer||'العميل غير متاح'}</T>
+        <T size={11} color={C.muted}>فاتورة #{inv.id}</T>
+       </View>
+       <Icon name="chevron-left" color={C.muted} size={20}/>
+      </View>
+      <View style={{flexDirection:'row-reverse',justifyContent:'space-between',gap:8,
+       alignItems:'center',paddingTop:11,borderTopWidth:1,borderTopColor:C.stroke}}>
+       <View style={{flex:1,gap:5,alignItems:'flex-end'}}>
+        <Pill color={dueColor} label={due.label}
+         icon={due.kind==='overdue'?'clock-alert-outline':'calendar-clock-outline'}/>
+        {inv.due?<T size={11} color={C.muted}>الاستحقاق: {inv.due}</T>:null}
+       </View>
+       <View style={{alignItems:'flex-start',gap:3}}>
+        <T size={17} weight="900" color={C.text}
+         style={{writingDirection:'ltr',textAlign:'left'}}>{inv.amount.toLocaleString('en-US')} {inv.currency}</T>
+        <T size={11} color={C.muted}>الحالة: {inv.status}</T>
+       </View>
+      </View>
+     </Pressable>;
+    }
     return <Pressable key={String(r.id)} onPress={()=>{
       if(page==='clients'){
        if(session)setSelectedClient(r as Client);
