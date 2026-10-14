@@ -39,7 +39,7 @@ jobs:
         run: |
           npm run typecheck
           npm run test:source
-          node ../tests/module_integration_test.cjs
+          node ../tests/module_integration_test.cjs && node ../tests/invoice_due_design_test.cjs
           node ../tests/directory_ui_test.cjs
       - name: Check no server module or webhook is changed
         run: |
