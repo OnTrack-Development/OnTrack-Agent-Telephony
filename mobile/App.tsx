@@ -1,7 +1,7 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,AppState,BackHandler,Keyboard,KeyboardAvoidingView,Modal,Platform,Pressable,RefreshControl,ScrollView,StatusBar,TextInput,View} from 'react-native';
 import {Alert,FeedbackHost} from './src/components/Feedback';
-import {C} from './src/theme';
+import {C,HOME as H} from './src/theme';
 import {SafeAreaProvider,SafeAreaView,useSafeAreaInsets} from 'react-native-safe-area-context';
 import {UpdateGate} from './src/components/UpdateGate';
 import {AnimatedSplash} from './src/components/AnimatedSplash';
@@ -373,21 +373,26 @@ function CommandApp(){
   onComposerFocus={revealComposer} focusRecordId={notificationTarget?.page===page?notificationTarget.id||undefined:undefined} onFocusExit={()=>setNotificationTarget(null)}/>;
  };
  const currentTab=nav.some(n=>n.page===page)?page:'more';
- return <View style={{flex:1,backgroundColor:C.bg}}><StatusBar barStyle="light-content" translucent={false} backgroundColor={C.bg}/>
+ const lightHome=page==='home';
+ return <View style={{flex:1,backgroundColor:lightHome?H.bg:C.bg}}>
+  <StatusBar barStyle={lightHome?'dark-content':'light-content'} translucent={false}
+   backgroundColor={lightHome?H.bg:C.bg}/>
   <View style={{flexDirection:'row-reverse',paddingHorizontal:21,paddingTop:13,paddingBottom:14,
-   justifyContent:'space-between',alignItems:'center',borderBottomWidth:1,borderBottomColor:C.stroke,
-   backgroundColor:C.bg}}>
+   justifyContent:'space-between',alignItems:'center',borderBottomWidth:1,borderBottomColor:lightHome?H.stroke:C.stroke,
+   backgroundColor:lightHome?H.bg:C.bg}}>
    <View style={{flexDirection:'row-reverse',alignItems:'center',gap:10}}>
     <View style={{width:32,height:32,borderRadius:10,backgroundColor:C.red,alignItems:'center',justifyContent:'center'}}>
      <Icon name="chart-timeline-variant" color={C.white} size={19}/>
     </View>
-    <View style={{gap:1}}><T weight="900" size={15} style={{textAlign:'left',writingDirection:'ltr'}}>WHMCS</T>
-     <T color={C.muted} size={9} style={{textAlign:'left',letterSpacing:1.1,writingDirection:'ltr'}}>ADMIN CONSOLE</T></View>
+    <View style={{gap:1}}><T color={lightHome?H.ink:C.text} weight="900" size={15}
+      style={{textAlign:'left',writingDirection:'ltr'}}>WHMCS</T>
+     <T color={lightHome?H.muted:C.muted} size={9}
+      style={{textAlign:'left',letterSpacing:1.1,writingDirection:'ltr'}}>ADMIN CONSOLE</T></View>
    </View>
    <View style={{flexDirection:'row-reverse',alignItems:'center',gap:7,
-    backgroundColor:C.surface,borderWidth:1,borderColor:C.stroke,borderRadius:100,paddingHorizontal:10,paddingVertical:8}}>
+    backgroundColor:lightHome?H.paper:C.surface,borderWidth:1,borderColor:lightHome?H.stroke:C.stroke,borderRadius:100,paddingHorizontal:10,paddingVertical:8}}>
     <View style={{height:7,width:7,borderRadius:4,backgroundColor:demo?C.orange:C.green}}/>
-    <T size={10} color={C.muted}>{demo?'وضع العرض':lastSync?'مُزامن '+lastSync:'متصل بـ WHMCS'}</T>
+    <T size={10} color={lightHome?H.muted:C.muted}>{demo?'وضع العرض':lastSync?'مُزامن '+lastSync:'متصل بـ WHMCS'}</T>
    </View>
   </View>
   {Object.keys(errors).length>0&&!demo?<View style={{paddingHorizontal:18,paddingTop:10}}><Notice tone="warning" title={Object.values(errors).some(x=>/429/.test(x))?'اتصال WHMCS مشغول مؤقتًا':'بعض البيانات لم تُحمّل'} message="اضغط لإعادة المحاولة عند استقرار الاتصال" onPress={()=>{if(session)void refresh(session,true);}}/></View>:null}
@@ -401,13 +406,15 @@ function CommandApp(){
     automaticallyAdjustKeyboardInsets={Platform.OS==='ios'}
      onScroll={event=>{scrollOffset.current=event.nativeEvent.contentOffset.y}} scrollEventThrottle={16}
      onContentSizeChange={()=>{if(composerFocused.current&&keyboardVisible)revealFocusedInput();}}
-    contentContainerStyle={{padding:18,paddingBottom:keyboardVisible?keyboardPadding+insets.bottom+140:Math.max(35,insets.bottom+24)}}
+    contentContainerStyle={{paddingHorizontal:18,paddingTop:lightHome?16:18,
+      paddingBottom:keyboardVisible?keyboardPadding+insets.bottom+140:Math.max(35,insets.bottom+24)}}
     refreshControl={<RefreshControl refreshing={loading} tintColor={C.red} onRefresh={()=>page==='tickets'?setTicketReload(x=>x+1):session?void refresh(session,true):undefined}/>}>
     <PageMotion key={page}>{body()}</PageMotion>
    </ScrollView>}
   </KeyboardAvoidingView>
   {!keyboardVisible&&!ticketDetailOpen?<View style={{flexDirection:'row-reverse',
-   borderTopWidth:1,borderTopColor:C.stroke,backgroundColor:C.surface,
+   borderTopWidth:1,borderTopColor:lightHome?H.stroke:C.stroke,
+   backgroundColor:lightHome?H.paper:C.surface,
    paddingTop:8,paddingBottom:Math.max(5,insets.bottom?4:8),paddingHorizontal:8,minHeight:67,
    alignItems:'center'}}>
    {nav.map(item=>{
@@ -415,11 +422,11 @@ function CommandApp(){
     return <Pressable key={item.page} accessibilityRole="tab" accessibilityState={{selected:active}}
      onPress={()=>navigate(item.page)} style={({pressed})=>({flex:1,alignItems:'center',
       justifyContent:'center',paddingVertical:5,gap:5,opacity:pressed?0.7:1})}>
-     <View style={{width:51,height:31,borderRadius:15,backgroundColor:active?C.red+'1C':'transparent',
+     <View style={{width:51,height:31,borderRadius:15,backgroundColor:active?(lightHome?H.accentSoft:C.red+'1C'):'transparent',
       justifyContent:'center',alignItems:'center'}}>
-      <Icon name={item.icon} size={22} color={active?C.red:C.muted}/>
+      <Icon name={item.icon} size={22} color={active?(lightHome?H.accent:C.red):(lightHome?H.muted:C.muted)}/>
      </View>
-     <T size={10} color={active?C.text:C.muted} weight={active?'800':'500'}>{item.label}</T>
+     <T size={10} color={active?(lightHome?H.ink:C.text):(lightHome?H.muted:C.muted)} weight={active?'800':'500'}>{item.label}</T>
     </Pressable>;
    })}
   </View>:null}
