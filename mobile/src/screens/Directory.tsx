@@ -204,11 +204,6 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
      style={({pressed})=>({backgroundColor:C.surface,borderRadius:19,borderWidth:1,
       borderColor:C.stroke,padding:16,gap:13,opacity:pressed?0.77:1})}>
      <View style={{flexDirection:'row-reverse',gap:12,alignItems:'center'}}>
-      {page==='invoices'?<Pressable accessibilityRole="checkbox"
-       accessibilityState={{checked:invoiceSelection.includes(Number(r.id))}}
-       accessibilityLabel={'تحديد فاتورة '+r.id}
-       onPress={event=>{event.stopPropagation();toggleInvoice(Number(r.id));}}
-       style={{padding:7}}><Icon name={invoiceSelection.includes(Number(r.id))?'checkbox-marked':'checkbox-blank-outline'} color={C.red} size={23}/></Pressable>:null}
       <View style={{width:43,height:43,borderRadius:14,backgroundColor:C.red+'12',
        borderWidth:1,borderColor:C.red+'23',justifyContent:'center',alignItems:'center'}}>
        <Icon name={cfg.icon} color={C.red} size={21}/>
