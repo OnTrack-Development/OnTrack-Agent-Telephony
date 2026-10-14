@@ -1,8 +1,9 @@
-import React,{useEffect,useMemo,useState} from 'react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {ActivityIndicator,BackHandler,Pressable,View} from 'react-native';
 import {C} from '../theme';
 import type {DemoState,Page,Client,Session,Invoice} from '../types';
 import {invoiceDue,invoiceSort} from '../lib/invoicePresentation';
+import {loadInvoiceCardPreview, type InvoiceCardPreview} from '../lib/invoicePreview';
 import {ClientProfile} from './ClientProfile';
 import {RecordDetails} from './RecordDetails';
 import {InvoiceActions} from '../components/InvoiceActions';
@@ -59,16 +60,24 @@ export function listRecordSummary(page:Page,r:any):{title:string;primary:string;
  };
  return {title:str(r.name)||'عميل #'+r.id,primary:str(r.email),secondary:'عميل #'+r.id};
 }
-export function Directory({page,data,onDetails,total,error,loading,onLoadMore,session,onReload,onComposerFocus,focusRecordId,onFocusExit}:{
+export function Directory({page,data,onDetails,total,error,loading,onLoadMore,session,onReload,onComposerFocus,focusRecordId,onFocusExit,invoiceScrollY=0}:{
  page:Page;data:DemoState;onDetails:(title:string,lines:[string,string][])=>void;total?:number|null;error?:string;
  onComposerFocus?:()=>void;focusRecordId?:number;onFocusExit?:()=>void;
- loading?:boolean;onLoadMore:()=>void;session?:Session|null;onReload?:()=>void;
+ loading?:boolean;onLoadMore:()=>void;session?:Session|null;onReload?:()=>void;invoiceScrollY?:number;
 }){
  const cfg=config[page], [q,setQ]=useState(''),[filter,setFilter]=useState<Filter>('focus');
  const [selectedClient,setSelectedClient]=useState<Client|null>(null);
  const [selected,setSelected]=useState<{id:number;[key:string]:any}|null>(null);
  const [focusError,setFocusError]=useState('');
  const [invoiceSelection,setInvoiceSelection]=useState<number[]>([]);
+ const [invoicePreviews,setInvoicePreviews]=useState<Record<number,InvoiceCardPreview>>({});
+ const previewRequested=useRef(new Set<number>()),previewQueue=useRef<Invoice[]>([]);
+ const previewRunning=useRef(false),previewGeneration=useRef(0),previewOwner=useRef(session);
+ useEffect(()=>{
+  previewGeneration.current++;
+  previewRequested.current.clear();previewQueue.current=[];previewRunning.current=false;
+  previewOwner.current=session;setInvoicePreviews({});
+ },[session,page]);
  useEffect(()=>{setSelected(null);setSelectedClient(null);setInvoiceSelection([]);setQ('');setFilter(page==='clients'?'all':'focus');},[page]);
  useEffect(()=>{
   if(!session||!Number.isSafeInteger(focusRecordId)||!focusRecordId||focusRecordId<1)return;
@@ -107,6 +116,40 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
    [details.title,details.primary,details.secondary,str(r.id),str(r.customer),due?.label||'']
      .some(x=>x.toLowerCase().includes(q.trim().toLowerCase()));
  }).sort((a:any,b:any)=>page==='invoices'?invoiceSort(a as Invoice,b as Invoice):0);
+ // GetInvoices does not guarantee item descriptions. Request GetInvoice only near
+ // the visible scroll window. Global API throttling protects WHMCS from bursts.
+ const firstVisible=Math.max(0,Math.floor(Math.max(0,invoiceScrollY-190)/134)-2);
+ const previewTargets=page==='invoices'?shown.slice(firstVisible,firstVisible+6) as Invoice[]:[];
+ const previewWindow=previewTargets.map(inv=>inv.id).join(',');
+ useEffect(()=>{
+  if(page!=='invoices'||!session)return;
+  previewQueue.current=previewTargets.filter(inv=>inv.id>0&&!previewRequested.current.has(inv.id));
+  if(previewRunning.current)return;
+  previewRunning.current=true;
+  const generation=previewGeneration.current;
+  void (async()=>{
+   try{
+    while(previewQueue.current.length&&previewGeneration.current===generation){
+     const invoice=previewQueue.current.shift()!;
+     if(previewRequested.current.has(invoice.id))continue;
+     previewRequested.current.add(invoice.id);
+     const result=await loadInvoiceCardPreview(session,invoice);
+     if(previewGeneration.current!==generation||previewOwner.current!==session)return;
+     setInvoicePreviews(previous=>({...previous,[invoice.id]:result.preview}));
+     if(result.rateLimited){
+      const rest=previewQueue.current.splice(0);
+      setInvoicePreviews(previous=>{
+       const next={...previous};
+       for(const item of rest){previewRequested.current.add(item.id);next[item.id]={kind:'error',label:''};}
+       return next;
+      });
+      break;
+     }
+    }
+   }finally{if(previewGeneration.current===generation)previewRunning.current=false;}
+  })();
+ },[page,session,previewWindow]);
+ const visiblePreviews=previewOwner.current===session?invoicePreviews:{};
  const selectedInvoices=page==='invoices'?records.filter((r:any)=>invoiceSelection.includes(Number(r.id))).map((r:any)=>({id:Number(r.id),status:str(r.status)})):[];
  const toggleInvoice=(id:number)=>setInvoiceSelection(prev=>prev.includes(id)?prev.filter(n=>n!==id):prev.length<15?[...prev,id]:prev);
  if(!cfg)return null;
@@ -146,7 +189,7 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
   {loading?<ActivityIndicator color={C.red}/>:null}
   {error?<Notice tone="danger" title="تعذر تحميل السجلات" message={error}/>:null}
   {focusError?<Notice tone="warning" title="السجل غير متاح" message={focusError}/>:null}
-  <View style={{gap:9}}>
+  <View style={{gap:7}}>
    {shown.length?shown.map((r:any)=>{
     const d=listRecordSummary(page,r);
     if(page==='invoices'){
@@ -154,42 +197,54 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
      const dueColor=due.kind==='overdue'?C.red:
       due.kind==='upcoming'||due.kind==='today'?C.green:
       due.kind==='paid'?C.blue:C.muted;
+     const preview=visiblePreviews[inv.id];
+     const itemText=preview?.kind==='ready'?
+      'البند: '+preview.label+(preview.otherCount? '  +'+preview.otherCount+' بنود أخرى':''):
+      preview?.kind==='empty'?'لا توجد بنود مسجلة':
+      preview?.kind==='error'?'تعذر تحميل بند الفاتورة':
+      session?'جاري تحميل بند الفاتورة…':'افتح الفاتورة لعرض البنود';
      return <Pressable key={String(inv.id)} accessibilityRole="button"
-      accessibilityLabel={'فاتورة '+inv.id+' • '+inv.customer+' • '+due.label}
+      accessibilityLabel={'فاتورة '+inv.id+' • '+inv.customer+' • '+itemText+' • '+due.label}
       onPress={()=>setSelected(inv)}
-      style={({pressed})=>({borderRadius:21,padding:15,gap:12,
-       backgroundColor:C.surface,borderWidth:1,borderColor:dueColor+'77',
-       borderRightWidth:4,borderRightColor:dueColor,opacity:pressed?0.8:1})}>
-      <View style={{flexDirection:'row-reverse',alignItems:'center',gap:10}}>
+      style={({pressed})=>({borderRadius:15,paddingHorizontal:11,paddingVertical:10,gap:7,
+       backgroundColor:C.surface,borderWidth:1,borderColor:C.stroke,
+       borderRightWidth:3,borderRightColor:dueColor,opacity:pressed?0.8:1})}>
+      <View style={{flexDirection:'row-reverse',alignItems:'center',gap:8}}>
        <Pressable accessibilityRole="checkbox"
         accessibilityState={{checked:invoiceSelection.includes(inv.id)}}
         accessibilityLabel={'تحديد فاتورة '+inv.id}
         onPress={e=>{e.stopPropagation();toggleInvoice(inv.id);}}
-        style={{padding:5}}>
+        style={{padding:2}}>
         <Icon name={invoiceSelection.includes(inv.id)?'checkbox-marked':'checkbox-blank-outline'}
-         color={dueColor} size={21}/>
+         color={dueColor} size={19}/>
        </Pressable>
-       <View style={{width:43,height:43,borderRadius:14,backgroundColor:dueColor+'1C',
+       <View style={{width:32,height:32,borderRadius:10,backgroundColor:dueColor+'16',
         alignItems:'center',justifyContent:'center'}}>
-        <Icon name="receipt-text-outline" color={dueColor} size={23}/>
+        <Icon name="receipt-text-outline" color={dueColor} size={18}/>
        </View>
-       <View style={{flex:1,gap:3}}>
-        <T size={15} weight="900" lines={2}>{inv.customer||'العميل غير متاح'}</T>
-        <T size={11} color={C.muted}>فاتورة #{inv.id}</T>
+       <View style={{flex:1,gap:1}}>
+        <T size={13} weight="800" lines={1}>{inv.customer||'العميل غير متاح'}</T>
+        <T size={10} color={C.muted}>فاتورة #{inv.id}</T>
        </View>
-       <Icon name="chevron-left" color={C.muted} size={20}/>
+       <Icon name="chevron-left" color={C.muted} size={16}/>
       </View>
-      <View style={{flexDirection:'row-reverse',justifyContent:'space-between',gap:8,
-       alignItems:'center',paddingTop:11,borderTopWidth:1,borderTopColor:C.stroke}}>
-       <View style={{flex:1,gap:5,alignItems:'flex-end'}}>
-        <Pill color={dueColor} label={due.label}
-         icon={due.kind==='overdue'?'clock-alert-outline':'calendar-clock-outline'}/>
-        {inv.due?<T size={11} color={C.muted}>الاستحقاق: {inv.due}</T>:null}
+      <T size={11} color={preview?.kind==='ready'?C.text:C.muted} lines={2}
+       style={{textAlign:'right'}}>{itemText}</T>
+      <View style={{flexDirection:'row-reverse',alignItems:'center',
+       justifyContent:'space-between',gap:8}}>
+       <View style={{flex:1,alignItems:'flex-end',gap:2}}>
+        <T size={17} weight="900" color={C.text} lines={1}
+         style={{writingDirection:'ltr',textAlign:'right'}}>{inv.amount.toLocaleString('en-US')} {inv.currency}</T>
+        <T size={10} color={C.muted}>{inv.status==='Unpaid'?'غير مدفوعة':inv.status}</T>
        </View>
-       <View style={{alignItems:'flex-start',gap:3}}>
-        <T size={17} weight="900" color={C.text}
-         style={{writingDirection:'ltr',textAlign:'left'}}>{inv.amount.toLocaleString('en-US')} {inv.currency}</T>
-        <T size={11} color={C.muted}>الحالة: {inv.status}</T>
+       <View style={{alignItems:'flex-start',gap:4}}>
+        <View style={{flexDirection:'row-reverse',alignItems:'center',gap:4,
+         backgroundColor:dueColor+'13',borderRadius:100,paddingHorizontal:8,paddingVertical:4}}>
+         <Icon name={due.kind==='overdue'?'clock-alert-outline':'calendar-clock-outline'}
+          color={dueColor} size={13}/>
+         <T size={10} weight="700" color={dueColor}>{due.label}</T>
+        </View>
+        {inv.due?<T size={10} color={C.muted}>{inv.due}</T>:null}
        </View>
       </View>
      </Pressable>;
@@ -227,7 +282,7 @@ export function Directory({page,data,onDetails,total,error,loading,onLoadMore,se
     </Pressable>;
    }):<Card><Empty icon={cfg.icon} text={q?'لا توجد نتائج للبحث':'لا توجد سجلات لهذا الفلتر، جرّب «الكل»'}/></Card>}
   </View>
-  {total!=null&&records.length<total&&!error?<Action secondary
+  {total!=null&&records.length<total&&!error?<Action compact secondary
    label={loading?'جاري تحميل السجلات...':'تحميل المزيد'} disabled={loading} onPress={onLoadMore}/>:null}
   {page==='clients'?<T size={11} color={C.muted}>اضغط على العميل لعرض ملفه الكامل.</T>:null}
  </View>;
