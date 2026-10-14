@@ -104,7 +104,8 @@ assert.ok(!app.includes("if(initializing)return <View"));
 assert.ok(get('mobile/src/components/PageMotion.tsx').includes('AccessibilityInfo.isReduceMotionEnabled'));
 for(const screen of ['Home','Directory','Tickets','WhatsApp','ClientProfile','Connect','Settings']){
  const filename='mobile/src/screens/'+screen+'.tsx';
- assert.match(get(filename),/C\.surface|C\.red/);
+ // Home intentionally uses its own light palette; every other page stays dark.
+ assert.match(get(filename),screen==='Home'?/HOME as H|H\.paper/:/C\.surface|C\.red/);
 }
 console.log('PASS: animated motion launch, reduced-motion support, session gate and shared premium UI');
 
