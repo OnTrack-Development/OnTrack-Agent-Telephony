@@ -6,5 +6,5 @@
   "sha256": "3c324a6e61fd9ff1a553fe80c4f5bb2614f3798c25962ae3cee97666600c0752",
   "size_bytes": 30017196,
   "release_notes": "WHMCS v0.3.31: invoice details reorganized with prominent total and due status at the top, line items before compact relevant basic fields, redundant zero values removed, advanced invoice admin actions collapsed into optional panel. Whole app supports reference-style light and dark modes with system appearance as default, manual mode switch in Settings and live updates. Original WHMCS API and WhatsApp integrations unchanged.",
-  "published_at": "2026-10-14T15:35:14Z"
+  "published_at": "2026-10-14T17:19:58Z"
 }
