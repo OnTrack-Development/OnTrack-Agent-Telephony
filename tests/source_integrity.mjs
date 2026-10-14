@@ -225,7 +225,7 @@ assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('NativeChatImage'));
 assert.ok(get('mobile/App.tsx').includes("{page:'invoices',label:'الفواتير'"));
 assert.ok(get('mobile/App.tsx').includes("{page:'ai',label:'الذكاء الاصطناعي'"));
 assert.ok(get('mobile/App.tsx').includes("refresh(session,false,'invoices')"));
-assert.ok(get('mobile/src/screens/Home.tsx').includes('إجمالي عدد الفواتير'));
+assert.ok(get('mobile/src/screens/Home.tsx').includes("invoiceCount+' فاتورة'"));
 assert.ok(get('mobile/src/screens/Directory.tsx').includes('invoiceDue(inv)'));
 assert.ok(get('mobile/src/screens/Directory.tsx').includes('متأخرة'));
 assert.ok(!get('mobile/src/screens/Directory.tsx').includes("page==='invoices'?'عرض الملف':'التفاصيل'"));
