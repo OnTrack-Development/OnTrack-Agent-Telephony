@@ -151,7 +151,7 @@ jobs:
           test "$BYTES" -lt 73304381
       - uses: actions/upload-artifact@v4
         with:
-          name: WHMCS-v0.3.29-ARM64-signed
+          name: WHMCS-v0.3.30-ARM64-signed
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Publish GitHub Release with APK and ZIP
@@ -162,13 +162,13 @@ jobs:
           set -euo pipefail
           mkdir -p out
           APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-          cp "$APK" out/WHMCS-v0.3.29-ARM64-release-signed.apk
-          (cd out && zip -9 WHMCS-v0.3.29-ARM64-release-signed.zip WHMCS-v0.3.29-ARM64-release-signed.apk)
+          cp "$APK" out/WHMCS-v0.3.30-ARM64-release-signed.apk
+          (cd out && zip -9 WHMCS-v0.3.30-ARM64-release-signed.zip WHMCS-v0.3.30-ARM64-release-signed.apk)
           BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v0.3.29: repair WhatsApp TelegramNotify gateway blocked by HTTP 403 by routing requests via WHMCS official index.php?m=telegramnotify&route=mobile_whatsapp. Requires updating existing TelegramNotify to v3.4.2 on WHMCS. No additional addon and no changes to original WhatsApp module or webhook. Signed ARM64 APK bytes: ${BYTES}."
-          gh release create "whmcs-v0.3.29-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
+          NOTES="WHMCS v0.3.30: repair WhatsApp TelegramNotify gateway blocked by HTTP 403 by routing requests via WHMCS official index.php?m=telegramnotify&route=mobile_whatsapp. Requires updating existing TelegramNotify to v3.4.2 on WHMCS. No additional addon and no changes to original WhatsApp module or webhook. Signed ARM64 APK bytes: ${BYTES}."
+          gh release create "whmcs-v0.3.30-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
-            --title "WHMCS v0.3.29 (Android build 40)" \
+            --title "WHMCS v0.3.30 (Android build 41)" \
             --notes "$NOTES"
           echo "Signed APK published; APK release published after successful workflow completion."
       # GitHub-hosted release publishing uses GITHUB_TOKEN; trigger the downstream
