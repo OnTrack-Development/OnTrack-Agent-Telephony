@@ -3,6 +3,7 @@ import {ActivityIndicator,Pressable,TextInput,View} from 'react-native';
 import {Alert} from '../components/Feedback';
 import type {Page,Session} from '../types';
 import {C} from '../theme';
+import {invoiceDue} from '../lib/invoicePresentation';
 import {Action,Card,Header,Icon,Pill,T} from '../components/UI';
 import {callApi,listOf} from '../lib/api';
 import {InvoiceEditor} from '../components/InvoiceEditor';
@@ -57,6 +58,7 @@ export function RecordDetails({page,item,session,onBack,onChanged,expectedClient
  const [data,setData]=useState<RecordItem|null>(null),[busy,setBusy]=useState(false),[working,setWorking]=useState(false);
  const [error,setError]=useState(''),[editing,setEditing]=useState(false),[notes,setNotes]=useState('');
  const [dateEditing,setDateEditing]=useState(false),[dueDate,setDueDate]=useState('');
+ const [invoiceToolsOpen,setInvoiceToolsOpen]=useState(false);
  const request=useRef(0);
  const [related,setRelated]=useState<{page:'services'|'invoices';id:number}|null>(null);
  const load=async()=>{
@@ -121,24 +123,74 @@ export function RecordDetails({page,item,session,onBack,onChanged,expectedClient
   <Pressable onPress={onBack} style={{alignSelf:'flex-end',flexDirection:'row-reverse',alignItems:'center',gap:5,paddingVertical:6}}>
    <Icon name="arrow-right" color={C.blue} size={20}/><T color={C.blue}>رجوع للقائمة</T>
   </Pressable>
-  <Header title={headline(type,read)} subtitle={`#${item.id} • تفاصيل ${type==='services'?'الخدمة':type==='orders'?'الطلب':type==='invoices'?'الفاتورة':'الدومين'}`}/>
-  <Pill label={status} color={statusColor(status)}/>
+  {type!=='invoices'?<Header title={headline(type,read)}
+   subtitle={type==='services'?'الخدمة':type==='orders'?'الطلب':'الدومين'}/>:null}
+  {type!=='invoices'?<Pill label={status} color={statusColor(status)}/>:null}
   {busy?<ActivityIndicator color={C.red}/>:null}
   {error?<Card style={{gap:9}}><T color={C.orange}>{error}</T>
    <Action compact secondary label="إعادة المحاولة" onPress={()=>void load()}/></Card>:null}
-  {data&&type!=='orders'?<Card style={{gap:5}}>
-   <T size={16} weight="800">البيانات الأساسية</T>
-   {facts[type].map(([field,label])=><Row key={field} label={label} value={val(read[field]|| (field==='name'?read.productname:''))}/>)}
-   {type==='services'?<Row label="العميل" value={val(read.clientid||read.userid)}/>:null}
-   {type==='invoices'?<Row label="العميل" value={val(read.userid)}/>:null}
+
+  {type==='invoices'?<Card style={{gap:12,padding:16,borderRadius:19}}>
+   <View style={{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between',gap:10}}>
+    <View style={{flex:1,gap:5}}>
+     <T color={C.muted} size={11}>فاتورة #{item.id}</T>
+     <T color={C.text} size={18} weight="900" lines={2}>{val(item.customer)||'الفاتورة'}</T>
+    </View>
+    <Pill label={status==='Unpaid'?'غير مدفوعة':status==='Paid'?'مدفوعة':
+     status==='Cancelled'?'ملغاة':status} color={statusColor(status)}/>
+   </View>
+   <View style={{backgroundColor:C.surface2,borderRadius:14,padding:16,gap:5}}>
+    <T color={C.muted} size={12} weight="700">قيمة الفاتورة</T>
+    <T color={C.text} size={32} weight="900"
+     style={{textAlign:'right',writingDirection:'ltr'}}>
+     {val(read.total??item.amount)||'—'} {val(read.currencycode||read.currency||item.currency)}
+    </T>
+    {val(read.balance)&&Number(read.balance)>0&&Number(read.balance)!==Number(read.total)?
+      <T size={12} color={C.red}>المتبقي: {val(read.balance)} {val(read.currencycode||item.currency)}</T>:null}
+   </View>
+   {status==='Unpaid'||status==='Overdue'?<Pill
+     label={invoiceDue({status,due:val(read.duedate||item.due)}).label}
+     color={invoiceDue({status,due:val(read.duedate||item.due)}).kind==='overdue'?C.red:C.green}
+     icon="calendar-clock-outline"/>:null}
   </Card>:null}
-  {data&&type==='invoices'?<Card style={{gap:10}}>
-   <T weight="800" size={15}>بنود الفاتورة</T>
-   {itemList(data,'items','item').map((line:any,i:number)=><View key={String(line.id||i)} style={{gap:3,paddingVertical:8,borderBottomColor:C.stroke,borderBottomWidth:1}}>
-    <T size={13}>{val(line.description)||'بند الفاتورة'}</T>
-    <T size={12} color={C.blue}>{val(line.amount)}</T>
+  {data&&type==='invoices'&&invoiceToolsOpen?<Card style={{gap:10}}>
+   <T weight="900" size={16}>بنود الفاتورة</T>
+   {itemList(data,'items','item').map((line:any,i:number)=><View key={String(line.id||i)}
+    style={{flexDirection:'row-reverse',alignItems:'center',gap:12,paddingVertical:9,
+     borderBottomColor:C.stroke,borderBottomWidth:1}}>
+    <T size={13} style={{flex:1}}>{val(line.description)||'بند الفاتورة'}</T>
+    <T size={14} weight="800" color={C.text}
+     style={{writingDirection:'ltr',textAlign:'left'}}>{val(line.amount)}</T>
    </View>)}
    {!itemList(data,'items','item').length?<T color={C.muted} size={12}>لا توجد بنود متاحة</T>:null}
+  </Card>:null}
+  {data&&type==='invoices'?<Card style={{gap:6}}>
+   <T weight="900" size={16}>البيانات الأساسية</T>
+   {val(read.date)?<Row label="تاريخ الإصدار" value={val(read.date)}/>:null}
+   {val(read.duedate)?<Row label="تاريخ الاستحقاق" value={val(read.duedate)}/>:null}
+   {val(read.paymentmethod)?<Row label="طريقة الدفع" value={val(read.paymentmethod)}/>:null}
+   {val(read.datepaid)&&!/^0000-00-00/.test(val(read.datepaid))?
+    <Row label="تاريخ السداد" value={val(read.datepaid)}/>:null}
+   {Number(read.tax)>0?<Row label="الضريبة" value={val(read.tax)}/>:null}
+   {Number(read.credit)>0?<Row label="الرصيد المستخدم" value={val(read.credit)}/>:null}
+   {Number(read.subtotal)>0&&Number(read.subtotal)!==Number(read.total)?
+    <Row label="قبل الخصومات والضريبة" value={val(read.subtotal)}/>:null}
+  </Card>:null}
+  {data&&type==='invoices'?<Pressable accessibilityRole="button"
+   accessibilityState={{expanded:invoiceToolsOpen}}
+   onPress={()=>setInvoiceToolsOpen(x=>!x)}
+   style={({pressed})=>({minHeight:49,padding:13,borderRadius:16,
+    borderWidth:1,borderColor:C.stroke,backgroundColor:C.surface,
+    flexDirection:'row-reverse',alignItems:'center',gap:8,opacity:pressed?0.8:1})}>
+   <Icon name="cog-outline" color={C.red} size={20}/>
+   <T size={13} weight="800" style={{flex:1}}>إدارة وتعديل الفاتورة</T>
+   <Icon name={invoiceToolsOpen?'chevron-up':'chevron-down'} color={C.muted}/>
+  </Pressable>:null}
+  {data&&type!=='orders'&&type!=='invoices'?<Card style={{gap:5}}>
+   <T size={16} weight="800">البيانات الأساسية</T>
+   {facts[type].map(([field,label])=><Row key={field} label={label}
+    value={val(read[field]|| (field==='name'?read.productname:''))}/>)}
+   {type==='services'?<Row label="العميل" value={val(read.clientid||read.userid)}/>:null}
   </Card>:null}
   {data&&type==='services'&&session?<ServiceManagement session={session} data={data} id={item.id}
     expectedClientId={expectedClientId} onChanged={()=>{onChanged?.();void load();}}/>:null}
@@ -146,9 +198,9 @@ export function RecordDetails({page,item,session,onBack,onChanged,expectedClient
     onOpenService={id=>setRelated({page:'services',id})}
     onOpenInvoice={id=>setRelated({page:'invoices',id})}
     onChanged={()=>{onChanged?.();void load();}}/>:null}
-  {data&&type==='invoices'?<><InvoiceEditor session={session} invoice={data} invoiceId={item.id} onChanged={()=>{onChanged?.();void load();}}/>
+  {data&&type==='invoices'&&invoiceToolsOpen?<><InvoiceEditor session={session} invoice={data} invoiceId={item.id} onChanged={()=>{onChanged?.();void load();}}/>
    <InvoiceActions session={session} targets={[{id:item.id,status:status}]} onChanged={()=>{onChanged?.();void load();}}/></>:null}
-  {data&&type==='invoices'?<Card style={{gap:11}}>
+  {data&&type==='invoices'&&(invoiceToolsOpen||!!val(data.notes))?<Card style={{gap:11}}>
    <View style={{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between'}}>
     <T weight="800">ملاحظات {type==='invoices'?'الفاتورة':'الخدمة'}</T>
     {!editing?<Pressable onPress={()=>setEditing(true)}><Icon name="pencil-outline" color={C.blue}/></Pressable>:null}
