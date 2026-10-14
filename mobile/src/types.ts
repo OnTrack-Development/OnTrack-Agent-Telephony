@@ -1,7 +1,7 @@
 export type Page = 'home'|'tickets'|'clients'|'invoices'|'services'|'orders'|'domains'|'whatsapp'|'ai'|'more'|'settings'|'explorer';
 export interface Ticket { id:number; number:string; subject:string; customer:string; department:string; priority:string; status:string; updated:string; message?:string; flag?:number; assignedName?:string; replyCount?:number|null; }
 export interface Client { id:number; name:string; email:string; status:string; services:number; initials:string; }
-export interface Invoice { id:number; customer:string; amount:number; currency:string; status:string; due:string; }
+export interface Invoice { id:number; clientId?:number; customer:string; amount:number; currency:string; status:string; due:string; }
 export interface Service { id:number; domain:string; customer:string; plan:string; status:string; renewal:string; }
 export interface Order { id:number; ordernum?:string; invoiceid?:number; customer:string; product:string; amount:number; status:string; created:string; }
 export interface Domain { id:number; name:string; customer:string; expiry:string; status:string; }

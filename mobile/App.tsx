@@ -33,12 +33,12 @@ const nav:{page:Page,label:string,icon:string}[]=[
  {page:'home',label:'الرئيسية',icon:'view-dashboard-outline'},
  {page:'tickets',label:'التذاكر',icon:'ticket-outline'},
  {page:'whatsapp',label:'واتساب',icon:'whatsapp'},
- {page:'ai',label:'AI',icon:'robot-outline'},
+ {page:'invoices',label:'الفواتير',icon:'receipt-text-outline'},
  {page:'more',label:'المزيد',icon:'dots-grid'}
 ];
 const menu:{page:Page,label:string,icon:string}[]=[
  {page:'clients',label:'العملاء',icon:'account-multiple-outline'},
- {page:'invoices',label:'الفواتير',icon:'receipt-text-outline'},
+ {page:'ai',label:'الذكاء الاصطناعي',icon:'robot-outline'},
  {page:'services',label:'الخدمات',icon:'server-network'},
  {page:'orders',label:'الطلبات',icon:'cart-outline'},
  {page:'domains',label:'الدومينات',icon:'web'},
@@ -237,6 +237,13 @@ function CommandApp(){
   if(!session||demo||!unlocked)return;
   if(['clients','invoices','services','orders','domains'].includes(page))
    void refresh(session,false,page as SectionKey);
+ },[session,page,demo,unlocked,refresh]);
+ // Home must fetch WHMCS GetInvoices.totalresults, not count only invoices
+ // currently present in memory. Defer so the tickets refresh can finish first.
+ useEffect(()=>{
+  if(!session||demo||!unlocked||page!=='home')return;
+  const timer=setTimeout(()=>void refresh(session,false,'invoices'),1800);
+  return()=>clearTimeout(timer);
  },[session,page,demo,unlocked,refresh]);
  const navigate=(p:Page)=>{setNotificationTarget(null);if(p!==page){setHistory(h=>[...h,page].slice(-20));setPage(p);}setDetail(null);};
  const routeNotification=(payload:any)=>{

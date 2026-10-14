@@ -55,8 +55,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.28');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,39);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.29');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,40);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
@@ -220,3 +220,11 @@ assert.ok(get('mobile/src/lib/whatsapp.ts').includes('FileSystem.downloadAsync(s
 assert.ok(get('mobile/src/lib/whatsapp.ts').includes('FileSystem.createUploadTask(endpoint'));
 assert.ok(get('mobile/src/lib/whatsapp.ts').includes('clearWhatsAppImage'));
 assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('NativeChatImage'));
+
+assert.ok(get('mobile/App.tsx').includes("{page:'invoices',label:'الفواتير'"));
+assert.ok(get('mobile/App.tsx').includes("{page:'ai',label:'الذكاء الاصطناعي'"));
+assert.ok(get('mobile/App.tsx').includes("refresh(session,false,'invoices')"));
+assert.ok(get('mobile/src/screens/Home.tsx').includes('إجمالي عدد الفواتير'));
+assert.ok(get('mobile/src/screens/Directory.tsx').includes('invoiceDue(inv)'));
+assert.ok(get('mobile/src/screens/Directory.tsx').includes('متأخرة'));
+assert.ok(!get('mobile/src/screens/Directory.tsx').includes("page==='invoices'?'عرض الملف':'التفاصيل'"));

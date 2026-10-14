@@ -120,7 +120,13 @@ export async function loadPage(session:Session,key:SectionKey,start=0,limit=50):
  const records=raw.map((x:any)=>{
   if(key==='tickets')return {id:n(x.id),number:s(x.tid||x.id),subject:s(x.title||x.subject)||'بدون موضوع',customer:s(x.name||x.email||x.userid)||'غير متاح',department:s(x.deptname||x.department),priority:s(x.urgency||x.priority),status:strStatus(x.status),updated:s(x.lastreply||x.date),message:s(x.message),flag:n(x.flag),assignedName:s(x.flagname||x.assignedname),replyCount:x.replies!==undefined?n(x.replies):null} as Ticket;
   if(key==='clients')return {id:n(x.id),name:s(x.companyname||`${s(x.firstname)} ${s(x.lastname)}`.trim()),email:s(x.email),status:strStatus(x.status),services:n(x.productsnum),initials:s(x.firstname||x.companyname).slice(0,2)} as Client;
-  if(key==='invoices')return {id:n(x.id),customer:s(x.firstname||x.userid),amount:n(x.total),currency:s(x.currencycode||x.currency||''),status:strStatus(x.status),due:s(x.duedate)} as Invoice;
+  if(key==='invoices')return {
+   id:n(x.id),clientId:n(x.userid||x.clientid),
+   customer:s(x.companyname||x.clientname||x.name||[s(x.firstname),s(x.lastname)].filter(Boolean).join(' ').trim())
+    ||(n(x.userid||x.clientid)>0?'عميل #'+n(x.userid||x.clientid):'العميل غير متاح'),
+   amount:n(x.total),currency:s(x.currencycode||x.currency||''),
+   status:strStatus(x.status),due:s(x.duedate)
+  } as Invoice;
   if(key==='services')return {id:n(x.id),domain:s(x.domain),customer:s(x.clientid),plan:s(x.name||x.productname),status:strStatus(x.status),renewal:s(x.nextduedate)} as Service;
   if(key==='orders'){
    const lines=listOf(x,'lineitems','lineitem');
