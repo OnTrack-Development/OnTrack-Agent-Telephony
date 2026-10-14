@@ -55,8 +55,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.29');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,40);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.30');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,41);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
@@ -228,3 +228,11 @@ assert.ok(get('mobile/src/screens/Home.tsx').includes('إجمالي عدد ال�
 assert.ok(get('mobile/src/screens/Directory.tsx').includes('invoiceDue(inv)'));
 assert.ok(get('mobile/src/screens/Directory.tsx').includes('متأخرة'));
 assert.ok(!get('mobile/src/screens/Directory.tsx').includes("page==='invoices'?'عرض الملف':'التفاصيل'"));
+
+// Reference-inspired light Home, with a compact and private income panel.
+assert.ok(get('mobile/src/theme.ts').includes('export const HOME='));
+assert.ok(get('mobile/src/screens/Home.tsx').includes('width:\'31.7%\''));
+assert.ok(get('mobile/src/screens/Home.tsx').includes('إجمالي عدد الفواتير: '));
+assert.ok(!get('mobile/src/screens/Home.tsx').includes('عرض جميع الفواتير'));
+assert.ok(get('mobile/src/screens/Home.tsx').includes('hidden={!moneyVisible}'));
+assert.ok(get('mobile/App.tsx').includes("const lightHome=page==='home'"));
