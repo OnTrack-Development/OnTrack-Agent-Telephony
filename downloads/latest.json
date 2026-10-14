@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.28",
-  "version_code": 39,
-  "filename": "WHMCS-v0.3.28-ARM64-release-signed.apk",
-  "sha256": "63fd9a82330b7c531649b5a87680a8830b297c6b6ebb53baaaf67e9883431df5",
-  "size_bytes": 30000812,
-  "release_notes": "WHMCS v0.3.28: WhatsApp incoming images now use private native authenticated cache downloads and precise HTTP/Meta error diagnostics; sending files and pictures uses native multipart upload instead of React Native FormData. Requires updating existing TelegramNotify to v3.4.6 on WHMCS. Original WhatsApp module and webhook are unchanged. Actual Meta send/receive requires live verification.",
-  "published_at": "2026-10-14T14:14:43Z"
+  "version_name": "0.3.29",
+  "version_code": 40,
+  "filename": "WHMCS-v0.3.29-ARM64-release-signed.apk",
+  "sha256": "e29233857fbdcd88444d00fc7c9da58687b27edc600a27207b926a3e8fb50fd3",
+  "size_bytes": 30009004,
+  "release_notes": "WHMCS v0.3.29: redesigned WHMCS invoice-first home showing server-wide invoice count from GetInvoices, bottom Invoices tab replacing AI (AI moved into More), invoice cards with customer name, amount and calendar-accurate red overdue or green days-remaining labels, searchable due filters and no redundant details text. No changes to existing WhatsApp or TelegramNotify.",
+  "published_at": "2026-10-14T14:30:25Z"
 }
