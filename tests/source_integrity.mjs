@@ -236,7 +236,7 @@ assert.ok(get('mobile/src/screens/Home.tsx').includes('width:\'31.7%\''));
 assert.ok(get('mobile/src/screens/Home.tsx').includes('إجمالي عدد الفواتير: '));
 assert.ok(!get('mobile/src/screens/Home.tsx').includes('عرض جميع الفواتير'));
 assert.ok(get('mobile/src/screens/Home.tsx').includes('hidden={!moneyVisible}'));
-assert.ok(get('mobile/App.tsx').includes("const lightHome=page==='home'"));
+assert.ok(get('mobile/App.tsx').includes("const lightHome=effectiveTheme==='light'"));
 
 assert.equal(JSON.parse(get('mobile/app.json')).expo.userInterfaceStyle,'automatic');
 assert.ok(get('mobile/src/theme.ts').includes('applyThemePalette'));
