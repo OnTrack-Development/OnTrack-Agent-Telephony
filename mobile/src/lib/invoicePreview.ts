@@ -19,7 +19,7 @@ export function parseInvoiceCardPreview(detail:any,invoice:Pick<Invoice,'id'|'cl
   return {kind:'error',label:''}; // Customer mismatch: do not expose any item descriptions.
  const lines=readInvoiceLines(detail).filter(x=>!x.removed).map(x=>clean(x.description)).filter(Boolean);
  if(!lines.length)return {kind:'empty',label:''};
- return {kind:'ready',label:lines[0],otherCount:Math.max(0,lines.length-1)};
+ return {kind:'ready',label:lines[0]!,otherCount:Math.max(0,lines.length-1)};
 }
 export async function loadInvoiceCardPreview(session:Session,invoice:Invoice):
  Promise<{preview:InvoiceCardPreview;rateLimited:boolean}>{
