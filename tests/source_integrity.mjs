@@ -263,7 +263,7 @@ function wcagLum(hex){
 }
 function contrast(a,b){const aa=wcagLum(a),bb=wcagLum(b);return (Math.max(aa,bb)+0.05)/(Math.min(aa,bb)+0.05)}
 for(const mode of ['homeLight','homeDark']){
- const palette=themeCode.match(new RegExp('const '+mode+'=\\\\{([\\\\s\\\\S]*?)\\\\};'))?.[1];
+ const palette=themeCode.split('const '+mode+'={')[1]?.split('};')[0];
  assert.ok(palette,mode+' missing');
  const soft=palette.match(/soft:'(#[0-9A-Fa-f]{6})'/)?.[1];
  const ink=palette.match(/ink:'(#[0-9A-Fa-f]{6})'/)?.[1];
