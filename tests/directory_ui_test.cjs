@@ -9,6 +9,7 @@ const target={exports:{},require(name){
  if(name==='../theme')return {C:{green:'green',red:'red',orange:'orange',muted:'muted'}};
  if(name==='../lib/orderManagement')return {orderTitle:order=> 'طلب #'+(order.ordernum||order.id)};
  if(name==='../lib/invoicePresentation')return {invoiceDue:()=>({kind:'upcoming',label:'متبقي 3 يوم'}),invoiceSort:()=>0};
+ if(name==='../lib/invoicePreview')return {loadInvoiceCardPreview:async()=>({preview:{kind:'empty',label:''},rateLimited:false})};
  if(name==='../lib/api')return {};
  if(name.startsWith('../components/')||name.startsWith('./ClientProfile')||name.startsWith('./RecordDetails'))return {};
  throw Error('Unexpected import: '+name);
