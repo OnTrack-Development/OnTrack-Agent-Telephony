@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import {DeviceEventEmitter,View} from 'react-native';
 import {Alert} from '../components/Feedback';
-import {C} from '../theme';
+import {C,ThemePreference} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Header,Icon,ItemRow,Notice,Pill,Section,T} from '../components/UI';
 import {enableDeviceNotifications,verifyNativeFcmSetup,testDeviceNotification} from '../lib/notifications';
@@ -11,9 +11,11 @@ import {LockPolicy,readLockPolicy,saveLockPolicy} from '../lib/lockPreferences';
 import {biometricChoiceKey} from '../components/AppLock';
 import {restoreTelegramWhatsApp,registerWhatsAppPush,whatsAppPushStatus} from '../lib/whatsapp';
 
-export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabilities,errors}:{
+export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabilities,errors,
+ themePreference,effectiveTheme,onThemeChange}:{
  session:Session|null;demo:boolean;onLogout:()=>void;onLock?:()=>void;onLockPolicyChange?:(policy:LockPolicy)=>void;
  capabilities:Record<string,boolean>;errors:Record<string,string>;
+ themePreference:ThemePreference;effectiveTheme:'light'|'dark';onThemeChange:(value:ThemePreference)=>void;
 }){
  const [policy,setPolicy]=useState<LockPolicy>('after_5m'),[lockSaving,setLockSaving]=useState(false);
  const [biometric,setBiometric]=useState(false),[bioBusy,setBioBusy]=useState(false);
@@ -158,6 +160,25 @@ export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabi
    {Object.entries(errors).map(([key,value])=>
     <Notice key={key} tone="warning" title={key} message={value}/>)}
   </View>:null}
+  <Section title="المظهر والألوان"/>
+  <Card style={{gap:11}}>
+   <T size={13} weight="800">اختيار المظهر</T>
+   <T color={C.muted} size={11}>الافتراضي حسب إعدادات Android. التغيير يطبّق فورًا على واجهات التطبيق.</T>
+   <View style={{flexDirection:'row-reverse',gap:7}}>
+    {([
+     ['system','حسب النظام','theme-light-dark'],
+     ['light','فاتح','weather-sunny'],
+     ['dark','داكن','weather-night']
+    ] as [ThemePreference,string,string][]).map(([value,label,icon])=>
+     <View key={value} style={{flex:1}}>
+      <Action compact secondary={themePreference!==value}
+       icon={themePreference===value?'check-circle-outline':icon}
+       label={label} onPress={()=>onThemeChange(value)}/>
+     </View>
+    )}
+   </View>
+   <T color={C.muted} size={11}>الوضع الحالي: {effectiveTheme==='light'?'فاتح':'داكن'}</T>
+  </Card>
   <Section title="قفل التطبيق"/>
   <Card style={{gap:12}}>
    <T weight="800" size={14}>متى يطلب التطبيق البصمة أو رمز القفل؟</T>

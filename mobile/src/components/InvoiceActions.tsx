@@ -52,16 +52,16 @@ export function InvoiceActions({session,targets,onChanged}:{session:Session|null
   }catch(e){setError(e instanceof Error?e.message:'تعذر فتح لوحة الفواتير');}
  };
  return <Card style={{gap:10}}>
-  <T weight="800">إجراءات الفواتير • {targets.length} محددة</T>
+  <T weight="800">إجراءات الإدارة</T>
   <View style={{flexDirection:'row-reverse',gap:8,flexWrap:'wrap'}}>
-   <Action compact label={busy?'جارٍ التنفيذ...':'Mark Paid'} disabled={busy||!targets.length||!session} onPress={()=>doBatch('Paid')}/>
+   <Action compact label={busy?'جارٍ التنفيذ...':'تحديد كمدفوعة'} disabled={busy||!targets.length||!session} onPress={()=>doBatch('Paid')}/>
    <Action compact secondary label="Mark Unpaid" disabled={busy||!targets.length||!session} onPress={()=>doBatch('Unpaid')}/>
    <Action compact secondary label="Mark Cancelled" disabled={busy||!targets.length||!session} onPress={()=>doBatch('Cancelled')}/>
    <Action compact secondary label="Duplicate Invoice" disabled={busy||!targets.length||!session} onPress={()=>doBatch('duplicate')}/>
    <Action compact secondary label="Send Reminder" disabled={busy||!targets.length||!session} onPress={()=>doBatch('reminder')}/>
    <Action compact secondary label="Delete • لوحة WHMCS" disabled={busy||!session} onPress={()=>void openAdmin()}/>
   </View>
-  <T size={11} color={C.muted}>الحذف النهائي غير متاح عبر WHMCS External API؛ افتحه من لوحة الإدارة الموجودة بجلسة المتصفح. جميع إجراءات API تخضع لصلاحيات حسابك.</T>
+
   {busy?<T color={C.orange} size={12}>جارٍ التنفيذ تباعًا — لا تغلق الصفحة ولا تكرر العملية.</T>:null}
   {error?<T color={C.orange} size={12}>{error}</T>:null}
  </Card>;

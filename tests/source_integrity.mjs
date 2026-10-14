@@ -55,8 +55,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.30');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,41);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.31');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,42);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
@@ -172,7 +172,7 @@ assert.ok(get('mobile/App.tsx').includes('keyboardY.current'));
 assert.ok(get('mobile/App.tsx').includes('keyboardPadding+insets.bottom'));
 assert.ok(!ticketScreen.includes('<AdminAccess'));
 assert.ok(get('mobile/src/components/InvoiceEditor.tsx').includes('buildInvoiceUpdate'));
-assert.ok(get('mobile/src/components/InvoiceActions.tsx').includes('Mark Paid'));
+assert.ok(get('mobile/src/components/InvoiceActions.tsx').includes('تحديد كمدفوعة'));
 assert.ok(get('mobile/src/components/InvoiceActions.tsx').includes('Duplicate Invoice'));
 assert.ok(get('mobile/src/screens/Directory.tsx').includes('invoiceSelection'));
 assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('loginWhatsAppWithBrowser(session,directory)'));
@@ -231,9 +231,20 @@ assert.ok(get('mobile/src/screens/Directory.tsx').includes('متأخرة'));
 assert.ok(!get('mobile/src/screens/Directory.tsx').includes("page==='invoices'?'عرض الملف':'التفاصيل'"));
 
 // Reference-inspired light Home, with a compact and private income panel.
-assert.ok(get('mobile/src/theme.ts').includes('export const HOME='));
+assert.ok(get('mobile/src/theme.ts').includes('export const HOME:'));
 assert.ok(get('mobile/src/screens/Home.tsx').includes('width:\'31.7%\''));
 assert.ok(get('mobile/src/screens/Home.tsx').includes('إجمالي عدد الفواتير: '));
 assert.ok(!get('mobile/src/screens/Home.tsx').includes('عرض جميع الفواتير'));
 assert.ok(get('mobile/src/screens/Home.tsx').includes('hidden={!moneyVisible}'));
-assert.ok(get('mobile/App.tsx').includes("const lightHome=page==='home'"));
+assert.ok(get('mobile/App.tsx').includes("const lightHome=effectiveTheme==='light'"));
+
+assert.equal(JSON.parse(get('mobile/app.json')).expo.userInterfaceStyle,'automatic');
+assert.ok(get('mobile/src/theme.ts').includes('applyThemePalette'));
+assert.ok(get('mobile/src/lib/themePreference.ts').includes("ThemePreference"));
+assert.ok(get('mobile/src/screens/Settings.tsx').includes('حسب النظام'));
+assert.ok(get('mobile/App.tsx').includes('Appearance.addChangeListener'));
+assert.ok(get('mobile/src/components/UI.tsx').includes('getStyles()'));
+assert.ok(get('mobile/src/screens/RecordDetails.tsx').indexOf('بنود الفاتورة')<
+ get('mobile/src/screens/RecordDetails.tsx').indexOf('البيانات الأساسية'));
+assert.ok(get('mobile/src/screens/RecordDetails.tsx').includes('قيمة الفاتورة'));
+assert.ok(get('mobile/src/screens/RecordDetails.tsx').includes('invoiceToolsOpen'));

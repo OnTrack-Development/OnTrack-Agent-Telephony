@@ -15,12 +15,12 @@ export function T({children,size=14,weight='400',color=C.text,style,lines}:{
   lineHeight:Math.ceil(size*1.56),includeFontPadding:false},style]}>{children}</Text>;
 }
 export function Card({children,style,onPress}:{children:React.ReactNode;style?:any;onPress?:()=>void}){
- const body=<View style={[s.card,style]}>{children}</View>;
+ const body=<View style={[getStyles().card,style]}>{children}</View>;
  return onPress?<Pressable accessibilityRole="button" onPress={onPress}
   style={({pressed})=>({opacity:pressed?.76:1})}>{body}</Pressable>:body;
 }
 export function Header({title,subtitle,right}:{title:string;subtitle?:string;right?:React.ReactNode}){
- return <View style={s.header}>
+ return <View style={getStyles().header}>
   <View style={{flex:1,gap:5}}>
    <T size={27} weight="900">{title}</T>
    {subtitle?<T size={12} color={C.muted}>{subtitle}</T>:null}
@@ -30,7 +30,7 @@ export function Header({title,subtitle,right}:{title:string;subtitle?:string;rig
  </View>;
 }
 export function Section({title,action,onPress}:{title:string;action?:string;onPress?:()=>void}){
- return <View style={s.section}>
+ return <View style={getStyles().section}>
   <T size={18} weight="800">{title}</T>
   {action?<Pressable accessibilityRole="button" onPress={onPress}
    style={({pressed})=>({flexDirection:'row-reverse',alignItems:'center',gap:4,opacity:pressed?0.6:1})}>
@@ -65,7 +65,7 @@ export function Action({label,onPress,icon,secondary=false,disabled=false,compac
 export function Search({value,onChange,placeholder='بحث...'}:{
  value:string;onChange:(value:string)=>void;placeholder?:string;
 }){
- return <View style={s.search}>
+ return <View style={getStyles().search}>
   <Icon name="magnify" color={C.muted} size={22}/>
   <TextInput autoCorrect={false} accessibilityLabel={placeholder} value={value} onChangeText={onChange}
    placeholder={placeholder} placeholderTextColor={C.muted}
@@ -121,7 +121,7 @@ export function ItemRow({icon,heading,subtitle,right,onPress,color=C.blue}:{
  icon:string;heading:string;subtitle?:string;right?:React.ReactNode;onPress?:()=>void;color?:string;
 }){
  return <Pressable accessibilityRole={onPress?'button':'text'} onPress={onPress} disabled={!onPress}
-  style={({pressed})=>[s.item,{opacity:pressed?0.72:1}]}>
+  style={({pressed})=>[getStyles().item,{opacity:pressed?0.72:1}]}>
   <View style={{backgroundColor:color+'13',width:43,height:43,borderRadius:14,
    justifyContent:'center',alignItems:'center',borderWidth:1,borderColor:color+'23'}}>
    <Icon name={icon} color={color} size={21}/>
@@ -133,7 +133,7 @@ export function ItemRow({icon,heading,subtitle,right,onPress,color=C.blue}:{
   {right||(onPress?<Icon name="chevron-left" color={C.muted} size={20}/>:null)}
  </Pressable>;
 }
-export const s=StyleSheet.create({
+export const getStyles=()=>StyleSheet.create({
  card:{backgroundColor:C.surface,borderWidth:1,borderColor:C.stroke,borderRadius:20,
   padding:17,gap:4},
  header:{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between',

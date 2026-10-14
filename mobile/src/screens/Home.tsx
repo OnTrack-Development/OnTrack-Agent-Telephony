@@ -18,9 +18,9 @@ export function readyInvoiceCount(totals:Record<string,number|null>,
  return totals.invoices===null||totals.invoices===undefined?'—':String(totals.invoices);
 }
 
-const lifted={backgroundColor:H.paper,borderRadius:19,borderWidth:1,borderColor:H.stroke,
+const lifted=()=>({backgroundColor:H.paper,borderRadius:19,borderWidth:1,borderColor:H.stroke,
  shadowColor:'#000000',shadowOffset:{width:0,height:3},shadowOpacity:0.045,shadowRadius:8,
- elevation:2} as const;
+ elevation:2} as const);
 
 function MoneyMini({label,value,icon,hidden,loading}:{label:string;value:string;icon:string;
  hidden:boolean;loading:boolean}){
@@ -39,7 +39,7 @@ function Shortcut({label,icon,subtitle,onPress}:{label:string;icon:string;
  subtitle?:string;onPress:()=>void}){
  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
   style={({pressed})=>[{width:'31.7%',minHeight:126,alignItems:'center',justifyContent:'center',
-   gap:6,paddingHorizontal:4,paddingVertical:11},lifted,{opacity:pressed?0.72:1}]}>
+   gap:6,paddingHorizontal:4,paddingVertical:11} ,lifted(),{opacity:pressed?0.72:1}]}>
   <View style={{height:59,width:59,borderRadius:30,backgroundColor:'#F1F1F2',
    alignItems:'center',justifyContent:'center'}}>
    <Icon name={icon} color={H.ink} size={29}/>
@@ -55,7 +55,7 @@ function CountMini({label,value,icon,color,onPress}:{label:string;value:string;
  icon:string;color:string;onPress:()=>void}){
  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
   style={({pressed})=>[{flex:1,minHeight:74,paddingHorizontal:10,paddingVertical:10,
-   justifyContent:'space-between',gap:4},lifted,{opacity:pressed?0.73:1}]}>
+   justifyContent:'space-between',gap:4} ,lifted(),{opacity:pressed?0.73:1}]}>
   <View style={{flexDirection:'row-reverse',alignItems:'center',gap:4}}>
    <Icon name={icon} size={15} color={color}/>
    <T size={10} color={H.muted} lines={1}>{label}</T>
@@ -105,7 +105,7 @@ export function Home({data,demo,navigate,capabilities,totals,financial,financial
    </View>
   </View>
 
-  <View style={[lifted,{padding:14,gap:10}]}>
+  <View style={[lifted(),{padding:14,gap:10}]}>
    <View style={{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between'}}>
     <View style={{gap:2}}>
      <T color={H.ink} size={17} weight="900">ملخص الدخل</T>
@@ -172,7 +172,7 @@ export function Home({data,demo,navigate,capabilities,totals,financial,financial
 
   {tickets.length>0?<View style={{gap:9}}>
    <Label text="آخر التذاكر" sub="التي تحتاج متابعة"/>
-   <View style={[lifted,{paddingHorizontal:13,paddingVertical:4}]}>
+   <View style={[lifted(),{paddingHorizontal:13,paddingVertical:4}]}>
     {tickets.slice(0,2).map((t,index)=><Pressable key={t.id} accessibilityRole="button"
      onPress={()=>navigate('tickets')} style={({pressed})=>({flexDirection:'row-reverse',
       alignItems:'center',paddingVertical:11,gap:10,

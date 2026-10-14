@@ -3,13 +3,13 @@
     "name": "WHMCS",
     "slug": "whmcs-admin",
     "scheme": "whmcsadmin",
-    "version": "0.3.30",
+    "version": "0.3.31",
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#090D14",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#F3F3F3",
     "newArchEnabled": true,
     "android": {
       "package": "com.ontrackdevelopment.command",
@@ -17,7 +17,7 @@
       "permissions": [
         "POST_NOTIFICATIONS"
       ],
-      "versionCode": 41,
+      "versionCode": 42,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#090D14"
