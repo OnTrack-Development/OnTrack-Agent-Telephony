@@ -19,6 +19,7 @@ export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabi
 }){
  const [policy,setPolicy]=useState<LockPolicy>('after_5m'),[lockSaving,setLockSaving]=useState(false);
  const [biometric,setBiometric]=useState(false),[bioBusy,setBioBusy]=useState(false);
+ const [showAdvancedPush,setShowAdvancedPush]=useState(false);
  useEffect(()=>{
   if(!session)return;
   let active=true;
@@ -65,10 +66,15 @@ export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabi
    if(!ok){Alert.alert('الإشعارات متوقفة','اسمح بإشعارات WHMCS من إعدادات Android أولًا.');return;}
    const paired=await restoreTelegramWhatsApp(session);
    if(!paired)throw Error('ربط واتساب عبر TelegramNotify مطلوب أولًا.');
+   const status=await whatsAppPushStatus(session);
+   if(!status.configured){
+    Alert.alert('إشعارات الخلفية غير متاحة','مفتاح Firebase FCM Service Account غير مجهز على سيرفر WHMCS. جهزه بصورة آمنة داخل إعدادات TelegramNotify أولًا، ثم أعد الربط.');
+    return;
+   }
    const result=await registerWhatsAppPush(session);
    if(result!=='registered')throw Error(result==='fcm_unavailable'?
     'Firebase غير متاح على الجهاز. تأكد من Google Play Services.':'لم تتم الموافقة على إشعارات Android.');
-   Alert.alert('إشعارات الخلفية','تم تسجيل هذا الجهاز على سيرفر الإشعارات. اختبار التوصيل الفعلي يتطلب وصول رسالة جديدة وتشغيل Cron.');
+   Alert.alert('تم تسجيل واتساب فقط','تم ربط جهازك بإشعارات واتساب على السيرفر، لكن وصول Push لم يتأكد بعد. جرّب استقبال رسالة والتطبيق مقفول مع تشغيل Cron. تنبيهات التذاكر والطلبات حاليًا محلية أثناء تشغيل التطبيق.');
   }catch(e){Alert.alert('إعداد إشعارات الخلفية',e instanceof Error?e.message:'تعذر ربط الجهاز بالإشعارات.');}
  };
  const checkBackgroundPush=async()=>{
@@ -106,35 +112,40 @@ export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabi
     subtitle="بيانات الحساب مشفّرة محليًا على الجهاز"/>
   </Card>
   <Section title="الإشعارات"/>
-  <Card style={{gap:14}}>
-   <View style={{flexDirection:'row-reverse',gap:11,alignItems:'center'}}>
-    <View style={{width:44,height:44,borderRadius:15,backgroundColor:C.red+'16',
+  <Card style={{gap:8}}>
+   <View style={{flexDirection:'row-reverse',gap:10,alignItems:'center'}}>
+    <View style={{width:39,height:39,borderRadius:13,backgroundColor:C.red+'16',
      alignItems:'center',justifyContent:'center'}}>
      <Icon name="bell-ring-outline" color={C.red} size={23}/>
     </View>
     <View style={{flex:1,gap:4}}>
-     <T size={15} weight="800">تنبيهات WHMCS</T>
-     <T size={11} color={C.muted}>التذاكر والطلبات والعملاء وواتساب</T>
+     <T size={14} weight="800">تنبيهات WHMCS</T>
+     <T size={11} color={C.muted}>داخل التطبيق؛ واتساب في الخلفية بعد إعداد السيرفر</T>
     </View>
    </View>
-   <Action icon="bell-check-outline" label="تفعيل إشعارات الجهاز" onPress={()=>
+   <Action compact icon="bell-check-outline" label="السماح بالإشعارات" onPress={()=>
     void enableDeviceNotifications().then(ok=>
      Alert.alert(ok?'تم السماح بالإشعارات':'إشعارات Android',
       ok?'إذن الجهاز جاهز.':'اسمح بالإشعارات من إعدادات Android.')
     ).catch(()=>Alert.alert('تنبيهات الجهاز','تعذّر الحصول على الإذن.'))}/>
-   <Action icon="bell-ring" secondary label="إرسال إشعار تجريبي على الجهاز" onPress={()=>
+   <Action compact icon="bell-ring" secondary label="اختبار إشعار محلي" onPress={()=>
     void testDeviceNotification().then(result=>{
      if(result==='permission_denied')
       Alert.alert('إشعارات Android مقفولة','افتح إعدادات التطبيق من Android ← الإشعارات، واسمح بإشعارات WHMCS وقناة واتساب.');
     }).catch(()=>Alert.alert('اختبار الإشعارات','تعذر إرسال إشعار محلي. راجع إعدادات إشعارات Android.'))}/>
-   <Action secondary icon="bell-badge-outline" label="ربط إشعارات واتساب والتطبيق مقفول"
+   <Action compact secondary icon="bell-badge-outline" label="ربط إشعارات واتساب بالخلفية"
     onPress={()=>void enableBackgroundPush()}/>
-   <Action secondary icon="cloud-check-outline" label="فحص حالة إرسال FCM على السيرفر"
-    onPress={()=>void checkBackgroundPush()}/>
-   <Action label="اختبار اتصال Firebase للجهاز" secondary
-    icon="shield-check-outline" onPress={firebaseTest}/>
-   <Notice tone="info" title="حالة الإشعارات اللحظية"
-    message="إشعارات الخلفية تستخدم Firebase FCM عبر TelegramNotify المثبّت. يجب تجهيز مفتاح Service Account آمن على السيرفر وتشغيل Cron؛ نجاح ربط الجهاز وحده لا يثبت وصول التنبيهات."/>
+   <Action compact secondary icon={showAdvancedPush?'chevron-up':'information-outline'}
+    label={showAdvancedPush?'إخفاء التشخيص':'تشخيص إشعارات الخلفية'}
+    onPress={()=>setShowAdvancedPush(value=>!value)}/>
+   {showAdvancedPush?<View style={{gap:8}}>
+    <Action compact secondary icon="cloud-check-outline" label="فحص FCM على السيرفر"
+     onPress={()=>void checkBackgroundPush()}/>
+    <Action compact secondary icon="shield-check-outline" label="فحص Firebase على الجهاز"
+     onPress={firebaseTest}/>
+    <Notice tone="info" title="حالة Push الحقيقية"
+     message="اختبار الإشعار المحلي لا يثبت وصول إشعارات الخلفية. واتساب يحتاج مفتاح خدمة FCM آمنًا في TelegramNotify مع Cron. التذاكر والطلبات والعملاء حاليًا تُفحص أثناء تشغيل التطبيق فقط."/>
+   </View>:null}
   </Card>
   <Section title="التحديثات"/>
   <Card style={{gap:13}}>

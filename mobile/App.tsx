@@ -380,7 +380,7 @@ function CommandApp({themePreference,effectiveTheme,onThemeChange}:{themePrefere
  return <View style={{flex:1,backgroundColor:page==='home'?H.bg:C.bg}}>
   <StatusBar barStyle={lightHome?'dark-content':'light-content'} translucent={false}
    backgroundColor={lightHome?H.bg:C.bg}/>
-  <View style={{flexDirection:'row-reverse',paddingHorizontal:21,paddingTop:13,paddingBottom:14,
+  <View style={{flexDirection:'row-reverse',paddingHorizontal:21,paddingTop:10,paddingBottom:10,
    justifyContent:'space-between',alignItems:'center',borderBottomWidth:1,borderBottomColor:lightHome?H.stroke:C.stroke,
    backgroundColor:lightHome?H.bg:C.bg}}>
    <View style={{flexDirection:'row-reverse',alignItems:'center',gap:10}}>
@@ -409,7 +409,7 @@ function CommandApp({themePreference,effectiveTheme,onThemeChange}:{themePrefere
     automaticallyAdjustKeyboardInsets={Platform.OS==='ios'}
      onScroll={event=>{scrollOffset.current=event.nativeEvent.contentOffset.y}} scrollEventThrottle={16}
      onContentSizeChange={()=>{if(composerFocused.current&&keyboardVisible)revealFocusedInput();}}
-    contentContainerStyle={{paddingHorizontal:18,paddingTop:lightHome?16:18,
+    contentContainerStyle={{paddingHorizontal:16,paddingTop:lightHome?12:16,
       paddingBottom:keyboardVisible?keyboardPadding+insets.bottom+140:Math.max(35,insets.bottom+24)}}
     refreshControl={<RefreshControl refreshing={loading} tintColor={C.red} onRefresh={()=>page==='tickets'?setTicketReload(x=>x+1):session?void refresh(session,true):undefined}/>}>
     <PageMotion key={page}>{body()}</PageMotion>
@@ -418,14 +418,14 @@ function CommandApp({themePreference,effectiveTheme,onThemeChange}:{themePrefere
   {!keyboardVisible&&!ticketDetailOpen?<View style={{flexDirection:'row-reverse',
    borderTopWidth:1,borderTopColor:lightHome?H.stroke:C.stroke,
    backgroundColor:lightHome?H.paper:C.surface,
-   paddingTop:8,paddingBottom:Math.max(5,insets.bottom?4:8),paddingHorizontal:8,minHeight:67,
+   paddingTop:5,paddingBottom:Math.max(4,insets.bottom?3:6),paddingHorizontal:7,minHeight:61,
    alignItems:'center'}}>
    {nav.map(item=>{
     const active=currentTab===item.page;
     return <Pressable key={item.page} accessibilityRole="tab" accessibilityState={{selected:active}}
      onPress={()=>navigate(item.page)} style={({pressed})=>({flex:1,alignItems:'center',
       justifyContent:'center',paddingVertical:5,gap:5,opacity:pressed?0.7:1})}>
-     <View style={{width:51,height:31,borderRadius:15,backgroundColor:active?(lightHome?H.accentSoft:C.red+'1C'):'transparent',
+     <View style={{width:47,height:29,borderRadius:13,backgroundColor:active?(lightHome?H.accentSoft:C.red+'1C'):'transparent',
       justifyContent:'center',alignItems:'center'}}>
       <Icon name={item.icon} size={22} color={active?(lightHome?H.accent:C.red):(lightHome?H.muted:C.muted)}/>
      </View>
