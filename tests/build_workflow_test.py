@@ -20,4 +20,10 @@ workflow=(root/'.github/workflows/debug-apk.yml').read_text()
 assert workflow.count('      - name: Select installed Android NDK')==1
 assert workflow.count('      - name: Build production-signed APK')==1
 assert workflow.count('      - name: Publish GitHub Release with APK and ZIP')==1
+assert 'APP_VERSION=$VERSION' in workflow
+assert 'APP_CODE=$CODE' in workflow
+assert 'WHMCS-v${APP_VERSION}-ARM64-release-signed.apk' in workflow
+assert 'WHMCS-v0.3.31-ARM64-release-signed.apk' not in workflow
+assert 'whmcs-v${APP_VERSION}-${GITHUB_RUN_NUMBER}' in workflow
+
 print('PASS: NDK selection for literal/dynamic templates; duplicate build steps removed')
