@@ -21,3 +21,9 @@ export function compact(n:number){return n>=1000?(n/1000).toFixed(1)+'K':String(
 export function money(n:number,currency='EGP'){
  return new Intl.NumberFormat('en-US',{maximumFractionDigits:0}).format(n)+' '+currency;
 }
+
+/** Warm, minimal reference-inspired Home skin only; all other pages keep C dark theme. */
+export const HOME={
+ bg:'#F3F3F3',paper:'#FFFFFF',soft:'#F4F4F5',ink:'#1F2024',muted:'#777B84',
+ stroke:'#E6E6E8',accent:'#C83D60',accentSoft:'#FBEDF1',green:'#178263',red:'#CE4864'
+} as const;
