@@ -55,8 +55,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.32');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,43);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.33');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,44);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
@@ -271,3 +271,12 @@ for(const mode of ['homeLight','homeDark']){
  assert.ok(contrast(soft,ink)>=7,mode+' icon contrast below AAA normal text');
 }
 console.log('PASS: compact home, accessible high-contrast icons in dark/light, honest push enrollment gating');
+
+const invoiceDir=get('mobile/src/screens/Directory.tsx');
+assert.ok(invoiceDir.includes('loadInvoiceCardPreview(session,invoice)'));
+assert.ok(invoiceDir.includes('invoiceScrollY'));
+assert.ok(invoiceDir.includes('borderRightWidth:3')&&invoiceDir.includes('paddingVertical:10'));
+assert.ok(invoiceDir.includes('preview.otherCount'));
+assert.ok(invoiceDir.includes('تعذر تحميل بند الفاتورة'));
+assert.ok(get('mobile/App.tsx').includes('invoiceScrollY={invoiceScrollY}'));
+console.log('PASS: compact invoice cards with owner-verified lazy line descriptions');
