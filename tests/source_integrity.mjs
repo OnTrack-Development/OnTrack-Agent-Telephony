@@ -172,7 +172,7 @@ assert.ok(get('mobile/App.tsx').includes('keyboardY.current'));
 assert.ok(get('mobile/App.tsx').includes('keyboardPadding+insets.bottom'));
 assert.ok(!ticketScreen.includes('<AdminAccess'));
 assert.ok(get('mobile/src/components/InvoiceEditor.tsx').includes('buildInvoiceUpdate'));
-assert.ok(get('mobile/src/components/InvoiceActions.tsx').includes('Mark Paid'));
+assert.ok(get('mobile/src/components/InvoiceActions.tsx').includes('تحديد كمدفوعة'));
 assert.ok(get('mobile/src/components/InvoiceActions.tsx').includes('Duplicate Invoice'));
 assert.ok(get('mobile/src/screens/Directory.tsx').includes('invoiceSelection'));
 assert.ok(get('mobile/src/screens/WhatsApp.tsx').includes('loginWhatsAppWithBrowser(session,directory)'));
