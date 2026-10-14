@@ -55,8 +55,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.31');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,42);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.32');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,43);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
@@ -134,7 +134,7 @@ assert.ok(get('mobile/src/screens/Settings.tsx').includes('البحث عن تح�
 assert.ok(code.includes('getApiRetryAfterMs'));
 assert.ok(code.includes('REQUEST_SPACING_MS'));
 assert.ok(code.includes('loadOverview(session:Session,keys:SectionKey[]'));
-assert.ok(get('mobile/App.tsx').includes('minHeight:67'));
+assert.ok(get('mobile/App.tsx').includes('minHeight:61'));
 assert.ok(get('mobile/src/screens/Directory.tsx').includes('ClientProfile'));
 assert.ok(get('mobile/src/lib/api.ts').includes('GetClientsDetails'));
 assert.ok(code.includes('response.status===429'));
@@ -233,7 +233,7 @@ assert.ok(!get('mobile/src/screens/Directory.tsx').includes("page==='invoices'?'
 // Reference-inspired light Home, with a compact and private income panel.
 assert.ok(get('mobile/src/theme.ts').includes('export const HOME:'));
 assert.ok(get('mobile/src/screens/Home.tsx').includes('width:\'31.7%\''));
-assert.ok(get('mobile/src/screens/Home.tsx').includes('إجمالي عدد الفواتير: '));
+assert.ok(get('mobile/src/screens/Home.tsx').includes("invoiceCount+' فاتورة'"));
 assert.ok(!get('mobile/src/screens/Home.tsx').includes('عرض جميع الفواتير'));
 assert.ok(get('mobile/src/screens/Home.tsx').includes('hidden={!moneyVisible}'));
 assert.ok(get('mobile/App.tsx').includes("const lightHome=effectiveTheme==='light'"));
@@ -248,3 +248,26 @@ assert.ok(get('mobile/src/screens/RecordDetails.tsx').indexOf('بنود الفا
  get('mobile/src/screens/RecordDetails.tsx').indexOf('البيانات الأساسية'));
 assert.ok(get('mobile/src/screens/RecordDetails.tsx').includes('قيمة الفاتورة'));
 assert.ok(get('mobile/src/screens/RecordDetails.tsx').includes('invoiceToolsOpen'));
+
+const homeUI=get('mobile/src/screens/Home.tsx');
+const themeCode=get('mobile/src/theme.ts');
+assert.ok(homeUI.includes('backgroundColor:H.soft')&&homeUI.includes('color={H.ink}'));
+assert.ok(!homeUI.includes("backgroundColor:'#F1F1F2'"));
+assert.ok(homeUI.includes("minHeight:98")&&homeUI.includes("minHeight:61"));
+assert.ok(get('mobile/src/screens/Settings.tsx').includes('showAdvancedPush'));
+assert.ok(get('mobile/src/screens/Settings.tsx').includes("if(!status.configured)"));
+function wcagLum(hex){
+ const parts=hex.slice(1).match(/.{2}/g).map(x=>parseInt(x,16)/255);
+ return parts.map(x=>x<=0.04045?x/12.92:((x+0.055)/1.055)**2.4)
+  .reduce((sum,x,i)=>sum+x*[0.2126,0.7152,0.0722][i],0);
+}
+function contrast(a,b){const aa=wcagLum(a),bb=wcagLum(b);return (Math.max(aa,bb)+0.05)/(Math.min(aa,bb)+0.05)}
+for(const mode of ['homeLight','homeDark']){
+ const palette=themeCode.match(new RegExp('const '+mode+'=\\\\{([\\\\s\\\\S]*?)\\\\};'))?.[1];
+ assert.ok(palette,mode+' missing');
+ const soft=palette.match(/soft:'(#[0-9A-Fa-f]{6})'/)?.[1];
+ const ink=palette.match(/ink:'(#[0-9A-Fa-f]{6})'/)?.[1];
+ assert.ok(soft&&ink,mode+' icon colors missing');
+ assert.ok(contrast(soft,ink)>=7,mode+' icon contrast below AAA normal text');
+}
+console.log('PASS: compact home, accessible high-contrast icons in dark/light, honest push enrollment gating');

@@ -19,18 +19,18 @@ export function readyInvoiceCount(totals:Record<string,number|null>,
 }
 
 const lifted=()=>({backgroundColor:H.paper,borderRadius:19,borderWidth:1,borderColor:H.stroke,
- shadowColor:'#000000',shadowOffset:{width:0,height:3},shadowOpacity:0.045,shadowRadius:8,
+ shadowColor:'#000000',shadowOffset:{width:0,height:3},shadowOpacity:0.025,shadowRadius:8,
  elevation:2} as const);
 
 function MoneyMini({label,value,icon,hidden,loading}:{label:string;value:string;icon:string;
  hidden:boolean;loading:boolean}){
- return <View style={{width:'48.7%',minHeight:71,borderRadius:14,paddingHorizontal:11,
-  paddingVertical:9,justifyContent:'space-between',backgroundColor:H.soft,gap:5}}>
+ return <View style={{width:'48.7%',minHeight:61,borderRadius:13,paddingHorizontal:10,
+  paddingVertical:8,justifyContent:'space-between',backgroundColor:H.soft,gap:4}}>
   <View style={{flexDirection:'row-reverse',alignItems:'center',gap:5}}>
    <Icon name={icon} color={H.muted} size={15}/>
    <T color={H.muted} size={11} weight="600">{label}</T>
   </View>
-  <T color={H.ink} size={15} weight="900" lines={1}
+  <T color={H.ink} size={14} weight="900" lines={1}
    style={{textAlign:'right',writingDirection:'ltr'}}>{hidden?'••••••':loading?'...':value}</T>
  </View>;
 }
@@ -38,35 +38,35 @@ function MoneyMini({label,value,icon,hidden,loading}:{label:string;value:string;
 function Shortcut({label,icon,subtitle,onPress}:{label:string;icon:string;
  subtitle?:string;onPress:()=>void}){
  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
-  style={({pressed})=>[{width:'31.7%',minHeight:126,alignItems:'center',justifyContent:'center',
-   gap:6,paddingHorizontal:4,paddingVertical:11} ,lifted(),{opacity:pressed?0.72:1}]}>
-  <View style={{height:59,width:59,borderRadius:30,backgroundColor:'#F1F1F2',
-   alignItems:'center',justifyContent:'center'}}>
-   <Icon name={icon} color={H.ink} size={29}/>
-   <View style={{position:'absolute',width:5,height:12,borderRadius:3,
-    backgroundColor:H.accent,right:9,bottom:13}}/>
+  style={({pressed})=>[{width:'31.7%',minHeight:98,alignItems:'center',justifyContent:'center',
+   gap:5,paddingHorizontal:5,paddingVertical:9},lifted(),{opacity:pressed?0.74:1}]}>
+  <View style={{height:44,width:44,borderRadius:15,backgroundColor:H.soft,
+   borderWidth:1,borderColor:H.stroke,alignItems:'center',justifyContent:'center'}}>
+   <Icon name={icon} color={H.ink} size={24}/>
+   <View style={{position:'absolute',height:6,width:6,borderRadius:3,
+    backgroundColor:H.accent,right:5,bottom:5}}/>
   </View>
-  <T color={H.ink} weight="700" size={12} style={{textAlign:'center'}}>{label}</T>
-  {subtitle?<T color={H.muted} size={9} lines={1} style={{textAlign:'center'}}>{subtitle}</T>:null}
+  <T color={H.ink} weight="800" size={12} lines={1} style={{textAlign:'center'}}>{label}</T>
+  {subtitle?<T color={H.muted} size={10} lines={1} style={{textAlign:'center'}}>{subtitle}</T>:null}
  </Pressable>;
 }
 
 function CountMini({label,value,icon,color,onPress}:{label:string;value:string;
  icon:string;color:string;onPress:()=>void}){
  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
-  style={({pressed})=>[{flex:1,minHeight:74,paddingHorizontal:10,paddingVertical:10,
+  style={({pressed})=>[{flex:1,minHeight:65,paddingHorizontal:10,paddingVertical:9,
    justifyContent:'space-between',gap:4} ,lifted(),{opacity:pressed?0.73:1}]}>
   <View style={{flexDirection:'row-reverse',alignItems:'center',gap:4}}>
    <Icon name={icon} size={15} color={color}/>
    <T size={10} color={H.muted} lines={1}>{label}</T>
   </View>
-  <T size={20} weight="900" color={H.ink}>{value}</T>
+  <T size={18} weight="900" color={H.ink}>{value}</T>
  </Pressable>;
 }
 
 function Label({text,sub}:{text:string;sub?:string}){
  return <View style={{flexDirection:'row-reverse',alignItems:'baseline',justifyContent:'space-between'}}>
-  <T color={H.ink} size={17} weight="900">{text}</T>
+  <T color={H.ink} size={16} weight="900">{text}</T>
   {sub?<T size={10} color={H.muted}>{sub}</T>:null}
  </View>;
 }
@@ -85,40 +85,39 @@ export function Home({data,demo,navigate,capabilities,totals,financial,financial
  };
  const quickActions:{page:Page;label:string;icon:string;subtitle?:string}[]=[
   {page:'invoices',label:'الفواتير',icon:'receipt-text-outline',
-   subtitle:'إجمالي عدد الفواتير: '+invoiceCount},
+   subtitle:invoiceCount==='—'?undefined:invoiceCount+' فاتورة'},
   {page:'tickets',label:'التذاكر',icon:'ticket-outline'},
   {page:'whatsapp',label:'واتساب',icon:'whatsapp'},
   {page:'clients',label:'العملاء',icon:'account-outline'},
   {page:'services',label:'الخدمات',icon:'server-outline'},
   {page:'orders',label:'الطلبات',icon:'cart-outline'}
  ];
- return <View style={{paddingBottom:14,gap:17}}>
+ return <View style={{paddingBottom:10,gap:13}}>
   <View style={{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between',gap:11}}>
    <View style={{flex:1,gap:3}}>
-    <T size={11} color={H.accent} weight="800">WHMCS  •  لوحة الإدارة</T>
-    <T color={H.ink} size={25} weight="900">نظرة على أعمالك</T>
-    <T size={11} color={H.muted}>ملخص سريع وواضح لأعمال اليوم</T>
+    <T size={10} color={H.accent} weight="800">لوحة الإدارة</T>
+    <T color={H.ink} size={21} weight="900">نظرة عامة</T>
    </View>
-   <View style={{height:46,width:46,borderRadius:16,backgroundColor:H.paper,
+   <View style={{height:40,width:40,borderRadius:13,backgroundColor:H.paper,
     borderWidth:1,borderColor:H.stroke,alignItems:'center',justifyContent:'center'}}>
-    <Icon name="chart-box-outline" color={H.accent} size={25}/>
+    <Icon name="chart-box-outline" color={H.accent} size={22}/>
    </View>
   </View>
 
-  <View style={[lifted(),{padding:14,gap:10}]}>
+  <View style={[lifted(),{padding:12,gap:9}]}>
    <View style={{flexDirection:'row-reverse',alignItems:'center',justifyContent:'space-between'}}>
     <View style={{gap:2}}>
-     <T color={H.ink} size={17} weight="900">ملخص الدخل</T>
+     <T color={H.ink} size={15} weight="900">ملخص الدخل</T>
      <T color={H.muted} size={10}>إحصاءات WHMCS الرسمية</T>
     </View>
     <Pressable accessibilityRole="button" accessibilityLabel={moneyVisible?'إخفاء الأرصدة':'إظهار الأرصدة'}
      accessibilityState={{expanded:moneyVisible}} onPress={onToggleMoney}
-     style={{height:36,width:36,borderRadius:12,backgroundColor:H.soft,
+     style={{height:32,width:32,borderRadius:11,backgroundColor:H.soft,
       alignItems:'center',justifyContent:'center'}}>
-     <Icon name={moneyVisible?'eye-off-outline':'eye-outline'} color={H.accent} size={21}/>
+     <Icon name={moneyVisible?'eye-off-outline':'eye-outline'} color={H.accent} size={19}/>
     </Pressable>
    </View>
-   <View style={{flexDirection:'row-reverse',flexWrap:'wrap',justifyContent:'space-between',rowGap:8}}>
+   <View style={{flexDirection:'row-reverse',flexWrap:'wrap',justifyContent:'space-between',rowGap:7}}>
     <MoneyMini label="اليوم" icon="calendar-today" value={income('today')}
      hidden={!moneyVisible} loading={financialBusy}/>
     <MoneyMini label="الشهر الحالي" icon="calendar-month-outline" value={income('month')}
@@ -136,7 +135,7 @@ export function Home({data,demo,navigate,capabilities,totals,financial,financial
     </View>
     <View style={{flex:1,gap:1}}>
      <T color={H.ink} size={11} weight="700">إجمالي قيمة الفواتير غير المدفوعة</T>
-     <T color={H.muted} size={9}>القيمة الاسمية قبل الدفعات الجزئية</T>
+     <T color={H.muted} size={9}>قبل خصم الدفعات الجزئية</T>
     </View>
     <T color={H.ink} size={12} weight="900" lines={2}
      style={{maxWidth:112,writingDirection:'ltr',textAlign:'left'}}>
@@ -149,16 +148,16 @@ export function Home({data,demo,navigate,capabilities,totals,financial,financial
    </View>:null}
   </View>
 
-  <View style={{gap:10}}>
+  <View style={{gap:8}}>
    <Label text="وصول سريع" sub="اختار الخدمة"/>
    <View style={{flexDirection:'row-reverse',flexWrap:'wrap',justifyContent:'space-between',
-    rowGap:10}}>
+    rowGap:8}}>
     {quickActions.map(action=><Shortcut key={action.page} label={action.label}
      icon={action.icon} subtitle={action.subtitle} onPress={()=>navigate(action.page)}/>)}
    </View>
   </View>
 
-  <View style={{gap:9}}>
+  <View style={{gap:8}}>
    <Label text="المتابعة" sub="الأعداد تخص البيانات المحمّلة"/>
    <View style={{flexDirection:'row-reverse',gap:9}}>
     <CountMini label="تذاكر تنتظر" value={ready('tickets')?String(tickets.length):'—'}
