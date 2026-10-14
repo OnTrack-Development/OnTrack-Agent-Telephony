@@ -231,7 +231,7 @@ assert.ok(get('mobile/src/screens/Directory.tsx').includes('متأخرة'));
 assert.ok(!get('mobile/src/screens/Directory.tsx').includes("page==='invoices'?'عرض الملف':'التفاصيل'"));
 
 // Reference-inspired light Home, with a compact and private income panel.
-assert.ok(get('mobile/src/theme.ts').includes('export const HOME='));
+assert.ok(get('mobile/src/theme.ts').includes('export const HOME:'));
 assert.ok(get('mobile/src/screens/Home.tsx').includes('width:\'31.7%\''));
 assert.ok(get('mobile/src/screens/Home.tsx').includes('إجمالي عدد الفواتير: '));
 assert.ok(!get('mobile/src/screens/Home.tsx').includes('عرض جميع الفواتير'));
