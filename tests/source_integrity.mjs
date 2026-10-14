@@ -55,8 +55,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.30');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,41);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.31');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,42);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
@@ -237,3 +237,14 @@ assert.ok(get('mobile/src/screens/Home.tsx').includes('إجمالي عدد ال�
 assert.ok(!get('mobile/src/screens/Home.tsx').includes('عرض جميع الفواتير'));
 assert.ok(get('mobile/src/screens/Home.tsx').includes('hidden={!moneyVisible}'));
 assert.ok(get('mobile/App.tsx').includes("const lightHome=page==='home'"));
+
+assert.equal(JSON.parse(get('mobile/app.json')).expo.userInterfaceStyle,'automatic');
+assert.ok(get('mobile/src/theme.ts').includes('applyThemePalette'));
+assert.ok(get('mobile/src/lib/themePreference.ts').includes("ThemePreference"));
+assert.ok(get('mobile/src/screens/Settings.tsx').includes('حسب النظام'));
+assert.ok(get('mobile/App.tsx').includes('Appearance.addChangeListener'));
+assert.ok(get('mobile/src/components/UI.tsx').includes('getStyles()'));
+assert.ok(get('mobile/src/screens/RecordDetails.tsx').indexOf('بنود الفاتورة')<
+ get('mobile/src/screens/RecordDetails.tsx').indexOf('البيانات الأساسية'));
+assert.ok(get('mobile/src/screens/RecordDetails.tsx').includes('قيمة الفاتورة'));
+assert.ok(get('mobile/src/screens/RecordDetails.tsx').includes('invoiceToolsOpen'));
