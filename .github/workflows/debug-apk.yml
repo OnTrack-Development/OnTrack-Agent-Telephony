@@ -149,9 +149,18 @@ jobs:
           sha256sum "$APK"
           BYTES="$(stat -c%s "$APK")"
           test "$BYTES" -lt 73304381
+      - name: Read authoritative Android version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./mobile/app.json').expo.version")"
+          CODE="$(node -p "require('./mobile/app.json').expo.android.versionCode")"
+          test -n "$VERSION" && test "$CODE" -gt 0
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "APP_CODE=$CODE" >> "$GITHUB_ENV"
       - uses: actions/upload-artifact@v4
         with:
-          name: WHMCS-v0.3.31-ARM64-signed
+          name: WHMCS-v${{ env.APP_VERSION }}-ARM64-signed
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Publish GitHub Release with APK and ZIP
@@ -162,15 +171,16 @@ jobs:
           set -euo pipefail
           mkdir -p out
           APK="mobile/android/app/build/outputs/apk/release/app-release.apk"
-          cp "$APK" out/WHMCS-v0.3.31-ARM64-release-signed.apk
-          (cd out && zip -9 WHMCS-v0.3.31-ARM64-release-signed.zip WHMCS-v0.3.31-ARM64-release-signed.apk)
+          FILENAME="WHMCS-v${APP_VERSION}-ARM64-release-signed.apk"
+          cp "$APK" "out/$FILENAME"
+          (cd out && zip -9 "WHMCS-v${APP_VERSION}-ARM64-release-signed.zip" "$FILENAME")
           BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v0.3.31: repair WhatsApp TelegramNotify gateway blocked by HTTP 403 by routing requests via WHMCS official index.php?m=telegramnotify&route=mobile_whatsapp. Requires updating existing TelegramNotify to v3.4.2 on WHMCS. No additional addon and no changes to original WhatsApp module or webhook. Signed ARM64 APK bytes: ${BYTES}."
-          gh release create "whmcs-v0.3.31-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
+          NOTES="WHMCS v${APP_VERSION} (Android build ${APP_CODE}): accessible high-contrast icons in both themes, compact Home cards and navigation, default-hidden balances, clearer local vs background notifications and FCM server setup diagnostics. Background push requires securely configured server-side Firebase credentials and live closed-app testing. Original WhatsApp module and webhook remain unchanged. Signed ARM64 APK bytes: ${BYTES}."
+          gh release create "whmcs-v${APP_VERSION}-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
-            --title "WHMCS v0.3.31 (Android build 42)" \
+            --title "WHMCS v${APP_VERSION} (Android build ${APP_CODE})" \
             --notes "$NOTES"
-          echo "Signed APK published; APK release published after successful workflow completion."
+          echo "Signed APK published with the exact version read from app.json."
       # GitHub-hosted release publishing uses GITHUB_TOKEN; trigger the downstream
       # staging workflow explicitly rather than relying solely on workflow_run.
       - name: Dispatch signed APK to live download website
