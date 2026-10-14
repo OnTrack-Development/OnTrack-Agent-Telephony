@@ -94,6 +94,8 @@ function CommandApp({themePreference,effectiveTheme,onThemeChange}:{themePrefere
  const lockPolicyRef=useRef<LockPolicy>('after_5m'),backgroundAt=useRef(0);
  const [data,setData]=useState<DemoState>(empty),[page,setPage]=useState<Page>('home'),[loading,setLoading]=useState(false);
  const [ticketReload,setTicketReload]=useState(0);
+ const [invoiceScrollY,setInvoiceScrollY]=useState(0);
+ useEffect(()=>{setInvoiceScrollY(0);},[page]);
  const [notificationTarget,setNotificationTarget]=useState<{page:SectionKey|'whatsapp';id:number|null}|null>(null);
  const pageRef=useRef<Page>('home');pageRef.current=page;
  const [error,setError]=useState(''),[errors,setErrors]=useState<Record<string,string>>({}),[caps,setCaps]=useState<Record<string,boolean>>({}),[totals,setTotals]=useState<Record<string,number|null>>({}),[moreBusy,setMoreBusy]=useState(false),[lastSync,setLastSync]=useState(''),[history,setHistory]=useState<Page[]>([]),[detail,setDetail]=useState<{title:string,lines:[string,string][]}|null>(null);
@@ -373,7 +375,7 @@ function CommandApp({themePreference,effectiveTheme,onThemeChange}:{themePrefere
   onLock={()=>{if(lockPolicyRef.current==='off')return;unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);setFinance(null);}}/>;
   if(page==='explorer')return demo?<View><T color={C.orange}>دليل API يحتاج ربط WHMCS حقيقي (غير متاح في الديمو).</T></View>:session?<Explorer session={session} onDetails={(title,lines)=>setDetail({title,lines})}/>:null;
   return <Directory session={session} page={page} data={data} onDetails={(title,lines)=>setDetail({title,lines})} total={totals[page]} error={errors[page]} loading={moreBusy} onLoadMore={()=>loadMore(page as 'clients'|'invoices'|'services'|'orders'|'domains')} onReload={()=>session&&void refresh(session,true,page as SectionKey)}
-  onComposerFocus={revealComposer} focusRecordId={notificationTarget?.page===page?notificationTarget.id||undefined:undefined} onFocusExit={()=>setNotificationTarget(null)}/>;
+  invoiceScrollY={invoiceScrollY} onComposerFocus={revealComposer} focusRecordId={notificationTarget?.page===page?notificationTarget.id||undefined:undefined} onFocusExit={()=>setNotificationTarget(null)}/>;
  };
  const currentTab=nav.some(n=>n.page===page)?page:'more';
  const lightHome=effectiveTheme==='light';
@@ -407,7 +409,12 @@ function CommandApp({themePreference,effectiveTheme,onThemeChange}:{themePrefere
      </View>
     :<ScrollView ref={pageScroll} key={page} keyboardDismissMode={Platform.OS==='ios'?'interactive':'none'} keyboardShouldPersistTaps="handled"
     automaticallyAdjustKeyboardInsets={Platform.OS==='ios'}
-     onScroll={event=>{scrollOffset.current=event.nativeEvent.contentOffset.y}} scrollEventThrottle={16}
+     onScroll={event=>{scrollOffset.current=event.nativeEvent.contentOffset.y;
+      if(page==='invoices'){
+       const y=Math.max(0,Math.round(scrollOffset.current/150)*150);
+       setInvoiceScrollY(previous=>previous===y?previous:y);
+      }
+     }} scrollEventThrottle={16}
      onContentSizeChange={()=>{if(composerFocused.current&&keyboardVisible)revealFocusedInput();}}
     contentContainerStyle={{paddingHorizontal:16,paddingTop:lightHome?12:16,
       paddingBottom:keyboardVisible?keyboardPadding+insets.bottom+140:Math.max(35,insets.bottom+24)}}
