@@ -16,10 +16,10 @@ export const seed: DemoState = {
     {id:221,name:'شركة النور',email:'hi@alnoor.example',status:'Active',services:4,initials:'نن'}
   ],
   invoices: [
-    {id:10925,customer:'شركة ألفا الرقمية',amount:2550,currency:'EGP',status:'Unpaid',due:'12 أكتوبر'},
-    {id:10921,customer:'شركة المدار',amount:6120,currency:'EGP',status:'Overdue',due:'5 أكتوبر'},
-    {id:10918,customer:'أحمد مصطفى',amount:714,currency:'EGP',status:'Paid',due:'1 أكتوبر'},
-    {id:10912,customer:'شركة النور',amount:3200,currency:'EGP',status:'Paid',due:'28 سبتمبر'}
+    {id:10925,customer:'شركة ألفا الرقمية',amount:2550,currency:'EGP',status:'Unpaid',due:'2026-10-21'},
+    {id:10921,customer:'شركة المدار',amount:6120,currency:'EGP',status:'Overdue',due:'2026-10-05'},
+    {id:10918,customer:'أحمد مصطفى',amount:714,currency:'EGP',status:'Paid',due:'2026-10-01'},
+    {id:10912,customer:'شركة النور',amount:3200,currency:'EGP',status:'Paid',due:'2026-09-28'}
   ],
   services: [
     {id:301,domain:'alpha.example',customer:'شركة ألفا الرقمية',plan:'Starter Hosting',status:'Active',renewal:'24 نوفمبر'},
