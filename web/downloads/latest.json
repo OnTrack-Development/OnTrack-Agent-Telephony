@@ -6,5 +6,5 @@
   "sha256": "e29233857fbdcd88444d00fc7c9da58687b27edc600a27207b926a3e8fb50fd3",
   "size_bytes": 30009004,
   "release_notes": "WHMCS v0.3.29: redesigned WHMCS invoice-first home showing server-wide invoice count from GetInvoices, bottom Invoices tab replacing AI (AI moved into More), invoice cards with customer name, amount and calendar-accurate red overdue or green days-remaining labels, searchable due filters and no redundant details text. No changes to existing WhatsApp or TelegramNotify.",
-  "published_at": "2026-10-14T14:30:25Z"
+  "published_at": "2026-10-14T14:48:23Z"
 }
