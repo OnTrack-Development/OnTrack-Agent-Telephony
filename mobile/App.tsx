@@ -1,7 +1,8 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
-import {ActivityIndicator,AppState,BackHandler,Keyboard,KeyboardAvoidingView,Modal,Platform,Pressable,RefreshControl,ScrollView,StatusBar,TextInput,View} from 'react-native';
+import {ActivityIndicator,AppState,BackHandler,Keyboard,KeyboardAvoidingView,Modal,Platform,Appearance,Pressable,RefreshControl,ScrollView,StatusBar,TextInput,View} from 'react-native';
 import {Alert,FeedbackHost} from './src/components/Feedback';
-import {C,HOME as H} from './src/theme';
+import {C,HOME as H,applyThemePalette,ThemePreference} from './src/theme';
+import {readThemePreference,setPalettePreference,writeThemePreference} from './src/lib/themePreference';
 import {SafeAreaProvider,SafeAreaView,useSafeAreaInsets} from 'react-native-safe-area-context';
 import {UpdateGate} from './src/components/UpdateGate';
 import {AnimatedSplash} from './src/components/AnimatedSplash';
@@ -45,7 +46,8 @@ const menu:{page:Page,label:string,icon:string}[]=[
  {page:'explorer',label:'دليل WHMCS الكامل',icon:'view-grid-outline'},
  {page:'settings',label:'الإعدادات',icon:'cog-outline'}
 ];
-function CommandApp(){
+function CommandApp({themePreference,effectiveTheme,onThemeChange}:{themePreference:ThemePreference;
+ effectiveTheme:'light'|'dark';onThemeChange:(value:ThemePreference)=>void}){
  const insets=useSafeAreaInsets();
  const pageScroll=useRef<ScrollView>(null);
  const [keyboardVisible,setKeyboardVisible]=useState(false),[ticketDetailOpen,setTicketDetailOpen]=useState(false);
@@ -363,7 +365,8 @@ function CommandApp(){
      </Pressable>)}
     </View>
    </View>;
-  if(page==='settings')return <Settings session={session} demo={demo} onLogout={logout} capabilities={caps} errors={errors} onLockPolicyChange={policy=>{
+  if(page==='settings')return <Settings themePreference={themePreference} effectiveTheme={effectiveTheme}
+   onThemeChange={onThemeChange} session={session} demo={demo} onLogout={logout} capabilities={caps} errors={errors} onLockPolicyChange={policy=>{
    lockPolicyRef.current=policy;setLockPolicy(policy);
    if(policy==='off'){unlockedRef.current=true;setUnlocked(true);}
   }}
@@ -373,8 +376,8 @@ function CommandApp(){
   onComposerFocus={revealComposer} focusRecordId={notificationTarget?.page===page?notificationTarget.id||undefined:undefined} onFocusExit={()=>setNotificationTarget(null)}/>;
  };
  const currentTab=nav.some(n=>n.page===page)?page:'more';
- const lightHome=page==='home';
- return <View style={{flex:1,backgroundColor:lightHome?H.bg:C.bg}}>
+ const lightHome=effectiveTheme==='light';
+ return <View style={{flex:1,backgroundColor:page==='home'?H.bg:C.bg}}>
   <StatusBar barStyle={lightHome?'dark-content':'light-content'} translucent={false}
    backgroundColor={lightHome?H.bg:C.bg}/>
   <View style={{flexDirection:'row-reverse',paddingHorizontal:21,paddingTop:13,paddingBottom:14,
@@ -434,4 +437,39 @@ function CommandApp(){
  </View>;
 }
 
-export default function App(){return <SafeAreaProvider><SafeAreaView edges={['top','bottom']} style={{flex:1,backgroundColor:C.bg}}><CommandApp/><UpdateGate/><FeedbackHost/></SafeAreaView></SafeAreaProvider>;}
+// Android appearance preference is applied before the first content render.
+applyThemePalette(Appearance.getColorScheme()==='dark'?'dark':'light');
+export default function App(){
+ const [themePreference,setThemePreference]=useState<ThemePreference>('system');
+ const [effectiveTheme,setEffectiveTheme]=useState<'light'|'dark'>(
+  Appearance.getColorScheme()==='dark'?'dark':'light');
+ const currentPreference=useRef<ThemePreference>('system');
+ useEffect(()=>{
+  let active=true;
+  const apply=(preference:ThemePreference)=>{
+   if(!active)return;
+   currentPreference.current=preference;
+   const resolved=setPalettePreference(preference);
+   setEffectiveTheme(resolved);
+   setThemePreference(preference);
+  };
+  const watch=Appearance.addChangeListener(()=>{
+   if(currentPreference.current==='system')apply('system');
+  });
+  void readThemePreference().then(apply).catch(()=>apply('system'));
+  return()=>{active=false;watch.remove();};
+ },[]);
+ const updateTheme=(preference:ThemePreference)=>{
+  const resolved=setPalettePreference(preference);
+  currentPreference.current=preference;
+  setEffectiveTheme(resolved);
+  setThemePreference(preference);
+  void writeThemePreference(preference).catch(()=>{});
+ };
+ return <SafeAreaProvider><SafeAreaView edges={['top','bottom']}
+  style={{flex:1,backgroundColor:C.bg}}>
+  <CommandApp themePreference={themePreference} effectiveTheme={effectiveTheme}
+   onThemeChange={updateTheme}/>
+  <UpdateGate/><FeedbackHost/>
+ </SafeAreaView></SafeAreaProvider>;
+}
