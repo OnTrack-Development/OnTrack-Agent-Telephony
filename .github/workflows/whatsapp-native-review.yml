@@ -9,6 +9,7 @@ on:
       - feat/wa-media-lock-preferences-20261011
       - fix/whatsapp-media-capabilities-v0327-20261011
       - fix/whatsapp-native-image-media-0328-20261011
+      - feat/invoice-dashboard-nav-due-design-20261014
   workflow_dispatch:
 permissions:
   contents: read
