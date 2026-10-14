@@ -29,7 +29,7 @@ assert.match(app,/page:'invoices',label:'الفواتير',icon:'receipt-text-ou
 assert.match(app,/page:'ai',label:'الذكاء الاصطناعي'/);
 const home=fs.readFileSync(path.join(__dirname,'../mobile/src/screens/Home.tsx'),'utf8');
 assert.match(home,/totals\.invoices/);
-assert.match(home,/إجمالي عدد الفواتير/);
+assert.match(home,/invoiceCount\+' فاتورة'/);
 const dir=fs.readFileSync(path.join(__dirname,'../mobile/src/screens/Directory.tsx'),'utf8');
 assert.match(dir,/inv\.customer/);
 assert.match(dir,/invoiceDue\(inv\)/);
