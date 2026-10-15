@@ -90,7 +90,7 @@ function ontrack_mobile_push_enqueue(string $category,int $entityId,string $revi
 }
 function ontrack_mobile_push_access(int $adminId,string $category,int $deptId): bool {
     $admin=Capsule::table('tbladmins')->where('id',$adminId)->first();
-    if (!$admin) return false;
+    if (!$admin || (int)($admin->disabled??0)===1) return false;
     if ($category!=='tickets') return true;
     if ($deptId<1) return false; // No safe department match: fail closed.
     $depts=array_filter(array_map('intval',explode(',',(string)($admin->supportdepts??''))));
