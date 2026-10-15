@@ -1,0 +1,28 @@
+name: Check WHMCS Companion Push PHP
+on:
+  push:
+    branches: [ontrack-command-native]
+    paths:
+      - 'companion/modules/addons/ontrack_mobile_admin/**'
+      - '.github/workflows/check-push-php.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  php-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check PHP files syntax
+        run: |
+          set -euo pipefail
+          find companion/modules/addons/ontrack_mobile_admin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Verify no Google private credential committed
+        run: |
+          set -euo pipefail
+          if grep -RE -- '-----BEGIN PRIVATE KEY-----|"private_key"[[:space:]]*:' companion/modules/addons/ontrack_mobile_admin; then
+            echo 'Private Firebase credentials must never be committed'; exit 1
+          fi
+          test -f companion/modules/addons/ontrack_mobile_admin/push.php
+          test -f companion/modules/addons/ontrack_mobile_admin/hooks.php
+          test -f companion/modules/addons/ontrack_mobile_admin/cron.php
