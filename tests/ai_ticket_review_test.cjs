@@ -64,6 +64,17 @@ assert.equal(audit.classifyAiLastReply({...detail(),replies:{reply:[
  {replyid:3,admin:'',name:'Owner',message:'Still broken'}
 ]}},ticket,bot).kind,'skip');
 assert.equal(audit.classifyAiLastReply({...detail(),replies:{totalresults:20,reply:[{admin:'AI',message:'Done'}]}},ticket,bot).kind,'error');
+const stillAi={...detail('supportbot'),flag:0};
+assert.equal(audit.classifyActiveAiTicket(stillAi,{...ticket,flag:0},bot).kind,'match');
+assert.equal(audit.classifyActiveAiTicket({...stillAi,flag:8},{...ticket,flag:8},bot).kind,'skip');
+assert.equal(audit.classifyActiveAiTicket(stillAi,{...ticket,flag:8},bot).kind,'match','authoritative detail flag overrides stale list');
+assert.equal(audit.classifyActiveAiTicket({...stillAi,status:'Closed'},ticket,bot).kind,'skip');
+assert.equal(audit.classifyActiveAiTicket({...stillAi,replies:{reply:[
+ {replyid:1,admin:'supportbot',message:'Hello'},
+ {replyid:2,admin:'',name:'Customer',message:'Thanks'}
+]}},ticket,bot).kind,'skip');
+assert.equal(audit.classifyActiveAiTicket({...stillAi,flag:7},{...ticket,flag:7},bot).kind,'match',
+ 'ticket still assigned to the selected AI account itself is not a human handoff');
 (async()=>{
  apiResult={ok:true,data:detail('supportbot')};
  const result=await audit.checkAiLastReply({},ticket,bot);
@@ -81,7 +92,11 @@ assert.equal(audit.classifyAiLastReply({...detail(),replies:{totalresults:20,rep
  apiResult={ok:false,code:'HTTP_429',error:'Rate limit'};
  const discoveryLimited=await audit.fetchObservedResponders({},ticket);
  assert.equal(discoveryLimited.rateLimited,true);
- apiResult={ok:true,data:rawUsers};
+ apiResult={ok:true,data:stillAi};
+ const checked=await audit.checkActiveAiTicket({},ticket,bot);
+ assert.equal(checked.kind,'match');
+ assert.equal(calls.at(-1).action,'GetTicket');
+  apiResult={ok:true,data:rawUsers};
  const fromWhmcs=await audit.fetchAiAdminUsers({});
  assert.equal(fromWhmcs.ok,true);
  assert.equal(fromWhmcs.users.length,3);
