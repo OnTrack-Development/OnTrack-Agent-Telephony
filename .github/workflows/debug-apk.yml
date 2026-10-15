@@ -43,7 +43,7 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Unit tests and typecheck
         working-directory: mobile
-        run: npm run typecheck && npm run test:source && node ../tests/ticket_workflow_test.cjs && node ../tests/invoice_workflow_test.cjs && node ../tests/invoice_due_design_test.cjs && node ../tests/invoice_preview_test.cjs && node ../tests/mobile_management_test.cjs && node ../tests/financial_security_test.cjs && node ../tests/api_mock_test.cjs && node ../tests/client_profile_test.cjs && node ../tests/directory_ui_test.cjs && node ../tests/module_integration_test.cjs && python3 ../tests/build_workflow_test.py && python3 ../tests/native_admin_routes_test.py
+        run: npm run typecheck && npm run test:source && node ../tests/ticket_workflow_test.cjs && node ../tests/ai_ticket_review_test.cjs && node ../tests/invoice_workflow_test.cjs && node ../tests/invoice_due_design_test.cjs && node ../tests/invoice_preview_test.cjs && node ../tests/mobile_management_test.cjs && node ../tests/financial_security_test.cjs && node ../tests/api_mock_test.cjs && node ../tests/client_profile_test.cjs && node ../tests/directory_ui_test.cjs && node ../tests/module_integration_test.cjs && python3 ../tests/build_workflow_test.py && python3 ../tests/native_admin_routes_test.py
       - name: Generate native Android project
         working-directory: mobile
         run: CI=1 npx expo prebuild --platform android --no-install
@@ -175,7 +175,7 @@ jobs:
           cp "$APK" "out/$FILENAME"
           (cd out && zip -9 "WHMCS-v${APP_VERSION}-ARM64-release-signed.zip" "$FILENAME")
           BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v${APP_VERSION} (Android build ${APP_CODE}): accessible high-contrast icons in both themes, compact Home cards and navigation, default-hidden balances, clearer local vs background notifications and FCM server setup diagnostics. Background push requires securely configured server-side Firebase credentials and live closed-app testing. Original WhatsApp module and webhook remain unchanged. Signed ARM64 APK bytes: ${BYTES}."
+          NOTES="WHMCS v${APP_VERSION} (Android build ${APP_CODE}): AI ticket audit within the Tickets screen for verified AI-user last replies, confirmed non-closed/Answered state, quoted handoff mentions needing staff review, and currently processing/pending tickets from the existing AI Operations snapshot. Uses read-only WHMCS GetTicket and bounded scanning with 429 protection. Includes existing compact invoice cards and dark/light UI. No backend module, permissions or webhook changes. Signed ARM64 APK bytes: ${BYTES}."
           gh release create "whmcs-v${APP_VERSION}-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
             --title "WHMCS v${APP_VERSION} (Android build ${APP_CODE})" \
