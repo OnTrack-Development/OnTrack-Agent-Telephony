@@ -103,9 +103,32 @@ export function classifyAiLastReply(data:any,ticket:Ticket,identity:AiAdminUser)
   author,message,date:String(last.date||''),transferMentioned:mentionsHumanTransfer(message)
  }};
 }
+/** A reply is still AI-owned only if the ticket is not closed and has not
+ * been reassigned to a different employee. A shared human handoff without
+ * an explicit WHMCS assignment requires a dedicated backend handoff flag.
+ */
+export function activeAiTicketWithoutHumanAssignee(data:any,ticket:Ticket,admin:AiAdminUser):boolean{
+ if(isClosed(String(data?.status||ticket.status)))return false;
+ const assigned=Number(data?.flag??ticket.flag??0);
+ if(!Number.isFinite(assigned)||assigned<0)return false;
+ return assigned===0||(admin.id>0&&assigned===admin.id);
+}
+export function classifyActiveAiTicket(data:any,ticket:Ticket,admin:AiAdminUser):AiTicketCheck{
+ const matched=classifyAiLastReply(data,ticket,admin);
+ if(matched.kind!=='match')return matched;
+ if(!activeAiTicketWithoutHumanAssignee(data,ticket,admin))return {kind:'skip'};
+ return matched;
+}
 export async function checkAiLastReply(session:Session,ticket:Ticket,identity:AiAdminUser):Promise<AiTicketCheck>{
  if(!Number.isSafeInteger(ticket.id)||ticket.id<=0)return {kind:'skip'};
  const response=await callApi(session,'GetTicket',{ticketid:ticket.id,repliessort:'ASC'});
  if(!response.ok||!response.data)return {kind:'error',message:response.error||'تعذر قراءة آخر رد',rateLimited:response.code==='HTTP_429'};
  return classifyAiLastReply(response.data,ticket,identity);
+}
+
+export async function checkActiveAiTicket(session:Session,ticket:Ticket,admin:AiAdminUser):Promise<AiTicketCheck>{
+ if(!Number.isSafeInteger(ticket.id)||ticket.id<=0||isClosed(ticket.status))return {kind:'skip'};
+ const response=await callApi(session,'GetTicket',{ticketid:ticket.id,repliessort:'ASC'});
+ if(!response.ok||!response.data)return {kind:'error',message:response.error||'تعذر التحقق من الرد',rateLimited:response.code==='HTTP_429'};
+ return classifyActiveAiTicket(response.data,ticket,admin);
 }
