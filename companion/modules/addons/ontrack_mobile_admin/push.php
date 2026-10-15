@@ -73,6 +73,15 @@ function ontrack_mobile_push_install(): void {
             $t->bigInteger('last_id')->unsigned()->default(0);
         });
     }
+    // Capture the initial WhatsApp cursor at module activation (before the
+    // first cron). Otherwise the first actual test message may be skipped
+    // when worker polling starts for the first time.
+    if (Capsule::schema()->hasTable('mod_whatsapp_chat_messages')) {
+        Capsule::table('mod_ontrack_mobile_push_cursor')->insertOrIgnore([
+            'source'=>'whatsapp_inbound',
+            'last_id'=>(int)(Capsule::table('mod_whatsapp_chat_messages')->max('id')??0)
+        ]);
+    }
 }
 function ontrack_mobile_push_enqueue(string $category,int $entityId,string $revision,string $title,string $body,int $deptId=0): void {
     if ($entityId<1 || !in_array($category,['tickets','clients','invoices','orders','services','domains','whatsapp'],true)
