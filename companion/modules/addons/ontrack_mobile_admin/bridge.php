@@ -106,6 +106,44 @@ try {
         mobile_json(200,true,['signedOut'=>true]);
     }
 
+    // All WHMCS push operations use the administrator-approved Companion pair
+    // session. They never accept WHMCS API credentials or TelegramNotify tokens.
+    if (in_array($op,['push.register','push.unregister','push.status'],true)) {
+        if (!in_array('push.devices',explode(',',(string)$session->scopes),true))
+            mobile_json(403,false,null,'FORBIDDEN','This session was not paired for push.');
+        require_once __DIR__.'/push.php';
+        if (!ontrack_mobile_push_installed())
+            mobile_json(503,false,null,'PUSH_NOT_INSTALLED','Open the Companion admin page to upgrade push tables.');
+        $devices='mod_ontrack_mobile_push_devices';
+        if ($op==='push.status') {
+            $has=\WHMCS\Database\Capsule::table($devices)->where('session_id',(int)$session->id)->exists();
+            mobile_json(200,true,['registered'=>$has,'configured'=>ontrack_mobile_push_config()!==null]);
+        }
+        $device=strtolower(trim((string)($payload['device_id']??'')));
+        if (!preg_match('/^[a-f0-9-]{36}$/D',$device))
+            mobile_json(422,false,null,'INVALID_DEVICE','Invalid device ID.');
+        if ($op==='push.unregister') {
+            \WHMCS\Database\Capsule::table($devices)->where('session_id',(int)$session->id)
+                ->where('device_id',$device)->delete();
+            mobile_json(200,true,['unregistered'=>true]);
+        }
+        $fcm=trim((string)($payload['fcm_token']??''));
+        if (!preg_match('/^[A-Za-z0-9._:~\-]{40,1024}$/D',$fcm))
+            mobile_json(422,false,null,'INVALID_FCM','Invalid Android FCM registration.');
+        if (!function_exists('encrypt') || !function_exists('decrypt'))
+            mobile_json(503,false,null,'ENCRYPTION_UNAVAILABLE','WHMCS encryption helpers are unavailable.');
+        $encrypted=encrypt($fcm);
+        if (!is_string($encrypted) || $encrypted==='')
+            mobile_json(503,false,null,'ENCRYPTION_UNAVAILABLE','Unable to securely protect the device token.');
+        $where=['session_id'=>(int)$session->id,'device_id'=>$device];
+        $existing=\WHMCS\Database\Capsule::table($devices)->where($where)->first(['id']);
+        $values=['admin_id'=>(int)$session->admin_id,'fcm_hash'=>hash('sha256',$fcm),
+             'fcm_encrypted'=>$encrypted,'updated_at'=>$now];
+        if ($existing) \WHMCS\Database\Capsule::table($devices)->where('id',$existing->id)->update($values);
+        else \WHMCS\Database\Capsule::table($devices)->insert($where+$values+['created_at'=>$now]);
+        mobile_json(200,true,['registered'=>true,'configured'=>ontrack_mobile_push_config()!==null]);
+    }
+
     $scopes=explode(',',(string)$session->scopes);
     $scope=$op==='whatsapp.send'?'whatsapp.send':'whatsapp.read';
     if (!in_array($op,['whatsapp.read','whatsapp.get','whatsapp.send'],true))
