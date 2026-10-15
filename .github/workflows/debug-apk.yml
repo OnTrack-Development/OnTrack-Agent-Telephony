@@ -175,7 +175,7 @@ jobs:
           cp "$APK" "out/$FILENAME"
           (cd out && zip -9 "WHMCS-v${APP_VERSION}-ARM64-release-signed.zip" "$FILENAME")
           BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v${APP_VERSION} (Android build ${APP_CODE}): independent administrator-approved Firebase FCM device enrollment for real WHMCS background push, improved per-event notification titles, no misleading aggregated counts, deduplication between local polling and remote WhatsApp, direct ticket and WhatsApp conversation navigation. WHMCS server requires the separate Companion v0.2.0 module, external private Firebase credentials, and a minute worker to make remote delivery live. No modifications to the stable WhatsApp module. Signed ARM64 APK bytes: ${BYTES}."
+          NOTES="WHMCS v${APP_VERSION} (Android build ${APP_CODE}): WHMCS-routed Firebase FCM device registration that avoids production 403 on direct addon PHP calls, with per-event push, improved per-event notification titles, no misleading aggregated counts, deduplication between local polling and remote WhatsApp, direct ticket and WhatsApp conversation navigation. WHMCS server requires the separate Companion v0.2.1 module, external private Firebase credentials, and a minute worker to make remote delivery live. No modifications to the stable WhatsApp module. Signed ARM64 APK bytes: ${BYTES}."
           gh release create "whmcs-v${APP_VERSION}-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
             --title "WHMCS v${APP_VERSION} (Android build ${APP_CODE})" \
