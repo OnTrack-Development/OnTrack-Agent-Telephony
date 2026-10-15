@@ -47,6 +47,8 @@ async function stableDeviceId(session:Session):Promise<string>{
 }
 export async function pairMobilePush(session:Session,code:string):Promise<void>{
  if(!/^[a-f0-9]{12}$/i.test(code.trim()))throw Error('رمز الربط لازم يكون 12 حرفًا سداسيًا من لوحة إدارة WHMCS.');
+ // Re-pairing revokes the old session so one phone does not receive duplicate alerts.
+ if(await authToken(session))await logoutMobilePush(session);
  const data=await request(session,'pair',{code:code.trim().toUpperCase(),deviceLabel:'WHMCS Android Push'});
  if(!/^[a-f0-9]{64}$/i.test(String(data.token||'')))throw Error('السيرفر لم يُرجع جلسة ربط صحيحة.');
  if(!Array.isArray(data.scopes)||!data.scopes.includes('push.devices'))
@@ -86,6 +88,7 @@ export async function logoutMobilePush(session:Session):Promise<void>{
  const token=await authToken(session);
  if(token){
   try{await request(session,'push.unregister',{device_id:await stableDeviceId(session)},token);}catch{}
+  try{await request(session,'logout',{},token);}catch{}
  }
  await SecureStore.deleteItemAsync(tokenKey(session)).catch(()=>{});
 }
