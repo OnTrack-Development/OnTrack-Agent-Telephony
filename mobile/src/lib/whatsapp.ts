@@ -1,4 +1,5 @@
 import type {Session} from '../types';
+import {isRemotePushRegistered} from './notifications';
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -300,6 +301,8 @@ async function persistedDeviceId(session:Session):Promise<string>{
  * aren't authentication credentials, but are never logged or shown to users.
  */
 export async function registerWhatsAppPush(session:Session):Promise<'registered'|'unpaired'|'permission_denied'|'fcm_unavailable'>{
+ // The independent all-events FCM sender already includes WhatsApp messages.
+ if(isRemotePushRegistered())return 'registered';
  const key=telegramGatewayKeys.get(session);
  if(!key)return 'unpaired';
  if(Platform.OS!=='android')return 'fcm_unavailable';
