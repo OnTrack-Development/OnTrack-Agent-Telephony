@@ -7,7 +7,7 @@ const src=fs.readFileSync(path.join(__dirname,'../mobile/src/lib/clientProfile.t
 const js=ts.transpileModule(src,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 const requests=[];
 const fixtures={
- GetClientsDetails:{result:'success',client:{id:92,firstname:'Client',lastname:'Example',companyname:'Example LLC',email:'client@example.test',phonenumber:'+201234000000',address1:'Office',city:'Cairo',status:'Active',notes:'Internal note',customfields:{customfield:[{name:'Platform',value:'Linux'},{name:'Password',value:'PRIVATE'}]}},stats:{numdueinvoices:'2',dueinvoicesbalance:'500.00',productsnumactive:'3',numtickets:'10'}},
+ GetClientsDetails:{result:'success',client:{id:92,firstname:'Client',lastname:'Example',companyname:'Example LLC',email:'client@example.test',phonenumber:'+201234000000',address1:'Office',city:'Cairo',status:'Active',credit:'125.50',currency_code:'USD',notes:'Internal note',customfields:{customfield:[{name:'Platform',value:'Linux'},{name:'Password',value:'PRIVATE'}]}},stats:{numdueinvoices:'2',dueinvoicesbalance:'500.00',productsnumactive:'3',numtickets:'10'}},
  GetClientsProducts:{result:'success',totalresults:2,products:{product:[{id:1,clientid:92,name:'Hosting',status:'Active'},{id:2,clientid:92,name:'Support',status:'Active'}]}},
  GetClientsDomains:{result:'success',totalresults:0,domains:{domain:[]}},
  GetInvoices:{result:'success',totalresults:1,invoices:{invoice:[{id:11,userid:92,total:'250.00'}]}},
@@ -19,6 +19,7 @@ const fixtures={
 };
 const context={exports:{},require(name){
  if(name==='./api')return {callApi:async(_session,action,params)=>{requests.push({action,params});return {ok:true,data:fixtures[action]}},listOf:(d,k,l)=>d?.[k]?.[l]||[]};
+ if(name==='./clientCredit')return {readClientCredit:(d,id)=>{const x=d.client;if(Number(x.id)!==id)throw Error('ownership mismatch');return {clientId:id,amount:Number(x.credit),currency:x.currency_code,status:x.status};}};
  throw Error('Unexpected import '+name);
 }};
 vm.runInNewContext(js,context);
@@ -30,7 +31,11 @@ const api=context.exports;
  assert.equal(summary.ok,true);
  assert.equal(summary.data.id,92);
  assert.equal(summary.data.title,'Client Example');
- assert.equal(summary.data.billing.find(x=>x.label==='الفواتير المستحقة').value,'2');
+ assert.equal(summary.data.billing.find(x=>x.label==='فواتير غير مدفوعة'),undefined);
+ assert.equal(summary.data.creditBalance.amount,125.50);
+ assert.equal(summary.data.creditBalance.currency,'USD');
+ assert.ok(!summary.data.fields.some(x=>x.label==='آخر تسجيل دخول'));
+ assert.ok(!summary.data.billing.some(x=>x.label==='مصروفات العميل'||x.label==='الدخل'));
  assert.equal(summary.data.services.find(x=>x.label==='الخدمات النشطة').value,'3');
  assert.equal(summary.data.custom.length,1);
  assert.equal(summary.data.custom[0].value,'Linux');
