@@ -1,7 +1,7 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,Pressable,ScrollView,View} from 'react-native';
 import {ClientCreditForm} from '../components/ClientCreditForm';
-import {formatClientBalance} from '../lib/clientCredit';
+import {formatClientBalance, type CreditOperation} from '../lib/clientCredit';
 import {Alert} from '../components/Feedback';
 import {RecordDetails} from './RecordDetails';
 import {Tickets} from './Tickets';
@@ -58,14 +58,14 @@ export function ClientProfile({session,client,onBack,onComposerFocus}:{session:S
  const [records,setRecords]=useState<Partial<Record<ClientTab,ClientTabResult>>>({});
  const [errors,setErrors]=useState<Partial<Record<ClientTab,string>>>({});
  const [busy,setBusy]=useState(false);
- const [creditOpen,setCreditOpen]=useState(false),[extraOpen,setExtraOpen]=useState(false),[moreTabs,setMoreTabs]=useState(false);
+ const [creditOperation,setCreditOperation]=useState<CreditOperation|null>(null),[extraOpen,setExtraOpen]=useState(false),[moreTabs,setMoreTabs]=useState(false);
  const [opened,setOpened]=useState<{tab:'services'|'invoices'|'orders'|'domains';row:Record<string,unknown>}|null>(null);
  const [openedTicket,setOpenedTicket]=useState<Record<string,unknown>|null>(null);
  const current=useRef(0);
  useEffect(()=>{
   const id=++current.current;
   setSummary(null);setRecords({});setErrors({});setTab('overview');setBusy(true);
-  setCreditOpen(false);setExtraOpen(false);setMoreTabs(false);
+  setCreditOperation(null);setExtraOpen(false);setMoreTabs(false);
   fetchClientSummary(session,client).then(r=>{
    if(id!==current.current)return;
    if(r.ok&&r.data)setSummary(r.data);else setErrors(prev=>({...prev,overview:r.error||'تعذر قراءة ملف العميل'}));
@@ -123,20 +123,27 @@ export function ClientProfile({session,client,onBack,onComposerFocus}:{session:S
      </T>
     </View>
    </View>
-   <View style={{flexDirection:'row-reverse',gap:8}}>
+   {!creditOperation?<View style={{flexDirection:'row-reverse',gap:8}}>
     <View style={{flex:1}}><Action compact label="إضافة رصيد" icon="wallet-plus-outline"
-     disabled={!summary?.creditBalance||busy} onPress={()=>setCreditOpen(x=>!x)}/></View>
-    <View style={{flex:1}}><Action compact secondary label="تحديث الرصيد" icon="refresh"
-     disabled={busy} onPress={()=>void refreshSummary()}/></View>
-   </View>
+     disabled={!summary?.creditBalance||busy} onPress={()=>setCreditOperation('add')}/></View>
+    <View style={{flex:1}}><Action compact secondary label="خصم رصيد" icon="wallet-minus-outline"
+     disabled={!summary?.creditBalance||busy||summary.creditBalance.amount<0.01}
+     onPress={()=>setCreditOperation('remove')}/></View>
+   </View>:null}
+   <Pressable accessibilityRole="button" disabled={busy}
+    style={{alignSelf:'flex-end',paddingVertical:3,flexDirection:'row-reverse',gap:5,alignItems:'center'}}
+    onPress={()=>void refreshSummary()}>
+    <Icon name="refresh" color={C.muted} size={15}/>
+    <T color={C.muted} size={10}>تحديث الرصيد</T>
+   </Pressable>
   </Card>
-  {creditOpen&&summary?.creditBalance?<ClientCreditForm key={client.id}
+  {creditOperation&&summary?.creditBalance?<ClientCreditForm key={client.id+'-'+creditOperation}
    clientId={client.id} session={session} clientName={summary.title}
-   balance={summary.creditBalance} onCancel={()=>setCreditOpen(false)}
+   operation={creditOperation} balance={summary.creditBalance} onCancel={()=>setCreditOperation(null)}
    onDone={newBalance=>{
     setSummary(previous=>previous?.creditBalance?{...previous,
      creditBalance:{...previous.creditBalance,amount:newBalance}}:previous);
-    setCreditOpen(false);
+    setCreditOperation(null);
     void refreshSummary();
    }}/>:null}
   <ScrollView horizontal showsHorizontalScrollIndicator={false}

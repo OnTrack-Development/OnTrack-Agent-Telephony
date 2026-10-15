@@ -12,6 +12,10 @@ const context={exports:{},require(name){
   if(action==='GetClientsDetails')return {ok:true,data:{client}};
   if(action==='AddCredit')return mutation;
   throw Error('unexpected action '+action);
+ },callApiFresh:async(_s,action,params)=>{
+  calls.push({action,params,fresh:true});
+  if(action==='GetClientsDetails')return {ok:true,data:{client}};
+  throw Error('unexpected uncached action '+action);
  }};
  throw Error('unexpected import '+name);
 }};
@@ -59,13 +63,59 @@ assert.equal(c.validateCreditDescription('  تحويل   بنكي   '),'تحوي
  mutation={ok:false,code:'NETWORK_ERROR',error:'Connection dropped after POST'};
  res=await c.addClientCredit(session,92,'10','إيداع مؤكد','USD');
  assert.equal(res.ok,false);
- assert.match(res.error,/لا تضغط إضافة مرة ثانية تلقائيًا/);
+ assert.match(res.error,/لا تكرر العملية/);
  assert.equal(calls.filter(x=>x.action==='AddCredit').length,1,'No repeat on ambiguous result');
  calls.length=0;
  mutation={ok:true,data:{result:'success'}};
  res=await c.addClientCredit(session,92,'10','دفعة مستلمة','USD');
  assert.equal(res.ok,false);
- assert.match(res.error,/لا تعِد الإضافة/);
+ assert.match(res.error,/لا تُكرر الإجراء/);
  assert.equal(calls.filter(x=>x.action==='AddCredit').length,1);
- console.log('PASS: official AddCredit, owner/currency/balance checks, required reason, no accidental invoice payments, no unsafe retry');
+
+ // Deduction must use AddCredit(type=remove) with a positive amount and never
+ // let a user debit more than the currently available client credit balance.
+ client={...client,credit:'125.50'};
+ mutation={ok:true,data:{result:'success',newbalance:'105.25'}};
+ calls.length=0;
+ res=await c.removeClientCredit(session,92,'20.25','تسوية رصيد مُضافة خطأ','USD',125.50);
+ assert.equal(res.ok,true);assert.equal(res.data.newBalance,105.25);
+ assert.equal(calls.length,2);
+ assert.equal(calls[0].fresh,true,'Financial preflight must bypass cached client balance');
+ assert.equal(calls[0].action,'GetClientsDetails');
+ assert.equal(calls[1].action,'AddCredit');
+ assert.equal(calls[1].params.type,'remove');
+ assert.equal(calls[1].params.amount,'20.25');
+ assert.equal(calls[1].params.description,'تسوية رصيد مُضافة خطأ');
+ assert.equal('invoiceid' in calls[1].params,false,'Removing account credit must not settle invoice');
+ calls.length=0;
+ res=await c.removeClientCredit(session,92,'126.00','خصم يتجاوز الرصيد','USD',125.50);
+ assert.equal(res.ok,false);assert.match(res.error,/أكبر من الرصيد/);
+ assert.equal(calls.filter(x=>x.action==='AddCredit').length,0);
+ calls.length=0;
+ res=await c.removeClientCredit(session,92,'125.50','تصفير الرصيد بالكامل','USD',125.50);
+ assert.equal(res.ok,true);
+ assert.equal(calls.at(-1).params.type,'remove');
+ calls.length=0;
+ res=await c.removeClientCredit(session,92,'10.00','عملية قديمة غير مؤكدة','USD',126);
+ assert.equal(res.ok,false);
+ assert.match(res.error,/رصيد العميل تغيّر/);
+ assert.equal(calls.filter(x=>x.action==='AddCredit').length,0);
+ calls.length=0;
+ client={...client,credit:'0.00'};
+ res=await c.removeClientCredit(session,92,'1.00','خصم من رصيد صفر','USD',0);
+ assert.equal(res.ok,false);assert.equal(calls.filter(x=>x.action==='AddCredit').length,0);
+ client={...client,credit:'125.50'};
+ calls.length=0;
+ res=await c.removeClientCredit(session,92,'10','محاولة بعملة أخرى','EUR',125.50);
+ assert.equal(res.ok,false);assert.equal(calls.filter(x=>x.action==='AddCredit').length,0);
+ calls.length=0;
+ mutation={ok:false,code:'NETWORK_ERROR',error:'Connection dropped after POST'};
+ res=await c.removeClientCredit(session,92,'10','خصم غير مؤكد الاتصال','USD',125.50);
+ assert.equal(res.ok,false);assert.match(res.error,/لا تكرر العملية/);
+ assert.equal(calls.filter(x=>x.action==='AddCredit').length,1);
+ calls.length=0;
+ res=await c.removeClientCredit(session,92,'-3','خصم بقيمة غير صالحة','USD',125.50);
+ assert.equal(res.ok,false);assert.equal(calls.length,0);
+
+ console.log('PASS: WHMCS AddCredit add/remove ledger, fresh verified balance, overdraft/duplicate guards and financial isolation');
 })().catch(e=>{console.error(e);process.exit(1)});

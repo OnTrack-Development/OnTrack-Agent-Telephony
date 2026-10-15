@@ -3,7 +3,7 @@
  * ambiguous HTTP/timeout response: the money entry may already be posted.
  */
 import type {ApiResult,Session} from '../types';
-import {callApi} from './api';
+import {callApi,callApiFresh} from './api';
 
 export interface ClientCreditBalance {
  clientId:number;amount:number;currency:string;status:string;
@@ -35,10 +35,10 @@ export function parseCreditAmount(raw:string):number{
   throw Error('المبلغ المسموح من 0.01 إلى 1,000,000 بعملة العميل.');
  return amount;
 }
-export function validateCreditDescription(raw:string):string{
+export function validateCreditDescription(raw:string,operation:'add'|'remove'='add'):string{
  const description=raw.trim().replace(/\s+/g,' ');
  if(description.length<3||description.length>240)
-  throw Error('اكتب سبب إضافة الرصيد (من 3 إلى 240 حرفًا) لتوثيقه في WHMCS.');
+  throw Error('اكتب سبب '+(operation==='remove'?'خصم':'إضافة')+' الرصيد (من 3 إلى 240 حرفًا) لتوثيقه في WHMCS.');
  return description;
 }
 export function formatClientBalance(balance:Pick<ClientCreditBalance,'amount'|'currency'>):string{
@@ -46,32 +46,61 @@ export function formatClientBalance(balance:Pick<ClientCreditBalance,'amount'|'c
 }
 export async function fetchVerifiedCredit(session:Session,clientId:number):Promise<ApiResult<ClientCreditBalance>>{
  if(!Number.isSafeInteger(clientId)||clientId<1)return {ok:false,error:'رقم العميل غير صالح.'};
- const result=await callApi(session,'GetClientsDetails',{clientid:clientId,stats:false});
+ const result=await callApiFresh(session,'GetClientsDetails',{clientid:clientId,stats:false});
  if(!result.ok)return {ok:false,code:result.code,error:result.error};
  try{return {ok:true,data:readClientCredit(result.data,clientId)};}
  catch(e){return {ok:false,error:e instanceof Error?e.message:'تعذر التأكد من رصيد العميل'};}
 }
-export async function addClientCredit(
- session:Session,clientId:number,amountRaw:string,descriptionRaw:string,expectedCurrency:string
+
+export type CreditOperation='add'|'remove';
+/** Record manual account-credit adjustments, never as invoice payments.
+ * WHMCS expects positive AddCredit.amount for BOTH add and remove.
+ * This preflight is read-fresh and the server applies final authorization.
+ */
+export async function changeClientCredit(
+ session:Session,clientId:number,amountRaw:string,descriptionRaw:string,
+ expectedCurrency:string,operation:CreditOperation,expectedBalance?:number
 ):Promise<ApiResult<{newBalance:number;currency:string}>>{
+ if(operation!=='add'&&operation!=='remove')
+  return {ok:false,error:'نوع إجراء الرصيد غير مدعوم'};
  let amount:number,description:string;
- try{amount=parseCreditAmount(amountRaw);description=validateCreditDescription(descriptionRaw);}
+ try{amount=parseCreditAmount(amountRaw);description=validateCreditDescription(descriptionRaw,operation);}
  catch(e){return {ok:false,error:e instanceof Error?e.message:'قيمة غير صالحة'};}
- // Preflight revalidates the targeted client and confirmed currency. UI must
- // explicitly confirm with staff before calling this function.
+ // A fresh GetClientsDetails bypasses cached customer data. Other financial
+ // operations may have changed this client's credit since it was displayed.
  const verified=await fetchVerifiedCredit(session,clientId);
  if(!verified.ok||!verified.data)return {ok:false,error:verified.error||'تعذر التحقق من العميل',code:verified.code};
  if(verified.data.currency!==expectedCurrency)
   return {ok:false,error:'عملة العميل تغيّرت. حدّث البيانات وأعد التأكيد.'};
+ if(operation==='remove'){
+  if(typeof expectedBalance!=='number'||!Number.isFinite(expectedBalance)||expectedBalance<0)
+   return {ok:false,error:'حدّث رصيد العميل أولًا قبل الخصم.'};
+  if(Math.abs(verified.data.amount-expectedBalance)>0.00009)
+   return {ok:false,error:'رصيد العميل تغيّر منذ عرضه. حدّث الرصيد وأعد التأكيد قبل الخصم.'};
+  // Numeric compare with 4-decimal precision (WHMCS may expose fractions).
+  if(Math.round(amount*10000)>Math.round(verified.data.amount*10000))
+   return {ok:false,error:'قيمة الخصم أكبر من الرصيد المتاح. لا يمكن أن يصبح الرصيد سالبًا.'};
+ }
  const response=await callApi(session,'AddCredit',{
-  clientid:clientId,description,amount:amount.toFixed(2),type:'add'
+  clientid:clientId,description,amount:amount.toFixed(2),type:operation
  });
  if(!response.ok)return {ok:false,code:response.code,error:
   /NETWORK_ERROR|HTTP_5|INVALID_JSON/i.test(response.code||'')
-   ?'حالة إضافة الرصيد غير مؤكدة بسبب الاتصال. راجع سجل الرصيد في WHMCS قبل أي محاولة أخرى؛ لا تضغط إضافة مرة ثانية تلقائيًا.'
-   :response.error||'رفض WHMCS إضافة الرصيد'};
+   ?'نتيجة '+(operation==='remove'?'خصم':'إضافة')+' الرصيد غير مؤكدة بسبب الاتصال. راجع سجل الرصيد في WHMCS قبل أي محاولة أخرى؛ لا تكرر العملية.'
+   :response.error||'رفض WHMCS تعديل الرصيد'};
  const newBalance=money((response.data as any)?.newbalance);
  if(newBalance===null||newBalance<0)return {ok:false,error:
-  'WHMCS أكد العملية لكن تعذرت قراءة الرصيد الجديد؛ راجع سجل العميل ولا تعِد الإضافة.'};
+  'WHMCS أكد العملية لكن تعذرت قراءة الرصيد الجديد؛ راجع سجل العميل ولا تُكرر الإجراء.'};
  return {ok:true,data:{newBalance,currency:verified.data.currency}};
+}
+export async function addClientCredit(
+ session:Session,clientId:number,amountRaw:string,descriptionRaw:string,expectedCurrency:string
+):Promise<ApiResult<{newBalance:number;currency:string}>>{
+ return changeClientCredit(session,clientId,amountRaw,descriptionRaw,expectedCurrency,'add');
+}
+export async function removeClientCredit(
+ session:Session,clientId:number,amountRaw:string,descriptionRaw:string,
+ expectedCurrency:string,expectedBalance:number
+):Promise<ApiResult<{newBalance:number;currency:string}>>{
+ return changeClientCredit(session,clientId,amountRaw,descriptionRaw,expectedCurrency,'remove',expectedBalance);
 }
