@@ -91,7 +91,8 @@ function ontrack_mobile_push_enqueue(string $category,int $entityId,string $revi
 function ontrack_mobile_push_access(int $adminId,string $category,int $deptId): bool {
     $admin=Capsule::table('tbladmins')->where('id',$adminId)->first();
     if (!$admin) return false;
-    if ($category!=='tickets' || $deptId<1) return true;
+    if ($category!=='tickets') return true;
+    if ($deptId<1) return false; // No safe department match: fail closed.
     $depts=array_filter(array_map('intval',explode(',',(string)($admin->supportdepts??''))));
     return in_array($deptId,$depts,true);
 }
@@ -186,12 +187,24 @@ function ontrack_mobile_push_process(int $limit=30): array {
     if (!$token) return $stats;
     ontrack_mobile_push_poll_whatsapp();
     $now=gmdate('Y-m-d H:i:s');
+    // Recover abandoned processing leases without creating duplicate normal runs.
+    Capsule::table('mod_ontrack_mobile_push_events')->where('status','processing')
+        ->where('next_attempt_at','<=',$now)->update(['status'=>'retry']);
     $events=Capsule::table('mod_ontrack_mobile_push_events')->whereIn('status',['pending','retry'])
         ->where('next_attempt_at','<=',$now)->orderBy('id')->limit(min(60,max(1,$limit)))->get();
     foreach($events as $event) {
         $lock=Capsule::table('mod_ontrack_mobile_push_events')->where('id',$event->id)
-            ->where('status',$event->status)->update(['status'=>'processing']);
+            ->where('status',$event->status)->update([
+                'status'=>'processing',
+                'next_attempt_at'=>gmdate('Y-m-d H:i:s',time()+900)
+            ]);
         if ($lock!==1) continue;
+        // Suppress a flood if remote delivery was unavailable for many hours.
+        if (strtotime((string)$event->created_at)<time()-1800) {
+            Capsule::table('mod_ontrack_mobile_push_events')->where('id',$event->id)
+                ->update(['status'=>'done']);
+            continue;
+        }
         $stats['queued']++;
         $retry=false;
         try {
