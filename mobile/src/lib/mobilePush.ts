@@ -11,6 +11,7 @@ import {md5} from 'js-md5';
 import type {Session} from '../types';
 import {validateBaseUrl} from './api';
 import {enableDeviceNotifications,setRemotePushRegistered} from './notifications';
+import {telegramWhatsAppReady,unregisterWhatsAppPush} from './whatsapp';
 
 const namespace=(s:Session)=>md5(validateBaseUrl(s.baseUrl)+'|'+s.mode+'|'+(s.mode==='admin'?s.username:s.identifier));
 const tokenKey=(s:Session)=>'whmcs-mobile-push-auth-'+namespace(s);
@@ -70,6 +71,7 @@ export async function registerMobilePush(session:Session):Promise<{registered:bo
  const configured=data.configured===true;
  // Even with a registered device, never suppress local fallback unless sending is configured.
  setRemotePushRegistered(configured);
+ if(configured&&telegramWhatsAppReady(session))await unregisterWhatsAppPush(session).catch(()=>{});
  return {registered:true,configured,reason:configured?'جاهز لإرسال FCM':'الموبايل اتسجل، لكن مفتاح Firebase غير مجهز بالسيرفر'};
 }
 export async function mobilePushStatus(session:Session):Promise<{registered:boolean;configured:boolean;reason:string}>{
