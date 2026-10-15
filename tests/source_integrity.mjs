@@ -55,8 +55,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.41');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,52);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.42');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,53);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
@@ -71,6 +71,7 @@ assert.equal(JSON.parse(get('mobile/app.json')).expo.android.googleServicesFile,
 assert.ok(!Object.prototype.hasOwnProperty.call(firebase,'private_key'));
 assert.ok(get('mobile/src/lib/notifications.ts').includes('Notifications.getDevicePushTokenAsync()'));
 assert.ok(get('mobile/src/lib/mobilePush.ts').includes("'push.register'"));
+assert.ok(get('mobile/src/lib/mobilePush.ts').includes('index.php?m=ontrack_mobile_admin&route=mobile_push'));
 assert.ok(get('mobile/src/lib/mobilePush.ts').includes("'push.unregister'"));
 assert.ok(get('mobile/src/lib/notifications.ts').includes('setRemotePushRegistered'));
 assert.ok(!get('mobile/src/lib/notifications.ts').includes("outgoing.length+' تحديثات جديدة'"));
