@@ -1,11 +1,13 @@
 import {callApi,listOf} from './api';
 import type {ApiResult,Client,Session} from '../types';
+import {readClientCredit, type ClientCreditBalance} from './clientCredit';
 
 export type ClientTab='overview'|'services'|'domains'|'invoices'|'tickets'|'orders'|'contacts'|'emails'|'quotes'|'transactions';
 export interface ProfileField {label:string;value:string}
 export interface ClientSummary {
  id:number;title:string;status:string;fields:ProfileField[];billing:ProfileField[];
  services:ProfileField[];other:ProfileField[];notes:string;custom:ProfileField[];
+ creditBalance:ClientCreditBalance|null;
 }
 export interface ClientTabResult {records:Record<string,unknown>[];total:number|null;error?:string;}
 const str=(value:unknown):string=>value===undefined||value===null||typeof value==='object'?'':String(value).trim();
@@ -21,41 +23,33 @@ export function normalizeClientDetails(response:any,fallback:Client):ClientSumma
  if(userId!==fallback.id)throw new Error('WHMCS أرجع بيانات عميل مختلف عن المطلوب');
  const title=[str(d.firstname),str(d.lastname)].filter(Boolean).join(' ')||fallback.name;
  const standard=mapFields(d,[
-  ['firstname','الاسم الأول'],['lastname','الاسم الأخير'],['companyname','اسم الشركة'],
-  ['email','البريد الإلكتروني'],['phonenumber','رقم الهاتف'],['address1','العنوان الأول'],
-  ['address2','العنوان الثاني'],['city','المدينة'],['state','المحافظة'],
-  ['postcode','الرمز البريدي'],['country','الدولة'],['language','اللغة'],
-  ['currency','العملة'],['groupname','مجموعة العميل'],['datecreated','تاريخ التسجيل'],
-  ['lastlogin','آخر تسجيل دخول'],['tax_id','الرقم الضريبي']
+  ['companyname','الشركة'],['email','البريد الإلكتروني'],
+  ['phonenumber','الهاتف'],['datecreated','تاريخ الانضمام']
  ]);
+ // Compact summary: do not repeat invoice totals in three different groups,
+ // nor display currency IDs, marketing flags and irrelevant internal fields.
  const billing=mapFields(stats,[
-  ['numdueinvoices','الفواتير المستحقة'],['dueinvoicesbalance','قيمة الفواتير المستحقة'],
-  ['numpaidinvoices','الفواتير المدفوعة'],['paidinvoicesamount','إجمالي المدفوع'],
-  ['numunpaidinvoices','الفواتير غير المسددة'],['unpaidinvoicesamount','إجمالي غير المسدد'],['numoverdueinvoices','الفواتير المتأخرة'],['overdueinvoicesbalance','قيمة الفواتير المتأخرة'],['numcancelledinvoices','الفواتير الملغاة'],['cancelledinvoicesamount','قيمة الملغاة'],
-  ['numrefundedinvoices','الفواتير المستردة'],['refundedinvoicesamount','إجمالي المسترد'],['creditbalance','رصيد العميل'],['expenses','مصروفات العميل'],
-  ['grossRevenue','إجمالي الإيرادات'],['income','الدخل']
+  ['numunpaidinvoices','فواتير غير مدفوعة'],
+  ['unpaidinvoicesamount','إجمالي المستحق'],
+  ['numoverdueinvoices','فواتير متأخرة']
  ]);
  const services=mapFields(stats,[
-  ['productsnumactive','الخدمات النشطة'],['productsnumtotal','إجمالي الخدمات'],
-  ['productsnumactivehosting','الاستضافات النشطة'],['productsnumhosting','إجمالي استضافات المواقع'],
-  ['productsnumactivereseller','الريسلر النشط'],['productsnumreseller','إجمالي الريسلر'],
-  ['productsnumactiveservers','السيرفرات النشطة'],['productsnumservers','إجمالي السيرفرات'],
-  ['productsnumactiveother','الخدمات الأخرى النشطة'],['productsnumother','إجمالي الخدمات الأخرى'],
-  ['numactivedomains','الدومينات النشطة'],['numdomains','إجمالي الدومينات'],
-  ['numtickets','إجمالي التذاكر'],['numactivetickets','التذاكر المفتوحة'],
-  ['numacceptedquotes','عروض الأسعار المقبولة'],['numquotes','عروض الأسعار'],['numaffiliatesignups','إحالات الأفلييت']
+  ['productsnumactive','الخدمات النشطة'],
+  ['numactivedomains','الدومينات النشطة'],
+  ['numactivetickets','التذاكر المفتوحة']
  ]);
  const other=mapFields(d,[
-  ['status','حالة الحساب'],['marketing_emails_opt_in','رسائل التسويق'],
-  ['emailoptout','إلغاء اشتراك البريد'],['latefeeoveride','رسوم التأخير'],
-  ['overideduenotices','تذكيرات التأخير']
+  ['address1','العنوان'],['city','المدينة'],['state','المحافظة'],
+  ['countryname','الدولة'],['tax_id','الرقم الضريبي']
  ]);
+ let creditBalance:ClientCreditBalance|null=null;
+ try{creditBalance=readClientCredit(response,userId);}catch{}
  const source=d.customfields?.customfield||d.customfields||[];
  const customs=Array.isArray(source)?source:typeof source==='object'?Object.values(source):[];
  const custom=customs.map((item:any)=>({label:str(item?.name||item?.fieldname),value:str(item?.value||item?.fieldvalue)}))
   .filter(f=>safe(f.value)&&safe(f.label)&&allowedCustom(f.label));
  return {id:userId,title,status:str(d.status)||fallback.status,fields:standard,billing,services,other,
-  notes:str(d.notes),custom};
+  notes:str(d.notes),custom,creditBalance};
 }
 const tabs:Record<Exclude<ClientTab,'overview'>,{action:string;args:(id:number)=>Record<string,number>;root:string;singular:string}>={
  services:{action:'GetClientsProducts',args:clientid=>({clientid,limitnum:35}),root:'products',singular:'product'},
