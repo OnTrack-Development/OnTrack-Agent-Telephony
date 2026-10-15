@@ -13,8 +13,8 @@ export function InvoiceActions({session,targets,onChanged}:{session:Session|null
  const doBatch=(kind:InvoiceBulkAction)=>{
   if(!session||running.current||!targets.length)return;
   if(targets.length>15){setError('حد أقصى 15 فاتورة في العملية الواحدة.');return;}
-  const labels:Record<InvoiceBulkAction,string>={Paid:'مدفوعة',Unpaid:'غير مدفوعة',Cancelled:'ملغاة',duplicate:'نسخ',reminder:'إرسال تذكير'};
-  const desc=kind==='Paid'?'تغيير الحالة فقط، ولن يتم تسجيل عملية سداد أو رقم معاملة.':
+  const labels:Record<InvoiceBulkAction,string>={Paid:'السداد المستلم',Unpaid:'غير مدفوعة',Cancelled:'ملغاة',duplicate:'نسخ',reminder:'إرسال تذكير'};
+  const desc=kind==='Paid'?'تأكيد استلام المبلغ فعليًا وتسجيل دفعة حقيقية لكل فاتورة عبر طريقة الدفع المرتبطة بها في WHMCS. سيُشغّل WHMCS إجراءات السداد وتجديد الخدمات وإشعارات العميل المعتادة، ومنها واتساب إذا كان الموديول مفعّلًا.\nلا تستخدم هذا الإجراء إذا لم تستلم المبلغ.':
    kind==='duplicate'?'إنشاء فواتير جديدة غير مدفوعة دون إرسال بريد ودون نسخ المدفوعات.':
    kind==='reminder'?'إرسال رسالة تذكير إلى العميل بالفعل؛ لا يمكن التراجع عن البريد.':
    kind==='Cancelled'?'إلغاء الفواتير المحددة قد يؤثر على عمليات التحصيل.':'تعديل حالة الفواتير المحددة.';
@@ -33,11 +33,11 @@ export function InvoiceActions({session,targets,onChanged}:{session:Session|null
       else {
        failed.push('#'+target.id+': '+(r.error||'رفض WHMCS'));
        // Ambiguous network failure: never auto-repeat a potentially successful action.
-       if(/NETWORK_ERROR|HTTP_5|timeout|network|اتصال/i.test((r.code||'')+' '+(r.error||'')))break;
+       if(/NETWORK_ERROR|INVALID_JSON|HTTP_5|timeout|network|اتصال/i.test((r.code||'')+' '+(r.error||'')))break;
       }
      }
      if(completed)onChanged();
-     Alert.alert('نتيجة العملية',completed+' نجحت من '+targets.length+(failed.length?'\n'+failed.slice(0,3).join('\n'):''));
+     Alert.alert('نتيجة العملية',completed+' نجحت من '+targets.length+(kind==='Paid'&&completed?'\nتم تسجيل دفعة عبر WHMCS؛ يتم تشغيل إشعاراته حسب إعدادات الموديول، وليس ضمانًا بوصول واتساب.':'')+(failed.length?'\n'+failed.slice(0,3).join('\n'):''));
      if(failed.length)setError(failed.slice(0,3).join('\n'));
     }catch(e){setError(e instanceof Error?e.message:'تعذر تنفيذ العملية');}
     finally{running.current=false;setBusy(false);}
@@ -54,7 +54,7 @@ export function InvoiceActions({session,targets,onChanged}:{session:Session|null
  return <Card style={{gap:10}}>
   <T weight="800">إجراءات الإدارة</T>
   <View style={{flexDirection:'row-reverse',gap:8,flexWrap:'wrap'}}>
-   <Action compact label={busy?'جارٍ التنفيذ...':'تحديد كمدفوعة'} disabled={busy||!targets.length||!session} onPress={()=>doBatch('Paid')}/>
+   <Action compact label={busy?'جارٍ التنفيذ...':'تسجيل سداد مستلم'} disabled={busy||!targets.length||!session} onPress={()=>doBatch('Paid')}/>
    <Action compact secondary label="Mark Unpaid" disabled={busy||!targets.length||!session} onPress={()=>doBatch('Unpaid')}/>
    <Action compact secondary label="Mark Cancelled" disabled={busy||!targets.length||!session} onPress={()=>doBatch('Cancelled')}/>
    <Action compact secondary label="Duplicate Invoice" disabled={busy||!targets.length||!session} onPress={()=>doBatch('duplicate')}/>

@@ -175,7 +175,7 @@ jobs:
           cp "$APK" "out/$FILENAME"
           (cd out && zip -9 "WHMCS-v${APP_VERSION}-ARM64-release-signed.zip" "$FILENAME")
           BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v${APP_VERSION} (Android build ${APP_CODE}): remove overly complicated AI ticket reviewer UI. Display a small verified AI-last-replied ticket section at the bottom of the Tickets screen, auto-load using the previously selected WHMCS AI responder identity (no extra admin session, GetAdminUsers or filters). Include only non-closed tickets not assigned to a different employee; human shared-queue handoffs without an assignment remain unverifiable through this External API and are not falsely claimed. Preserve ticket detail navigation and WHMCS/WhatsApp backend isolation. Signed ARM64 APK bytes: ${BYTES}."
+          NOTES="WHMCS v${APP_VERSION} (Android build ${APP_CODE}): fix invoices marked Paid without WhatsApp notification by replacing status-only UpdateInvoice with official AddInvoicePayment for a genuinely received payment. This invokes native WHMCS InvoicePaid automation, receipt email, billing-cycle updates and the existing WhatsApp notification hooks without modifying or directly contacting the WhatsApp addon. Confirm real money received, validate invoice/owner, payment method and positive outstanding balance, use stable transaction reference to guard against duplicate collections and fail closed for canceled/paid/zero-balance invoices. Do not claim the WhatsApp message delivered without server log verification. Signed ARM64 APK bytes: ${BYTES}."
           gh release create "whmcs-v${APP_VERSION}-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
             --title "WHMCS v${APP_VERSION} (Android build ${APP_CODE})" \
