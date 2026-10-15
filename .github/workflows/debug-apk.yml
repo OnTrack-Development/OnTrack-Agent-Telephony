@@ -175,7 +175,7 @@ jobs:
           cp "$APK" "out/$FILENAME"
           (cd out && zip -9 "WHMCS-v${APP_VERSION}-ARM64-release-signed.zip" "$FILENAME")
           BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v${APP_VERSION} (Android build ${APP_CODE}): add the requested Deduct Credit action beside Add Credit in the client status card. Both use WHMCS official AddCredit ledger (positive amount, type add/remove), not invoice payment or gateway refund. Read and recheck authenticated client identity, live available balance and currency before deduction; refuse overdrafts, stale displayed balance, invalid amount/reason, and never automatically retry ambiguous financial writes. Show the projected new balance and require explicit staff confirmation. Refresh client account credit after success. Original WHMCS and WhatsApp modules unchanged. Signed ARM64 APK bytes: ${BYTES}."
+          NOTES="WHMCS v${APP_VERSION} (Android build ${APP_CODE}): independent administrator-approved Firebase FCM device enrollment for real WHMCS background push, improved per-event notification titles, no misleading aggregated counts, deduplication between local polling and remote WhatsApp, direct ticket and WhatsApp conversation navigation. WHMCS server requires the separate Companion v0.2.0 module, external private Firebase credentials, and a minute worker to make remote delivery live. No modifications to the stable WhatsApp module. Signed ARM64 APK bytes: ${BYTES}."
           gh release create "whmcs-v${APP_VERSION}-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
             --title "WHMCS v${APP_VERSION} (Android build ${APP_CODE})" \
