@@ -6,5 +6,5 @@
   "sha256": "e1a3d94c2568859fa3f576a4518dd6a83b8b96aa6ee5db1e7cd9232ebb32ecb4",
   "size_bytes": 30045868,
   "release_notes": "WHMCS v0.3.34: native WhatsApp Inbox with existing WHMCS module, deduplicated Android alerts for WhatsApp, tickets, invoices, orders, services, domains and clients while active. Background push requires a server sender.",
-  "published_at": "2026-10-15T01:37:16Z"
+  "published_at": "2026-10-15T04:50:50Z"
 }
