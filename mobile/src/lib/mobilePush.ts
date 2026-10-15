@@ -16,7 +16,7 @@ import {telegramWhatsAppReady,unregisterWhatsAppPush} from './whatsapp';
 const namespace=(s:Session)=>md5(validateBaseUrl(s.baseUrl)+'|'+s.mode+'|'+(s.mode==='admin'?s.username:s.identifier));
 const tokenKey=(s:Session)=>'whmcs-mobile-push-auth-'+namespace(s);
 const deviceKey=(s:Session)=>'whmcs-mobile-push-device-'+namespace(s);
-const endpoint=(s:Session)=>validateBaseUrl(s.baseUrl)+'/modules/addons/ontrack_mobile_admin/bridge.php';
+const endpoint=(s:Session)=>validateBaseUrl(s.baseUrl)+'/index.php?m=ontrack_mobile_admin&route=mobile_push';
 
 async function request(s:Session,operation:string,payload:Record<string,string>,auth?:string):Promise<any>{
  const controller=new AbortController();
