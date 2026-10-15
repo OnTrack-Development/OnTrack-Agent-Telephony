@@ -24,7 +24,7 @@ export function aiAuthorMatches(author:string,config:string):boolean{
 }
 export function mentionsHumanTransfer(body:string):boolean {
  const text=body.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').toLocaleLowerCase('en-US');
- return /(?:هحو[ّ]?ل|س[أا]حول|سوف\s+(?:أحول|نحول|يتم\s+تحويل)|تحويل\s+(?:التذكرة|طلبك|المحادثة)|تصعيد\s+(?:التذكرة|طلبك)|خدمة\s+العملاء|(?:transfer|escalat|handoff)\b)/iu.test(text);
+ return /(?:هحو[ّ]?ل|س[أا]حول|سوف\s+(?:أحول|نحول|يتم\s+تحويل)|تحويل\s+(?:التذكرة|طلبك|المحادثة)|تصعيد\s+(?:التذكرة|طلبك)|خدمة\s+العملاء|(?:transfer|escalat\w*|handoff)\b)/iu.test(text);
 }
 export function classifyAiLastReply(data:any,ticket:Ticket,identity:string):AiTicketCheck {
  // A status can be changed at any time; never report a closed ticket as current.
