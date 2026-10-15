@@ -134,7 +134,21 @@ function ontrack_mobile_admin_output($vars): void {
         }
         echo '</td></tr>';
     }
-    echo '</tbody></table><p>Install the Android app; enter the pairing code in Settings → Notifications. Run push cron and configure Firebase separately.</p></div>';
+    echo '</tbody></table>';
+    $pushState = ontrack_mobile_push_installed();
+    $cfgReady = ontrack_mobile_push_config()!==null;
+    $registered = $pushState ? (int)Capsule::table('mod_ontrack_mobile_push_devices')->count() : 0;
+    $pending = $pushState ? (int)Capsule::table('mod_ontrack_mobile_push_events')->whereIn('status',['pending','retry'])->count() : 0;
+    $stamp = $pushState ? Capsule::table('mod_ontrack_mobile_push_cursor')->where('source','worker_last_run')->first() : null;
+    $lastRun = $stamp ? (int)$stamp->last_id : 0;
+    $workerReady = $lastRun>0 && time()-$lastRun<180;
+    echo '<h3>Android background FCM push</h3><table class="table table-striped"><tbody>';
+    echo '<tr><th>Firebase service account file</th><td>'.($cfgReady?'Available':'Not configured').'</td></tr>';
+    echo '<tr><th>Paired push devices</th><td>'.$registered.'</td></tr>';
+    echo '<tr><th>Pending events</th><td>'.$pending.'</td></tr>';
+    echo '<tr><th>Push worker</th><td>'.($workerReady?'Recently active':($lastRun?'Last seen '.gmdate('Y-m-d H:i:s',$lastRun).' UTC':'Never observed')).'</td></tr>';
+    echo '</tbody></table>';
+    echo '<p>For background alerts, upload the Companion to WHMCS, save addon settings to register hooks, configure Firebase JSON outside public_html, start cron, and pair your device in Android Settings. This status does not guarantee FCM delivery.</p></div>';
 }
 
 /**
