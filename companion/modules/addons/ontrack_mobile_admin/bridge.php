@@ -99,7 +99,7 @@ try {
         ->where('expires_at','>',$now)->first();
     if (!$session) mobile_json(401,false,null,'AUTH_EXPIRED','Device pairing expired or revoked. Generate a new code.');
     $admin=\WHMCS\Database\Capsule::table('tbladmins')->where('id',(int)$session->admin_id)->first();
-    if (!$admin) mobile_json(403,false,null,'AUTH_EXPIRED','The paired administrator is unavailable.');
+    if (!$admin || (int)($admin->disabled??0)===1) mobile_json(403,false,null,'AUTH_EXPIRED','The paired administrator is unavailable.');
     if ($op==='logout') {
         \WHMCS\Database\Capsule::table('mod_ontrack_mobile_sessions')
             ->where('id',(int)$session->id)->update(['revoked_at'=>$now]);
