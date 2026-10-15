@@ -1,11 +1,11 @@
-# WHMCS Mobile Companion v0.2.0 — independent WHMCS Push + WhatsApp
+# WHMCS Mobile Companion v0.2.1 — independent WHMCS Push + WhatsApp
 
 Installable server-side WHMCS addon: modules/addons/ontrack_mobile_admin.
 Does NOT modify the production whatsapp_notifications module, its Meta webhook,
 TelegramNotify or any WHMCS core file.
 
 ## Installation and upgrade
-1. Download the WHMCS-Mobile-Companion-v0.2.0.zip release.
+1. Download the WHMCS-Mobile-Companion-v0.2.1.zip release.
 2. Back up your existing WHMCS installation and extract the ZIP into the actual
    WHMCS root on services.ontrackegy.com. NOT the APK website.
 3. Under System Settings → Addon Modules, activate the independent addon and
@@ -67,3 +67,6 @@ The release package is available on GitHub, but the WHMCS server and Firebase
 private credentials are not deployed automatically by creating a Git commit.
 Source code and build success are not proof of live delivery. Only a closed-app
 end-to-end test after production setup confirms it.
+
+## Production routing fix (Android 0.3.42 / Companion 0.2.1)
+The live services.ontrackegy.com host returned HTTP 403 for direct `modules/addons/ontrack_mobile_admin/bridge.php` requests. New Android enrollment uses the official WHMCS addon route `index.php?m=ontrack_mobile_admin&route=mobile_push` instead. Deploy and activate this Companion version on the real WHMCS server **before** registering FCM in Android. The API remains protected by the one-time administrator pairing code and authenticated device bearer session. Re-save the active addon configuration to ensure WHMCS detects new hooks. First inbound WhatsApp cursor is established at addon activation; start cron **before** testing fresh incoming messages. Set the private FCM service account and confirm worker and device status in the addon administration screen.
