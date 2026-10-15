@@ -224,9 +224,8 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
    {queue.total!==null&&queue.offset<queue.total&&!queue.error?
     <View style={{marginTop:10}}><Action secondary disabled={queue.loading} label={queue.loading?'جارٍ التحميل...':'تحميل المزيد'} onPress={()=>void load(which,queue.offset)}/></View>:null}
   </View>;
- if(selected){
-  const sig=signatureText(profile?.signature||'');
-  return <View style={{paddingBottom:24}}>
+ const sig=signatureText(profile?.signature||'');
+ const detailView=selected?<View style={{paddingBottom:24}}>
    <Pressable onPress={close} style={{flexDirection:'row-reverse',gap:8,alignItems:'center',paddingVertical:8,marginBottom:10}}>
     <Icon name="arrow-right" color={C.red}/><T color={C.red} weight="800">التذاكر</T>
    </Pressable>
@@ -301,12 +300,17 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
     <Action label={sending?'جارٍ الإرسال...':'تأكيد وإرسال الرد'} disabled={sending||!reply.trim()||(!demo&&!detail)}
      icon="send" onPress={send}/>
    </Card>
-  </View>;
- }
+  </View>:null;
+ // Keep the audit mounted while a ticket is open, preserving verified scan results.
+ if(aiReviewOpen&&!expectedClientId)return <View>
+  <View style={{display:selected?'none':'flex'}}>
+   <AiTicketReview session={session} demo={demo} paused={!!selected}
+    onBack={()=>setAiReviewOpen(false)} onOpen={ticket=>void open(ticket)}/>
+  </View>
+  {detailView}
+ </View>;
+ if(detailView)return detailView;
  if(newTicket&&session)return <NewTicket session={session} onCancel={()=>setNewTicket(false)} onCreated={ticket=>{setNewTicket(false);refresh();void open(ticket);}} onComposerFocus={onComposerFocus}/>;
- // This is an administrator-wide audit, never show it in a client-scoped ticket view.
- if(aiReviewOpen&&!expectedClientId)return <AiTicketReview session={session} demo={demo}
-  onBack={()=>setAiReviewOpen(false)} onOpen={ticket=>void open(ticket)}/>;
  return <View style={{paddingBottom:20}}>
   <Header title="مركز التذاكر" subtitle="التذاكر المسندة أولًا ثم التذاكر التي تحتاج ردًا"/>
   {!demo?<View style={{marginBottom:12,gap:8}}>
