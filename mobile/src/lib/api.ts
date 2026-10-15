@@ -72,6 +72,14 @@ async function callApiUncached<T=any>(session:Session,action:string,params:Recor
  }catch(e){return {ok:false,code:'NETWORK_ERROR',error:e instanceof Error?redact(e.message):'خطأ اتصال'};}
  finally{clearTimeout(timeout);}
 }
+/** Financial preflight must bypass the 45-second read cache: another staff
+ * member may have changed the client's available credit meanwhile.
+ * Read operations only; this cannot send a second financial mutation.
+ */
+export async function callApiFresh<T=any>(session:Session,action:string,params:Record<string,string|number|boolean|undefined>={}):Promise<ApiResult<T>>{
+ if(!readActions.has(action))return {ok:false,error:'يُسمح بالتحديث الإجباري لطلبات القراءة فقط'};
+ return callApiUncached<T>(session,action,params);
+}
 // Cache only read-only calls, scoped to each authenticated session (never shared across users).
 export async function callApi<T=any>(session:Session,action:string,params:Record<string,string|number|boolean|undefined>={}):Promise<ApiResult<T>>{
  if(!readActions.has(action)){
