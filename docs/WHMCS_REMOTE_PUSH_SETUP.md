@@ -1,4 +1,4 @@
-# WHMCS background push (independent Companion v0.2.0)
+# WHMCS background push (independent Companion v0.2.1)
 
 ## Implemented
 - FCM HTTP v1 to Android com.ontrackdevelopment.command on ontrack-whmcs-push.
@@ -25,3 +25,6 @@
 - Full WhatsApp message previews are intentionally hidden on lock screens; push includes contact and event type.
 - Telegram chat alerts require verified TelegramNotify event schema, which is not in this repository; no guessed database queries have been added.
 - If ticket department cannot be verified, do not send it. Normal Android background notifications are supported; Force Stop, OEM battery optimizations, network problems, or FCM delivery issues may block/delay them.
+
+## Production routing fix (Android 0.3.42 / Companion 0.2.1)
+The live services.ontrackegy.com host returned HTTP 403 for direct `modules/addons/ontrack_mobile_admin/bridge.php` requests. New Android enrollment uses the official WHMCS addon route `index.php?m=ontrack_mobile_admin&route=mobile_push` instead. Deploy and activate this Companion version on the real WHMCS server **before** registering FCM in Android. The API remains protected by the one-time administrator pairing code and authenticated device bearer session. Re-save the active addon configuration to ensure WHMCS detects new hooks. First inbound WhatsApp cursor is established at addon activation; start cron **before** testing fresh incoming messages. Set the private FCM service account and confirm worker and device status in the addon administration screen.
