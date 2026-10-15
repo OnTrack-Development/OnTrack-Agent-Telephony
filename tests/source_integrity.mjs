@@ -55,8 +55,8 @@ assert.match(code,/loadPage/);
 assert.match(get('mobile/App.tsx'),/SafeAreaProvider/);
 assert.match(get('mobile/App.tsx'),/BackHandler\.exitApp/);
 assert.match(get('mobile/src/screens/Connect.tsx'),/__DEV__/);
-assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.34');
-assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,45);
+assert.equal(JSON.parse(get('mobile/app.json')).expo.version,'0.3.35');
+assert.equal(JSON.parse(get('mobile/app.json')).expo.android.versionCode,46);
 assert.ok(JSON.parse(get('mobile/package.json')).dependencies['react-native-safe-area-context']);
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('proveAdminAccess'));
 assert.ok(get('mobile/src/lib/adminSession.ts').includes('isVerifiedWhatsAppInbox'));
@@ -289,3 +289,14 @@ assert.ok(get('mobile/src/screens/AiTicketReview.tsx').includes('checkAiLastRepl
 assert.ok(get('mobile/src/screens/AiTicketReview.tsx').includes('getApiRetryAfterMs'));
 assert.ok(get('mobile/src/lib/aiTicketReview.ts').includes("repliessort:'ASC'"));
 console.log('PASS: AI audit verifies last WHMCS reply and live queue, without unauthorized per-client aggregation');
+
+const chosenAdmin=get('mobile/src/screens/AiTicketReview.tsx');
+assert.ok(chosenAdmin.includes('fetchAiAdminUsers(session)'));
+assert.ok(chosenAdmin.includes('selectAdmin(admin)'));
+assert.ok(chosenAdmin.includes('اختار مستخدم الـAI من موظفي WHMCS'));
+assert.ok(!chosenAdmin.includes("setSender('AI')"));
+const aiAudit=get('mobile/src/lib/aiTicketReview.ts');
+assert.ok(aiAudit.includes("callApi(session,'GetAdminUsers'"));
+assert.ok(aiAudit.includes('replyAdminId===user.id'));
+assert.ok(get('mobile/src/lib/api.ts').includes("'GetAdminUsers'"));
+console.log('PASS: AI ticket auditor uses actual WHMCS admin dropdown and verified responder account');

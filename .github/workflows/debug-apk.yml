@@ -175,7 +175,7 @@ jobs:
           cp "$APK" "out/$FILENAME"
           (cd out && zip -9 "WHMCS-v${APP_VERSION}-ARM64-release-signed.zip" "$FILENAME")
           BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v${APP_VERSION} (Android build ${APP_CODE}): AI ticket audit within the Tickets screen for verified AI-user last replies, confirmed non-closed/Answered state, quoted handoff mentions needing staff review, and currently processing/pending tickets from the existing AI Operations snapshot. Uses read-only WHMCS GetTicket and bounded scanning with 429 protection. Includes existing compact invoice cards and dark/light UI. No backend module, permissions or webhook changes. Signed ARM64 APK bytes: ${BYTES}."
+          NOTES="WHMCS v${APP_VERSION} (Android build ${APP_CODE}): AI ticket review now chooses the real WHMCS staff account from GetAdminUsers instead of assuming an administrator named AI. Stores selected account ID securely per WHMCS admin connection; GetTicket last-reply verification matches authoritative admin ID where supplied, or exact username/unique full name. Bounded scanning, handoff flagging and queue monitoring unchanged. Requires GetAdminUsers API permission. Original AI/WhatsApp modules and webhooks unchanged. Signed ARM64 APK bytes: ${BYTES}."
           gh release create "whmcs-v${APP_VERSION}-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
             --title "WHMCS v${APP_VERSION} (Android build ${APP_CODE})" \

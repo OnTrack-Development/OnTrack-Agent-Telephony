@@ -5,7 +5,7 @@ import {md5} from 'js-md5';
 import type {QueueJob,Session,Ticket} from '../types';
 import {C} from '../theme';
 import {getApiRetryAfterMs} from '../lib/api';
-import {AiReviewedTicket,checkAiLastReply} from '../lib/aiTicketReview';
+import {AiAdminUser,AiReviewedTicket,checkAiLastReply,fetchAiAdminUsers} from '../lib/aiTicketReview';
 import {fetchTicketQueue} from '../lib/tickets';
 import {adminSessionReady} from '../lib/adminSession';
 import {fetchAiSnapshot} from '../lib/aiSnapshot';
@@ -13,7 +13,7 @@ import {AdminAccess} from '../components/AdminAccess';
 import {Action,Card,Header,Icon,Notice,Pill,Search,T} from '../components/UI';
 
 const PAGE=20,SCAN=6;
-const keyFor=(s:Session)=>'whmcs-ai-sender-'+md5(s.baseUrl);
+const keyFor=(s:Session)=>'whmcs-ai-admin-id-'+md5(s.baseUrl+'|'+(s.mode==='admin'?s.username:s.identifier));
 const plain=(s:string)=>s.replace(/<br\s*\/?\s*>/gi,' ').replace(/<[^>]*>/g,' ')
  .replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim().slice(0,160);
 const queueName=(state:string)=>state==='processing'?'جارٍ التنفيذ':
@@ -24,7 +24,9 @@ export function AiTicketReview({session,demo,paused=false,onBack,onOpen}:{
 }){
  const [scope,setScope]=useState<'answered'|'allActive'>('answered');
  const [senderReady,setSenderReady]=useState(false);
- const [sender,setSender]=useState('AI'),[search,setSearch]=useState('');
+ const [admins,setAdmins]=useState<AiAdminUser[]>([]),[selectedAdminId,setSelectedAdminId]=useState<number|null>(null);
+ const [adminsError,setAdminsError]=useState(''),[showAdmins,setShowAdmins]=useState(false);
+ const [adminSearch,setAdminSearch]=useState(''),[search,setSearch]=useState('');
  const [rows,setRows]=useState<Ticket[]>([]),[total,setTotal]=useState<number|null>(null);
  const [offset,setOffset]=useState(0),[checked,setChecked]=useState(0);
  const [matches,setMatches]=useState<AiReviewedTicket[]>([]);
@@ -37,13 +39,37 @@ export function AiTicketReview({session,demo,paused=false,onBack,onOpen}:{
  useEffect(()=>()=>{alive.current=false;version.current++;},[]);
  useEffect(()=>{if(paused){stopScan.current=true;version.current++;setScanning(false);setLoading(false);}},[paused]);
  useEffect(()=>{
-  let current=true;setSenderReady(false);setSender('AI');
-  if(session)void SecureStore.getItemAsync(keyFor(session)).then(value=>{
-   if(current&&value&&value.length<=400)setSender(value);
-  }).catch(()=>{}).finally(()=>{if(current)setSenderReady(true);});
+  let current=true;setSenderReady(false);setAdmins([]);setSelectedAdminId(null);setAdminsError('');
+  if(session){
+   void (async()=>{
+    const [saved,result]=await Promise.all([
+     SecureStore.getItemAsync(keyFor(session)).catch(()=>null),
+     fetchAiAdminUsers(session)
+    ]);
+    if(!current)return;
+    if(!result.ok)setAdminsError(result.error||'تعذر قراءة موظفي WHMCS');
+    else{
+     setAdmins(result.users);
+     const id=Number(saved);
+     if(saved&&Number.isSafeInteger(id)&&result.users.some(u=>u.id===id))setSelectedAdminId(id);
+    }
+    setSenderReady(true);
+   })().catch(e=>{
+    if(current){setAdminsError(e instanceof Error?e.message:'تعذر عرض الموظفين');setSenderReady(true);}
+   });
+  }else setSenderReady(true);
   return()=>{current=false;};
  },[session]);
- const persist=()=>{if(session&&sender.trim())void SecureStore.setItemAsync(keyFor(session),sender.trim()).catch(()=>{});};
+ const selectedAdmin=admins.find(a=>a.id===selectedAdminId)||null;
+ const shownAdmins=admins.filter(a=>(a.fullName+' '+a.username+' '+a.id)
+  .toLowerCase().includes(adminSearch.trim().toLowerCase()));
+ const selectAdmin=(admin:AiAdminUser)=>{
+  if(loading||scanning||paused)return;
+  setSelectedAdminId(admin.id);setShowAdmins(false);setScanError('');
+  if(session)void SecureStore.setItemAsync(keyFor(session),String(admin.id),{
+   keychainAccessible:SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY
+  }).catch(()=>{});
+ };
  const load=async(start=0)=>{
   if(!session||demo||paused||loading||scanning)return;
   const versionAt=++version.current;
@@ -63,18 +89,18 @@ export function AiTicketReview({session,demo,paused=false,onBack,onOpen}:{
  useEffect(()=>{
   version.current++;setRows([]);setMatches([]);setChecked(0);setTotal(null);setOffset(0);
   autoScan.current=false;
-  if(session&&!demo&&senderReady)void load();
- },[session,scope,demo,senderReady]);
+  if(session&&!demo&&senderReady&&selectedAdminId!==null)void load();
+ },[session,scope,demo,senderReady,selectedAdminId]);
  const scan=async(all=false)=>{
   if(!session||demo||paused||loading||scanning||checked>=rows.length)return;
-  if(!sender.trim()){setScanError('اكتب اسم مستخدم AI في WHMCS.');return;}
+  if(!selectedAdmin){setScanError('اختار موظف WHMCS المحدد للـAI أولًا.');return;}
   const wait=getApiRetryAfterMs();
   if(wait>0){setScanError('WHMCS طلب الانتظار '+Math.ceil(wait/1000)+' ثانية.');return;}
   const running=version.current;
   stopScan.current=false;setScanning(true);setScanError('');
   for(let i=checked;i<(all?rows.length:Math.min(rows.length,checked+SCAN));i++){
    if(!alive.current||running!==version.current||stopScan.current)break;
-   const result=await checkAiLastReply(session,rows[i]!,sender);
+   const result=await checkAiLastReply(session,rows[i]!,selectedAdmin);
    if(!alive.current||running!==version.current||stopScan.current)break;
    if(result.kind==='error'){
     setScanError(result.message+' — التذكرة غير محسوبة ضمن النتائج المؤكدة.');
@@ -91,7 +117,7 @@ export function AiTicketReview({session,demo,paused=false,onBack,onOpen}:{
    autoScan.current=false;
    void scan();
   }
- },[rows.length,loading,checked,sender,paused]);
+ },[rows.length,loading,checked,selectedAdminId,paused]);
  const loadQueue=async()=>{
   if(!session||demo||!adminSessionReady(session)||queueBusy)return;
   setQueueBusy(true);setQueueError('');
@@ -107,7 +133,6 @@ export function AiTicketReview({session,demo,paused=false,onBack,onOpen}:{
   }finally{if(alive.current)setQueueBusy(false);}
  };
  useEffect(()=>{if(session&&!demo&&adminSessionReady(session))void loadQueue();},[session,demo]);
- const changeSender=(value:string)=>{setSender(value);setChecked(0);setMatches([]);setScanError('');autoScan.current=false;};
  const visible=matches.filter(x=>(x.ticket.subject+' '+x.ticket.number+' '+x.ticket.customer+' '+x.message)
   .toLowerCase().includes(search.trim().toLowerCase()));
  const openQueue=(item:QueueJob)=>{
@@ -129,11 +154,42 @@ export function AiTicketReview({session,demo,paused=false,onBack,onOpen}:{
     <View style={{flex:1}}><Action compact label="كل غير المغلقة" secondary={scope!=='allActive'}
      disabled={scanning||loading} onPress={()=>setScope('allActive')}/></View>
    </View>
-   <T size={11} color={C.muted}>اسم مستخدم الـAI في WHMCS (يمكن كتابة عدة أسماء مفصولة بفاصلة)</T>
-   <TextInput value={sender} onChangeText={changeSender} onBlur={persist}
-    editable={senderReady&&!loading&&!scanning} placeholder="AI" placeholderTextColor={C.muted} autoCapitalize="none"
-    style={{borderWidth:1,borderColor:C.stroke,borderRadius:10,backgroundColor:C.surface2,
-     color:C.text,paddingVertical:9,paddingHorizontal:12,textAlign:'right'}}/>
+   <T size={11} color={C.muted}>الموظف المحدد للرد باسم AI في إعدادات موديول الدعم</T>
+   <Pressable accessibilityRole="button" accessibilityLabel="اختيار موظف WHMCS المرتبط بالـAI"
+    disabled={!senderReady||loading||scanning} onPress={()=>setShowAdmins(v=>!v)}
+    style={({pressed})=>({flexDirection:'row-reverse',alignItems:'center',gap:8,
+     borderWidth:1,borderColor:selectedAdmin?C.purple:C.stroke,
+     borderRadius:11,backgroundColor:C.surface2,padding:11,opacity:pressed?0.75:1})}>
+    <Icon name="account-search-outline" size={19} color={C.purple}/>
+    <View style={{flex:1,gap:3}}>
+     <T size={13} weight="800">{selectedAdmin?selectedAdmin.fullName:'اختار مستخدم الـAI من موظفي WHMCS'}</T>
+     {selectedAdmin?<T size={10} color={C.muted}>{selectedAdmin.username+' • ID '+selectedAdmin.id}</T>:null}
+    </View>
+    <Icon name={showAdmins?'chevron-up':'chevron-down'} color={C.muted} size={18}/>
+   </Pressable>
+   {adminsError?<Notice tone="warning" title="تعذر تحميل موظفي WHMCS"
+    message={adminsError+' — يلزم منح حساب API صلاحية قراءة GetAdminUsers.'}/>:null}
+   {!senderReady?<ActivityIndicator size="small" color={C.purple}/>:null}
+   {showAdmins?<View style={{gap:6}}>
+    <TextInput value={adminSearch} onChangeText={setAdminSearch}
+     placeholder="ابحث باسم الموظف أو اسم المستخدم" placeholderTextColor={C.muted}
+     style={{color:C.text,backgroundColor:C.surface2,borderWidth:1,
+      borderColor:C.stroke,borderRadius:10,textAlign:'right',paddingHorizontal:11,paddingVertical:8}}/>
+    {shownAdmins.slice(0,40).map(admin=><Pressable key={admin.id}
+     accessibilityRole="button" onPress={()=>selectAdmin(admin)}
+     style={{flexDirection:'row-reverse',alignItems:'center',gap:8,
+      borderRadius:10,padding:9,borderWidth:1,borderColor:admin.id===selectedAdminId?C.purple:C.stroke}}>
+     <Icon name={admin.id===selectedAdminId?'radiobox-marked':'radiobox-blank'}
+      color={admin.id===selectedAdminId?C.purple:C.muted} size={18}/>
+     <View style={{flex:1,gap:2}}>
+      <T size={12} weight="800">{admin.fullName}</T>
+      <T size={10} color={C.muted}>{admin.username+' • #'+admin.id}{admin.disabled?' • حساب معطل':''}</T>
+     </View>
+    </Pressable>)}
+    {shownAdmins.length>40?<T size={10} color={C.muted}>استخدم البحث للوصول لباقي الموظفين.</T>:null}
+    {!shownAdmins.length?<T size={11} color={C.muted}>لا يوجد موظف مطابق.</T>:null}
+   </View>:null}
+   <T size={10} color={C.muted}>اختار نفس حساب الموظف المعيّن في AI Support Agent. هنحفظ اختياره ونطابق آخر رد بمعرفه أو اسمه الحقيقي من WHMCS.</T>
    <T size={10} color={C.muted}>يتم مطابقة صاحب آخر رد فعلي، وليس حالة التذكرة وحدها. الفحص تدريجي لحماية WHMCS API.</T>
   </Card>
   <Card style={{gap:9}}>
@@ -169,9 +225,9 @@ export function AiTicketReview({session,demo,paused=false,onBack,onOpen}:{
    {!visible.length&&!loading&&!scanning?<T size={11} color={C.muted}>لا توجد نتائج مؤكدة في الجزء الذي تم فحصه.</T>:null}
    {scanning?<Action compact secondary icon="stop-circle-outline" label="إيقاف الفحص بعد الطلب الحالي"
     onPress={()=>{stopScan.current=true;}}/>:null}
-   {checked<rows.length?<Action compact secondary icon="magnify" disabled={loading||scanning}
+   {selectedAdmin&&checked<rows.length?<Action compact secondary icon="magnify" disabled={loading||scanning}
     label="فحص الدفعة التالية (حتى 6)" onPress={()=>void scan()}/>:null}
-   {checked<rows.length?<Action compact secondary icon="magnify-scan" disabled={loading||scanning}
+   {selectedAdmin&&checked<rows.length?<Action compact secondary icon="magnify-scan" disabled={loading||scanning}
     label="فحص كل التذاكر المحمّلة تلقائيًا" onPress={()=>void scan(true)}/>:null}
    {checked>=rows.length&&total!==null&&offset<total?<Action compact secondary icon="plus"
     disabled={loading||scanning} label="تحميل تذاكر أخرى" onPress={()=>void load(offset)}/>:null}
