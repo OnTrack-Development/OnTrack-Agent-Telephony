@@ -136,3 +136,20 @@ function ontrack_mobile_admin_output($vars): void {
     }
     echo '</tbody></table><p>Install the Android app; enter the pairing code in Settings → Notifications. Run push cron and configure Firebase separately.</p></div>';
 }
+
+/**
+ * WHMCS officially routed, bearer-authenticated mobile push endpoint.
+ * Direct /modules/addons/*.php access is blocked on production, so the
+ * public index.php?m=ontrack_mobile_admin route is used instead.
+ * Pairing and FCM registration remain authenticated by bridge.php itself.
+ */
+function ontrack_mobile_admin_clientarea($vars): array {
+    if (($_GET['route'] ?? '') !== 'mobile_push') {
+        http_response_code(404);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok'=>false,'code'=>'NOT_FOUND']);
+        exit;
+    }
+    require __DIR__.'/bridge.php';
+    exit;
+}
