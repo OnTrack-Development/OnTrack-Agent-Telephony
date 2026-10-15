@@ -16,11 +16,9 @@ const labels:Record<NoticeCategory,string>={
  whatsapp:'واتساب',tickets:'التذاكر',clients:'العملاء',invoices:'الفواتير',
  orders:'الطلبات',services:'الخدمات',domains:'الدومينات'
 };
+import {isRemotePushRegistered} from './pushState';
+export {setRemotePushRegistered,isRemotePushRegistered} from './pushState';
 let ready=false;
-let remotePushRegistered=false;
-/** A verified remote registration suppresses duplicate local polling alerts. */
-export function setRemotePushRegistered(value:boolean):void{remotePushRegistered=value;}
-export function isRemotePushRegistered():boolean{return remotePushRegistered;}
 const latest=new Map<string,SeenMap>();
 const pending=new Map<string,Promise<void>>();
 function storageKey(session:Session):string{
@@ -115,7 +113,7 @@ export async function ingestNotificationSnapshot(session:Session,category:Notice
   if(!ready)return;
   // Never manufacture a summary ("40 new alerts") from a refreshed record list.
   // Suppress local echoes once FCM registration is confirmed for this session.
-  if(remotePushRegistered)return;
+  if(isRemotePushRegistered())return;
   for(const e of outgoing.slice(0,3)){
    await Notifications.scheduleNotificationAsync({
     content:{title:safe(e.title,100)||labels[category],body:safe(e.body,160)||'تحديث جديد',
