@@ -12,7 +12,7 @@ function ontrack_mobile_admin_config(): array {
     return [
         'name' => 'OnTrack WHMCS Mobile Companion',
         'description' => 'Independent, administrator-approved WHMCS mobile push and WhatsApp pairing. Stable WhatsApp module unchanged.',
-        'version' => '0.2.0',
+        'version' => '0.2.1',
         'author' => 'OnTrack Development',
         'language' => 'english',
         'fields' => [],
