@@ -1,12 +1,13 @@
 import React,{useEffect,useState} from 'react';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
-import {DeviceEventEmitter,View} from 'react-native';
+import {DeviceEventEmitter,TextInput,View} from 'react-native';
 import {Alert} from '../components/Feedback';
 import {C,ThemePreference} from '../theme';
 import type {Session} from '../types';
 import {Action,Card,Header,Icon,ItemRow,Notice,Pill,Section,T} from '../components/UI';
 import {enableDeviceNotifications,verifyNativeFcmSetup,testDeviceNotification} from '../lib/notifications';
+import {pairMobilePush,registerMobilePush,mobilePushStatus} from '../lib/mobilePush';
 import {LockPolicy,readLockPolicy,saveLockPolicy} from '../lib/lockPreferences';
 import {biometricChoiceKey} from '../components/AppLock';
 import {restoreTelegramWhatsApp,registerWhatsAppPush,whatsAppPushStatus} from '../lib/whatsapp';
@@ -20,6 +21,7 @@ export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabi
  const [policy,setPolicy]=useState<LockPolicy>('after_5m'),[lockSaving,setLockSaving]=useState(false);
  const [biometric,setBiometric]=useState(false),[bioBusy,setBioBusy]=useState(false);
  const [showAdvancedPush,setShowAdvancedPush]=useState(false);
+ const [pushCode,setPushCode]=useState(''),[pushBusy,setPushBusy]=useState(false);
  useEffect(()=>{
   if(!session)return;
   let active=true;
@@ -58,6 +60,26 @@ export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabi
    setBiometric(next);
   }catch(e){Alert.alert('البصمة',e instanceof Error?e.message:'تعذر تغيير إعداد البصمة.');}
   finally{setBioBusy(false);}
+ };
+ const enableAllPush=async()=>{
+  if(!session||pushBusy)return;
+  setPushBusy(true);
+  try{
+   if(pushCode.trim()){
+    await pairMobilePush(session,pushCode);
+    setPushCode('');
+   }
+   const status=await registerMobilePush(session);
+   Alert.alert(status.registered?'تم تسجيل الجهاز':'تفعيل الإشعارات',
+    status.reason+(status.registered?'. جرّب حدثًا جديدًا والتطبيق مقفول للتأكد من التسليم.':'؛ افتح WHMCS → Addon Modules → OnTrack Mobile Companion، أنشئ رمز ربط وأدخله هنا.'));
+  }catch(e){Alert.alert('إشعارات WHMCS',e instanceof Error?e.message:'تعذر ربط إشعارات الجهاز.');}
+  finally{setPushBusy(false);}
+ };
+ const checkAllPush=async()=>{
+  if(!session)return;
+  try{const s=await mobilePushStatus(session);
+   Alert.alert('إشعارات WHMCS',s.reason+'\nتسجيل الجهاز: '+(s.registered?'نعم':'لا'));
+  }catch(e){Alert.alert('إشعارات WHMCS',e instanceof Error?e.message:'تعذر فحص الخادم.');}
  };
  const enableBackgroundPush=async()=>{
   if(!session)return;
@@ -120,7 +142,7 @@ export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabi
     </View>
     <View style={{flex:1,gap:4}}>
      <T size={14} weight="800">تنبيهات WHMCS</T>
-     <T size={11} color={C.muted}>داخل التطبيق؛ واتساب في الخلفية بعد إعداد السيرفر</T>
+     <T size={11} color={C.muted}>إشعارات فورية للأحداث المهمة حتى والتطبيق مقفول بعد تفعيل السيرفر</T>
     </View>
    </View>
    <Action compact icon="bell-check-outline" label="السماح بالإشعارات" onPress={()=>
@@ -133,6 +155,13 @@ export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabi
      if(result==='permission_denied')
       Alert.alert('إشعارات Android مقفولة','افتح إعدادات التطبيق من Android ← الإشعارات، واسمح بإشعارات WHMCS وقناة واتساب.');
     }).catch(()=>Alert.alert('اختبار الإشعارات','تعذر إرسال إشعار محلي. راجع إعدادات إشعارات Android.'))}/>
+   <T size={12} color={C.muted}>رمز ربط إداري لمرة واحدة من OnTrack Mobile Companion في لوحة WHMCS:</T>
+   <TextInput value={pushCode} onChangeText={setPushCode} placeholder="رمز الربط (12 حرف)" autoCapitalize="characters"
+    autoCorrect={false} maxLength={12} style={{borderWidth:1,borderColor:C.muted,borderRadius:10,paddingHorizontal:12,paddingVertical:10,color:C.text,textAlign:'center',letterSpacing:2}}/>
+   <Action compact icon="bell-check" label={pushBusy?'جاري ربط الإشعارات...':'تفعيل جميع إشعارات WHMCS'}
+    onPress={()=>void enableAllPush()}/>
+   <Action compact secondary icon="cloud-check-outline" label="فحص إرسال إشعارات WHMCS"
+    onPress={()=>void checkAllPush()}/>
    <Action compact secondary icon="bell-badge-outline" label="ربط إشعارات واتساب بالخلفية"
     onPress={()=>void enableBackgroundPush()}/>
    <Action compact secondary icon={showAdvancedPush?'chevron-up':'information-outline'}
@@ -144,7 +173,7 @@ export function Settings({session,demo,onLogout,onLock,onLockPolicyChange,capabi
     <Action compact secondary icon="shield-check-outline" label="فحص Firebase على الجهاز"
      onPress={firebaseTest}/>
     <Notice tone="info" title="حالة Push الحقيقية"
-     message="اختبار الإشعار المحلي لا يثبت وصول إشعارات الخلفية. واتساب يحتاج مفتاح خدمة FCM آمنًا في TelegramNotify مع Cron. التذاكر والطلبات والعملاء حاليًا تُفحص أثناء تشغيل التطبيق فقط."/>
+     message="اختبار الإشعار المحلي لا يثبت Push. إرسال تذاكر وعملاء وطلبات وفواتير عبر FCM يتطلب تركيب OnTrack Mobile Companion وتشغيل worker وإعداد Firebase Service Account آمن خارج مجلد الموقع؛ زر واتساب يستخدم TelegramNotify بشكل مستقل."/>
    </View>:null}
   </Card>
   <Section title="التحديثات"/>
