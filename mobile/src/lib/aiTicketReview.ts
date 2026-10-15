@@ -125,3 +125,10 @@ export async function checkAiLastReply(session:Session,ticket:Ticket,identity:Ai
  if(!response.ok||!response.data)return {kind:'error',message:response.error||'تعذر قراءة آخر رد',rateLimited:response.code==='HTTP_429'};
  return classifyAiLastReply(response.data,ticket,identity);
 }
+
+export async function checkActiveAiTicket(session:Session,ticket:Ticket,admin:AiAdminUser):Promise<AiTicketCheck>{
+ if(!Number.isSafeInteger(ticket.id)||ticket.id<=0||isClosed(ticket.status))return {kind:'skip'};
+ const response=await callApi(session,'GetTicket',{ticketid:ticket.id,repliessort:'ASC'});
+ if(!response.ok||!response.data)return {kind:'error',message:response.error||'تعذر التحقق من الرد',rateLimited:response.code==='HTTP_429'};
+ return classifyActiveAiTicket(response.data,ticket,admin);
+}
