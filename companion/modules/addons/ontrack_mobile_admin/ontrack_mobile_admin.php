@@ -6,12 +6,13 @@
 declare(strict_types=1);
 if (!defined('WHMCS')) { http_response_code(403); exit('No direct access'); }
 use WHMCS\Database\Capsule;
+require_once __DIR__.'/push.php';
 
 function ontrack_mobile_admin_config(): array {
     return [
         'name' => 'OnTrack WHMCS Mobile Companion',
-        'description' => 'Independent, administrator-approved mobile pairing for WhatsApp Inbox. No Meta webhook changes.',
-        'version' => '0.1.0',
+        'description' => 'Independent, administrator-approved WHMCS mobile push and WhatsApp pairing. Stable WhatsApp module unchanged.',
+        'version' => '0.2.0',
         'author' => 'OnTrack Development',
         'language' => 'english',
         'fields' => [],
@@ -50,7 +51,8 @@ function ontrack_mobile_admin_activate(): array {
                 $table->dateTime('created_at')->index();
             });
         }
-        return ['status'=>'success','description'=>'Mobile Companion activated. Original WhatsApp addon not modified.'];
+        ontrack_mobile_push_install();
+        return ['status'=>'success','description'=>'Mobile Companion and push tables installed. Stable WhatsApp addon untouched.'];
     } catch (\Throwable $e) {
         error_log('OnTrack Mobile Companion activation failed: '.$e->getMessage());
         return ['status'=>'error','description'=>'Could not create standalone mobile pairing tables. Check WHMCS error log.'];
@@ -66,6 +68,7 @@ function ontrack_mobile_admin_deactivate(): array {
 function ontrack_mobile_admin_output($vars): void {
     $adminId = (int)($_SESSION['adminid'] ?? 0);
     if ($adminId < 1) { echo '<p>Admin session required.</p>'; return; }
+    try { ontrack_mobile_push_install(); } catch (\Throwable $e) { error_log('OnTrack push upgrade: '.$e->getMessage()); }
     if (!isset($_SESSION['ontrack_mobile_pair_csrf'])) {
         $_SESSION['ontrack_mobile_pair_csrf'] = bin2hex(random_bytes(24));
     }
@@ -85,12 +88,12 @@ function ontrack_mobile_admin_output($vars): void {
                     Capsule::table('mod_ontrack_mobile_pair_codes')->insert([
                         'admin_id'=>$adminId,
                         'code_hash'=>hash('sha256', $newCode),
-                        'scopes'=>'whatsapp.read,whatsapp.send',
+                        'scopes'=>'whatsapp.read,whatsapp.send,push.devices',
                         'expires_at'=>gmdate('Y-m-d H:i:s', time()+300),
                         'used_at'=>null,
                         'created_at'=>gmdate('Y-m-d H:i:s'),
                     ]);
-                    $message = 'Scan or enter this one-time code in the WHMCS Android WhatsApp screen. Expires in 5 minutes.';
+                    $message = 'Enter this code in Android WHMCS Settings → Notifications. Expires in 5 minutes.';
                 } catch (\Throwable $e) {
                     error_log('OnTrack Mobile pairing code creation failure: '.$e->getMessage());
                     $newCode = '';
@@ -117,11 +120,11 @@ function ontrack_mobile_admin_output($vars): void {
     $h = static function (string $value): string {
         return htmlspecialchars($value, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8');
     };
-    echo '<div class="container-fluid" style="max-width:800px"><h2>WHMCS Mobile — WhatsApp Inbox</h2>';
-    echo '<p>This independent mobile bridge uses the already installed <code>whatsapp_notifications</code> conversations. The existing Meta webhook and addon remain unchanged.</p>';
+    echo '<div class="container-fluid" style="max-width:800px"><h2>WHMCS Mobile — Push + WhatsApp</h2>';
+    echo '<p>Independent administrator-controlled device pairing for WHMCS push and WhatsApp. The original WhatsApp module remains unchanged.</p>';
     if ($message !== '') echo '<div class="alert alert-info">'.$h($message).'</div>';
     if ($newCode !== '') echo '<div class="alert alert-success"><strong style="font-size:26px;letter-spacing:4px">'.$h($newCode).'</strong><p>One use only — valid for 5 minutes. Do not share publicly.</p></div>';
-    echo '<form method="post"><input type="hidden" name="ontrack_mobile_csrf" value="'.$h($csrf).'"><input type="hidden" name="mobile_action" value="pair"><button type="submit" class="btn btn-primary">Generate one-time WhatsApp pairing code</button></form>';
+    echo '<form method="post"><input type="hidden" name="ontrack_mobile_csrf" value="'.$h($csrf).'"><input type="hidden" name="mobile_action" value="pair"><button type="submit" class="btn btn-primary">Generate one-time WHMCS mobile pairing code</button></form>';
     echo '<h3>My mobile devices</h3><table class="table table-striped"><thead><tr><th>Device</th><th>Issued</th><th>Expires (UTC)</th><th>State</th><th></th></tr></thead><tbody>';
     foreach ($devices as $device) {
         $active = $device->revoked_at===null && strtotime((string)$device->expires_at)>time();
@@ -131,5 +134,5 @@ function ontrack_mobile_admin_output($vars): void {
         }
         echo '</td></tr>';
     }
-    echo '</tbody></table><p>Install the Android app, open WhatsApp, then enter the one-use code. All conversations remain on your WHMCS server.</p></div>';
+    echo '</tbody></table><p>Install the Android app; enter the pairing code in Settings → Notifications. Run push cron and configure Firebase separately.</p></div>';
 }
