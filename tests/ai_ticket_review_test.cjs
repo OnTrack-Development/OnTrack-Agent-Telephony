@@ -35,6 +35,20 @@ assert.equal(audit.aiAuthorMatches({adminid:7,admin:'wrong'},bot),true);
 assert.equal(audit.aiAuthorMatches({adminid:8,admin:'supportbot'},bot),false);
 assert.equal(audit.aiAuthorMatches({admin:'Ahmed Fawzi'},human),false,'duplicate display names must not match');
 assert.equal(audit.aiAuthorMatches({name:'supportbot',admin:''},bot),false,'customer name is never admin proof');
+const observed=audit.observedAdminResponders({ticketid:78,replies:{reply:[
+ {replyid:0,name:'Bot Name',message:'Customer starts',admin:''},
+ {replyid:1,admin:'مساعد الدعم الذكي',message:'Hello',requestor_name:'Customer'},
+ {replyid:2,admin:'Ahmed Human',message:'Handled manually'},
+ {replyid:3,name:'Customer',message:'Thanks',admin:''}
+]}},78);
+assert.equal(observed.length,2);
+assert.equal(observed[0].source,'reply');
+assert.equal(observed[0].fullName,'مساعد الدعم الذكي');
+assert.equal(observed[0].id,0);
+assert.equal(audit.aiAuthorMatches({admin:'مساعد الدعم الذكي'},observed[0]),true);
+assert.equal(audit.aiAuthorMatches({admin:'Ahmed Human'},observed[0]),false);
+assert.equal(audit.observedAdminResponders({ticketid:79,replies:{reply:[{admin:'Bot',message:'Wrong ticket'}]}},78).length,0);
+assert.equal(audit.observedAdminResponders({ticketid:78,replies:{reply:[{name:'Fake Bot',message:'customer',admin:''}]}},78).length,0);
 assert.equal(audit.mentionsHumanTransfer('سأحول التذكرة إلى خدمة العملاء'),true);
 assert.equal(audit.mentionsHumanTransfer('We will escalate your ticket'),true);
 const matched=audit.classifyAiLastReply(detail('supportbot'),ticket,bot);
@@ -59,6 +73,14 @@ assert.equal(audit.classifyAiLastReply({...detail(),replies:{totalresults:20,rep
  apiResult={ok:false,code:'HTTP_429',error:'Rate limited'};
  const limited=await audit.checkAiLastReply({},ticket,bot);
  assert.equal(limited.rateLimited,true);
+ apiResult={ok:true,data:{ticketid:78,replies:{reply:[{admin:'مساعد الدعم الذكي',message:'Verified'}]}}};
+ const discovered=await audit.fetchObservedResponders({},ticket);
+ assert.equal(discovered.users.length,1);
+ assert.equal(discovered.users[0].fullName,'مساعد الدعم الذكي');
+ assert.equal(calls.at(-1).action,'GetTicket');
+ apiResult={ok:false,code:'HTTP_429',error:'Rate limit'};
+ const discoveryLimited=await audit.fetchObservedResponders({},ticket);
+ assert.equal(discoveryLimited.rateLimited,true);
  apiResult={ok:true,data:rawUsers};
  const fromWhmcs=await audit.fetchAiAdminUsers({});
  assert.equal(fromWhmcs.ok,true);
@@ -69,5 +91,5 @@ assert.equal(audit.classifyAiLastReply({...detail(),replies:{totalresults:20,rep
  const blocked=await audit.fetchAiAdminUsers({});
  assert.equal(blocked.ok,false);
  assert.equal(blocked.users.length,0);
- console.log('PASS: real WHMCS admin selector, unique names, staff IDs, read-only lists and 429');
+ console.log('PASS: WHMCS GetAdminUsers and verified responder-derived selectors, no customer guessing, rate-limit backoff');
 })().catch(e=>{console.error(e);process.exit(1);});
