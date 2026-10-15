@@ -190,6 +190,8 @@ function ontrack_mobile_push_poll_whatsapp(): void {
 function ontrack_mobile_push_process(int $limit=30): array {
     $stats=['queued'=>0,'sent'=>0,'failed'=>0,'configured'=>false];
     if (!ontrack_mobile_push_installed()) return $stats;
+    Capsule::table('mod_ontrack_mobile_push_cursor')->updateOrInsert(
+        ['source'=>'worker_last_run'],['last_id'=>time()]);
     $cfg=ontrack_mobile_push_config();$stats['configured']=(bool)$cfg;
     if (!$cfg) return $stats;
     $token=ontrack_mobile_push_oauth($cfg);
