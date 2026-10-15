@@ -27,6 +27,7 @@ import {Settings} from './src/screens/Settings';
 import {Explorer} from './src/screens/Explorer';
 import {resetAdminSessions,adminSessionReady} from './src/lib/adminSession';
 import * as Notifications from 'expo-notifications';
+import {registerMobilePush,logoutMobilePush} from './src/lib/mobilePush';
 import {enableDeviceNotifications,ingestNotificationSnapshot,whmcsSectionNotifications,whatsAppNotifications} from './src/lib/notifications';
 import {listConversations,getWhatsAppRetryAfterMs,telegramWhatsAppReady,restoreTelegramWhatsApp,registerWhatsAppPush,unregisterWhatsAppPush} from './src/lib/whatsapp';
 const empty:DemoState={tickets:[],clients:[],invoices:[],services:[],orders:[],domains:[],chats:[],agents:[],queue:[]};
@@ -190,6 +191,14 @@ function CommandApp({themePreference,effectiveTheme,onThemeChange}:{themePrefere
  useEffect(()=>{
   if(!session||demo||!unlocked)return;
   let disposed=false;
+  const update=()=>{if(!disposed)void registerMobilePush(session).catch(()=>{});};
+  update();
+  const resumed=AppState.addEventListener('change',state=>{if(state==='active')update();});
+  return()=>{disposed=true;resumed.remove();};
+ },[session,demo,unlocked]);
+ useEffect(()=>{
+  if(!session||demo||!unlocked)return;
+  let disposed=false;
   void enableDeviceNotifications().catch(()=>{});
   const sections:SectionKey[]=['tickets','orders','clients','invoices','services','domains'];
   let index=0,busy=false;
@@ -303,6 +312,7 @@ function CommandApp({themePreference,effectiveTheme,onThemeChange}:{themePrefere
   if(session&&telegramWhatsAppReady(session)){
    try{await unregisterWhatsAppPush(session);}catch{}
   }
+  if(session)await logoutMobilePush(session);
   generation.current++;if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;await resetAdminSessions();await signOut();unlockedRef.current=false;setUnlocked(false);setMoneyVisible(false);setFinance(null);setFinanceError('');setDemo(false);setSession(null);setData(empty);setCaps({});setErrors({});setTotals({});setHistory([]);setError('');setPage('home');};
  const reply=async(id:number,text:string,identity?:{clientId:number;contactId:number;name:string;email:string})=>{
   if(demo){setData(d=>({...d,tickets:d.tickets.map(t=>t.id===id?{...t,status:'Answered',message:text}:t)}));Alert.alert('وضع تجريبي','تم تعديل البيانات المحلية فقط.');return true;}
@@ -348,7 +358,7 @@ function CommandApp({themePreference,effectiveTheme,onThemeChange}:{themePrefere
   if(page==='tickets')return <Tickets session={session} tickets={data.tickets} reloadSignal={ticketReload} onReply={reply} demo={demo} onComposerFocus={revealComposer} onDetailChange={setTicketDetailOpen}
    focusTicket={notificationTarget?.page==='tickets'&&notificationTarget.id?{id:notificationTarget.id,number:String(notificationTarget.id),subject:'',customer:'',department:'',priority:'Medium',status:'Open',updated:''}:undefined}
    onClose={()=>setNotificationTarget(null)}/>;
-  if(page==='whatsapp')return <WhatsApp session={session} demo={demo} onComposerFocus={revealComposer} onDetailChange={setTicketDetailOpen}/>;
+  if(page==='whatsapp')return <WhatsApp session={session} demo={demo} onComposerFocus={revealComposer} onDetailChange={setTicketDetailOpen} focusConversationId={notificationTarget?.page==='whatsapp'?notificationTarget.id:null}/>;
   if(page==='ai')return <AiOps agents={data.agents} queue={data.queue} session={session} demo={demo}/>;
   if(page==='more')return <View style={{gap:16,paddingBottom:24}}>
     <View style={{marginBottom:6,gap:5}}><T size={28} weight="900">مساحة الإدارة</T><T color={C.muted} size={13}>كل أدوات WHMCS مرتّبة في مكان واحد</T></View>
