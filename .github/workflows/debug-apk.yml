@@ -43,7 +43,7 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Unit tests and typecheck
         working-directory: mobile
-        run: npm run typecheck && npm run test:source && node ../tests/ticket_workflow_test.cjs && node ../tests/ai_ticket_review_test.cjs && node ../tests/invoice_workflow_test.cjs && node ../tests/invoice_due_design_test.cjs && node ../tests/invoice_preview_test.cjs && node ../tests/mobile_management_test.cjs && node ../tests/financial_security_test.cjs && node ../tests/api_mock_test.cjs && node ../tests/client_profile_test.cjs && node ../tests/directory_ui_test.cjs && node ../tests/module_integration_test.cjs && python3 ../tests/build_workflow_test.py && python3 ../tests/native_admin_routes_test.py
+        run: npm run typecheck && npm run test:source && node ../tests/ticket_workflow_test.cjs && node ../tests/ai_ticket_review_test.cjs && node ../tests/invoice_workflow_test.cjs && node ../tests/invoice_due_design_test.cjs && node ../tests/invoice_preview_test.cjs && node ../tests/mobile_management_test.cjs && node ../tests/financial_security_test.cjs && node ../tests/api_mock_test.cjs && node ../tests/client_profile_test.cjs && node ../tests/client_credit_test.cjs && node ../tests/directory_ui_test.cjs && node ../tests/module_integration_test.cjs && python3 ../tests/build_workflow_test.py && python3 ../tests/native_admin_routes_test.py
       - name: Generate native Android project
         working-directory: mobile
         run: CI=1 npx expo prebuild --platform android --no-install
@@ -175,7 +175,7 @@ jobs:
           cp "$APK" "out/$FILENAME"
           (cd out && zip -9 "WHMCS-v${APP_VERSION}-ARM64-release-signed.zip" "$FILENAME")
           BYTES="$(stat -c%s "$APK")"
-          NOTES="WHMCS v${APP_VERSION} (Android build ${APP_CODE}): fix invoices marked Paid without WhatsApp notification by replacing status-only UpdateInvoice with official AddInvoicePayment for a genuinely received payment. This invokes native WHMCS InvoicePaid automation, receipt email, billing-cycle updates and the existing WhatsApp notification hooks without modifying or directly contacting the WhatsApp addon. Confirm real money received, validate invoice/owner, payment method and positive outstanding balance, use stable transaction reference to guard against duplicate collections and fail closed for canceled/paid/zero-balance invoices. Do not claim the WhatsApp message delivered without server log verification. Signed ARM64 APK bytes: ${BYTES}."
+          NOTES="WHMCS v${APP_VERSION} (Android build ${APP_CODE}): client financial summary now clearly shows actual verified WHMCS account credit and currency next to client status; adds explicit credit ledger operation via official AddCredit with required justification and amount confirmation, distinct from invoice settlement. Validates client ownership/currency before posting, never retries uncertain financial writes automatically and refreshes balance after success. Compacts profile layout to useful identity, outstanding invoices and active service statistics; keeps optional fields behind expandable details, secondary tabs behind More, and reduces row sizes. No changes to WhatsApp addon or billing hooks. Signed ARM64 APK bytes: ${BYTES}."
           gh release create "whmcs-v${APP_VERSION}-${GITHUB_RUN_NUMBER}" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
             --title "WHMCS v${APP_VERSION} (Android build ${APP_CODE})" \
