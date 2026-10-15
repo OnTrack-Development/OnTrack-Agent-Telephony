@@ -102,7 +102,7 @@ export function ClientCreditForm({session,clientId,clientName,balance,operation,
     icon="check-circle-outline" disabled={busy||uncertain||confirmPending.current}
     onPress={confirm}/></View>
    <View style={{flex:1}}><Action compact secondary label="إلغاء" disabled={busy}
-    onPress={onCancel}/></View>
+    onPress={()=>{if(!confirmPending.current&&!inFlight.current)onCancel();}}/></View>
   </View>
  </Card>;
 }
