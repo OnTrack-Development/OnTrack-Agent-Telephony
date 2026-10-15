@@ -20,6 +20,7 @@ let ready=false;
 let remotePushRegistered=false;
 /** A verified remote registration suppresses duplicate local polling alerts. */
 export function setRemotePushRegistered(value:boolean):void{remotePushRegistered=value;}
+export function isRemotePushRegistered():boolean{return remotePushRegistered;}
 const latest=new Map<string,SeenMap>();
 const pending=new Map<string,Promise<void>>();
 function storageKey(session:Session):string{
