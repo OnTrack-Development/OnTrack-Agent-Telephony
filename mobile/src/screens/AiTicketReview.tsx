@@ -33,9 +33,9 @@ export function AiTicketReview({session,demo,paused=false,onBack,onOpen}:{
  const [queue,setQueue]=useState<QueueJob[]>([]),[queueReady,setQueueReady]=useState(false);
  const [queueBusy,setQueueBusy]=useState(false),[queueError,setQueueError]=useState('');
  const [showLogin,setShowLogin]=useState(false);
- const alive=useRef(true),version=useRef(0),autoScan=useRef(false);
+ const alive=useRef(true),version=useRef(0),autoScan=useRef(false),stopScan=useRef(false);
  useEffect(()=>()=>{alive.current=false;version.current++;},[]);
- useEffect(()=>{if(paused){version.current++;setScanning(false);setLoading(false);}},[paused]);
+ useEffect(()=>{if(paused){stopScan.current=true;version.current++;setScanning(false);setLoading(false);}},[paused]);
  useEffect(()=>{
   let current=true;setSenderReady(false);setSender('AI');
   if(session)void SecureStore.getItemAsync(keyFor(session)).then(value=>{
@@ -65,17 +65,17 @@ export function AiTicketReview({session,demo,paused=false,onBack,onOpen}:{
   autoScan.current=false;
   if(session&&!demo&&senderReady)void load();
  },[session,scope,demo,senderReady]);
- const scan=async()=>{
+ const scan=async(all=false)=>{
   if(!session||demo||paused||loading||scanning||checked>=rows.length)return;
   if(!sender.trim()){setScanError('اكتب اسم مستخدم AI في WHMCS.');return;}
   const wait=getApiRetryAfterMs();
   if(wait>0){setScanError('WHMCS طلب الانتظار '+Math.ceil(wait/1000)+' ثانية.');return;}
   const running=version.current;
-  setScanning(true);setScanError('');
-  for(let i=checked;i<Math.min(rows.length,checked+SCAN);i++){
-   if(!alive.current||running!==version.current)break;
+  stopScan.current=false;setScanning(true);setScanError('');
+  for(let i=checked;i<(all?rows.length:Math.min(rows.length,checked+SCAN));i++){
+   if(!alive.current||running!==version.current||stopScan.current)break;
    const result=await checkAiLastReply(session,rows[i]!,sender);
-   if(!alive.current||running!==version.current)break;
+   if(!alive.current||running!==version.current||stopScan.current)break;
    if(result.kind==='error'){
     setScanError(result.message+' — التذكرة غير محسوبة ضمن النتائج المؤكدة.');
     if(result.rateLimited)break;
@@ -167,8 +167,12 @@ export function AiTicketReview({session,demo,paused=false,onBack,onOpen}:{
     <T size={10} color={C.muted}>{item.date}</T>
    </Pressable>)}
    {!visible.length&&!loading&&!scanning?<T size={11} color={C.muted}>لا توجد نتائج مؤكدة في الجزء الذي تم فحصه.</T>:null}
+   {scanning?<Action compact secondary icon="stop-circle-outline" label="إيقاف الفحص بعد الطلب الحالي"
+    onPress={()=>{stopScan.current=true;}}/>:null}
    {checked<rows.length?<Action compact secondary icon="magnify" disabled={loading||scanning}
     label="فحص الدفعة التالية (حتى 6)" onPress={()=>void scan()}/>:null}
+   {checked<rows.length?<Action compact secondary icon="magnify-scan" disabled={loading||scanning}
+    label="فحص كل التذاكر المحمّلة تلقائيًا" onPress={()=>void scan(true)}/>:null}
    {checked>=rows.length&&total!==null&&offset<total?<Action compact secondary icon="plus"
     disabled={loading||scanning} label="تحميل تذاكر أخرى" onPress={()=>void load(offset)}/>:null}
    <Action compact secondary icon="refresh" disabled={loading||scanning}
