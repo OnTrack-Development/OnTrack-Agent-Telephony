@@ -65,7 +65,7 @@ function waAvatar(name:string):string {
  const parts=String(name||'').trim().split(/\s+/).filter(Boolean);
  return (parts.length>1?parts[0]!.charAt(0)+parts[1]!.charAt(0):(parts[0]||'WA').slice(0,2)).toUpperCase();
 }
-export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{session:Session|null;demo:boolean;onComposerFocus?:()=>void;onDetailChange?:(active:boolean)=>void}){
+export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange,focusConversationId}:{session:Session|null;demo:boolean;onComposerFocus?:()=>void;onDetailChange?:(active:boolean)=>void;focusConversationId?:number|null}){
  const [connected,setConnected]=useState(!!session&&adminSessionReady(session)),[search,setSearch]=useState(''),[unreadOnly,setUnreadOnly]=useState(false);
  const [rows,setRows]=useState<WaConversation[]>([]),[unread,setUnread]=useState(0),[selected,setSelected]=useState<WaConversation|null>(null);
  const [messages,setMessages]=useState<WaMessage[]>([]),[draft,setDraft]=useState(''),[busy,setBusy]=useState(false),[sending,setSending]=useState(false),[error,setError]=useState('');
@@ -81,6 +81,11 @@ export function WhatsApp({session,demo=false,onComposerFocus,onDetailChange}:{se
   historyScrollY=useRef(0),restoreHistoryOffset=useRef(false);
  const generation=useRef(0),readInFlight=useRef(false),sendInFlight=useRef(false),active=useRef(true),selectedId=useRef<number|null>(null);
  selectedId.current=selected?.id||null;
+ useEffect(()=>{
+  if(!focusConversationId||selectedId.current===focusConversationId)return;
+  const found=rows.find(row=>row.id===focusConversationId);
+  if(found){setSelected(found);setMessages([]);setSearch('');setUnreadOnly(false);}
+ },[focusConversationId,rows]);
  const close=()=>{followNewest.current=true;historyHeight.current=0;restoreHistoryOffset.current=false;generation.current++;setSelected(null);setMessages([]);setDraft('');setAttachment(null);setImagePreview(null);setError('');};
  useEffect(()=>{active.current=true;return()=>{active.current=false;generation.current++;};},[]);
  useEffect(()=>{let mounted=true;
