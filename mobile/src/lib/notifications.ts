@@ -17,6 +17,9 @@ const labels:Record<NoticeCategory,string>={
  orders:'الطلبات',services:'الخدمات',domains:'الدومينات'
 };
 let ready=false;
+let remotePushRegistered=false;
+/** A verified remote registration suppresses duplicate local polling alerts. */
+export function setRemotePushRegistered(value:boolean):void{remotePushRegistered=value;}
 const latest=new Map<string,SeenMap>();
 const pending=new Map<string,Promise<void>>();
 function storageKey(session:Session):string{
@@ -109,21 +112,15 @@ export async function ingestNotificationSnapshot(session:Session,category:Notice
    keychainAccessible:SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY
   });}catch{}
   if(!ready)return;
-  // Rate-limit tray notifications; collapse bursts to avoid 429-like alert floods.
-  if(outgoing.length>4){
+  // Never manufacture a summary ("40 new alerts") from a refreshed record list.
+  // Suppress local echoes once FCM registration is confirmed for this session.
+  if(remotePushRegistered)return;
+  for(const e of outgoing.slice(0,3)){
    await Notifications.scheduleNotificationAsync({
-    content:{title:'WHMCS • '+labels[category],body:outgoing.length+' تحديثات جديدة',
-     data:{section:category},...(Platform.OS==='android'?{channelId:channel[category]}:{})},
+    content:{title:safe(e.title,100)||labels[category],body:safe(e.body,160)||'تحديث جديد',
+     data:{section:category,id:String(e.id)},...(Platform.OS==='android'?{channelId:channel[category]}:{})},
     trigger:null
    });
-  }else{
-   for(const e of outgoing){
-    await Notifications.scheduleNotificationAsync({
-     content:{title:safe(e.title,100)||labels[category],body:safe(e.body,160)||'تحديث جديد',
-      data:{section:category,id:String(e.id)},...(Platform.OS==='android'?{channelId:channel[category]}:{})},
-     trigger:null
-    });
-   }
   }
  });
  pending.set(key,update);
@@ -135,7 +132,10 @@ export function whmcsSectionNotifications(category:Exclude<NoticeCategory,'whats
   const status=String(r.status||'');
   const updated=String(r.updated||r.date||r.created||r.due||r.expiry||'');
   return {category,id,revision:status+'|'+updated,
-   title:labels[category]+' • #'+id,
+   title:category==='tickets'?'تذكرة #'+id+' • '+safe(String(r.subject||''),55):
+    category==='clients'?'عميل • '+safe(String(r.name||r.customer||'#'+id),55):
+    category==='invoices'?'فاتورة #'+id+' • '+safe(String(r.customer||''),55):
+    labels[category]+' • #'+id,
    body:category==='tickets'?'تحديث على التذكرة':category==='clients'?'تحديث على بيانات العميل':category==='invoices'?'حالة الفاتورة: '+status:
     category==='orders'?'حالة الطلب: '+status:category==='services'?'حالة الخدمة: '+status:
      'حالة الدومين: '+status};
