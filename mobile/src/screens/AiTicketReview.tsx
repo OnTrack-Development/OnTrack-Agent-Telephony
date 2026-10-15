@@ -284,6 +284,9 @@ export function AiTicketReview({session,demo,paused=false,onBack,onOpen}:{
     label="فحص الدفعة التالية (حتى 6)" onPress={()=>void scan()}/>:null}
    {selectedAdmin&&checked<rows.length?<Action compact secondary icon="magnify-scan" disabled={loading||scanning}
     label="فحص كل التذاكر المحمّلة تلقائيًا" onPress={()=>void scan(true)}/>:null}
+   {usingReplies&&discoveredCount>=rows.length&&rows.length>0&&total!==null&&offset<total?
+    <Action compact secondary icon="plus" label="تحميل تذاكر أكثر لاكتشاف موظفين آخرين"
+     disabled={loading||scanning||discovering} onPress={()=>void load(offset)}/>:null}
    {checked>=rows.length&&total!==null&&offset<total?<Action compact secondary icon="plus"
     disabled={loading||scanning} label="تحميل تذاكر أخرى" onPress={()=>void load(offset)}/>:null}
    <Action compact secondary icon="refresh" disabled={loading||scanning}
