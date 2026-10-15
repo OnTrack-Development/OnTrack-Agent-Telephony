@@ -7,7 +7,7 @@ import {C} from '../theme';
 import {adminSessionReady} from '../lib/adminSession';
 import {TicketAdminData,readTicketAdmin,returnTicketToAi} from '../lib/ticketAdmin';
 import {NewTicket} from '../components/NewTicket';
-import {AiTicketReview} from './AiTicketReview';
+import {AiTicketsSection} from './AiTicketsSection';
 import {Action,Card,Divider,Header,Icon,Notice,Pill,Search,T} from '../components/UI';
 import {QueueKind,OperatorProfile,TicketDetail,TicketBatch,changeTicket,fetchOperatorProfile,
  fetchSupportStatuses,fetchTicketDetail,fetchTicketQueue,isActionable,isClosed,
@@ -29,7 +29,6 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
  focusTicket?:Ticket;expectedClientId?:number;onClose?:()=>void
 }){
  const [mode,setMode]=useState<QueueKind>('awaiting'),[search,setSearch]=useState('');
- const [aiReviewOpen,setAiReviewOpen]=useState(false);
  const [assigned,setAssigned]=useState<Collection>(empty);
  const [general,setGeneral]=useState<Collection>(empty);
  const [selected,setSelected]=useState<Ticket|null>(null),[detail,setDetail]=useState<TicketDetail|null>(null);
@@ -74,7 +73,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
   });
  },[session,mode,demo]);
  useEffect(()=>{
-  if(focusTicket||aiReviewOpen)return;
+  if(focusTicket)return;
   if(demo){
    setAssigned({...empty(),rows:tickets.filter(t=>(t.flag||0)>0&&isActionable(t.status))});
    setGeneral({...empty(),rows:tickets.filter(t=>ticketMatchesQueue(t.status,mode))});
@@ -83,7 +82,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
   // Keep previous rows until fresh data is received; a 429 cannot clear the screen.
   if(mode==='awaiting'||mode==='allActive')void load('assigned',0);
   void load('general',0);
- },[session?.baseUrl,session?.mode,session?.username,session?.identifier,mode,demo,reloadCounter,reloadSignal,aiReviewOpen]);
+ },[session?.baseUrl,session?.mode,session?.username,session?.identifier,mode,demo,reloadCounter,reloadSignal]);
  useEffect(()=>{
   if(demo||!session||![assigned.error,general.error].some(x=>/429|اتصال|network|timeout/i.test(x)))return;
   const timer=setTimeout(()=>setReloadCounter(n=>n+1),Math.max(60000,getApiRetryAfterMs()+4500));
@@ -301,22 +300,14 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
      icon="send" onPress={send}/>
    </Card>
   </View>:null;
- // Keep the audit mounted while a ticket is open, preserving verified scan results.
- if(aiReviewOpen&&!expectedClientId)return <View>
-  <View style={{display:selected?'none':'flex'}}>
-   <AiTicketReview session={session} demo={demo} paused={!!selected}
-    onBack={()=>setAiReviewOpen(false)} onOpen={ticket=>void open(ticket)}/>
-  </View>
-  {detailView}
- </View>;
- if(detailView)return detailView;
- if(newTicket&&session)return <NewTicket session={session} onCancel={()=>setNewTicket(false)} onCreated={ticket=>{setNewTicket(false);refresh();void open(ticket);}} onComposerFocus={onComposerFocus}/>;
- return <View style={{paddingBottom:20}}>
+ if(focusTicket)return detailView;
+ if(newTicket&&session)return <NewTicket session={session} onCancel={()=>setNewTicket(false)}
+  onCreated={ticket=>{setNewTicket(false);refresh();void open(ticket);}} onComposerFocus={onComposerFocus}/>;
+ return <View>
+ <View style={{display:detailView?'none':'flex',paddingBottom:20}}>
   <Header title="مركز التذاكر" subtitle="التذاكر المسندة أولًا ثم التذاكر التي تحتاج ردًا"/>
-  {!demo?<View style={{marginBottom:12,gap:8}}>
+  {!demo?<View style={{marginBottom:12}}>
    <Action label="إضافة تذكرة" icon="plus" onPress={()=>setNewTicket(true)}/>
-   {!expectedClientId?<Action secondary icon="robot-outline"
-    label="مراجعة تذاكر الـAI • آخر رد والطابور" onPress={()=>setAiReviewOpen(true)}/>:null}
   </View>:null}
   <Search value={search} onChange={setSearch} placeholder="ابحث في التذاكر المحمّلة"/>
   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{flexDirection:'row-reverse',gap:8,paddingBottom:12}}>
@@ -328,6 +319,9 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
   </ScrollView>
   {showAssigned?section('التذاكر المسندة إليّ • Assigned',assigned,assignedShown,'assigned'):null}
   {section(mode==='awaiting'?'تذاكر مفتوحة تنتظر الرد':'تذاكر • '+(sections.find(s=>s.id===mode)?.label||''),general,generalShown,'general')}
-  <View style={{marginTop:15}}><Action secondary label="تحديث القائمتين" icon="refresh" onPress={refresh}/></View>
+  <View style={{marginTop:15}}><Action secondary compact label="تحديث التذاكر" icon="refresh" onPress={refresh}/></View>
+  {!expectedClientId?<AiTicketsSection session={session} demo={demo} onOpen={ticket=>void open(ticket)}/>:null}
+ </View>
+ {detailView}
  </View>;
 }
