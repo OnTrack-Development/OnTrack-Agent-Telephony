@@ -1,5 +1,5 @@
 import type {Session} from '../types';
-import {isRemotePushRegistered} from './notifications';
+import {isRemotePushRegistered} from './pushState';
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
