@@ -19,8 +19,8 @@ const plain=(s:string)=>s.replace(/<br\s*\/?\s*>/gi,' ').replace(/<[^>]*>/g,' ')
 const queueName=(state:string)=>state==='processing'?'جارٍ التنفيذ':
  state==='pending'?'في الانتظار':state==='retry'?'إعادة محاولة':state==='ready'?'جاهزة':state;
 
-export function AiTicketReview({session,demo,onBack,onOpen}:{
- session:Session|null;demo:boolean;onBack:()=>void;onOpen:(ticket:Ticket)=>void;
+export function AiTicketReview({session,demo,paused=false,onBack,onOpen}:{
+ session:Session|null;demo:boolean;paused?:boolean;onBack:()=>void;onOpen:(ticket:Ticket)=>void;
 }){
  const [scope,setScope]=useState<'answered'|'allActive'>('answered');
  const [senderReady,setSenderReady]=useState(false);
@@ -35,6 +35,7 @@ export function AiTicketReview({session,demo,onBack,onOpen}:{
  const [showLogin,setShowLogin]=useState(false);
  const alive=useRef(true),version=useRef(0),autoScan=useRef(false);
  useEffect(()=>()=>{alive.current=false;version.current++;},[]);
+ useEffect(()=>{if(paused){version.current++;setScanning(false);setLoading(false);}},[paused]);
  useEffect(()=>{
   let current=true;setSenderReady(false);setSender('AI');
   if(session)void SecureStore.getItemAsync(keyFor(session)).then(value=>{
@@ -44,7 +45,7 @@ export function AiTicketReview({session,demo,onBack,onOpen}:{
  },[session]);
  const persist=()=>{if(session&&sender.trim())void SecureStore.setItemAsync(keyFor(session),sender.trim()).catch(()=>{});};
  const load=async(start=0)=>{
-  if(!session||demo||loading||scanning)return;
+  if(!session||demo||paused||loading||scanning)return;
   const versionAt=++version.current;
   setLoading(true);setError('');setScanError('');
   if(start===0){setRows([]);setMatches([]);setChecked(0);setTotal(null);setOffset(0);}
@@ -65,7 +66,7 @@ export function AiTicketReview({session,demo,onBack,onOpen}:{
   if(session&&!demo&&senderReady)void load();
  },[session,scope,demo,senderReady]);
  const scan=async()=>{
-  if(!session||demo||loading||scanning||checked>=rows.length)return;
+  if(!session||demo||paused||loading||scanning||checked>=rows.length)return;
   if(!sender.trim()){setScanError('اكتب اسم مستخدم AI في WHMCS.');return;}
   const wait=getApiRetryAfterMs();
   if(wait>0){setScanError('WHMCS طلب الانتظار '+Math.ceil(wait/1000)+' ثانية.');return;}
@@ -86,11 +87,11 @@ export function AiTicketReview({session,demo,onBack,onOpen}:{
   if(alive.current&&running===version.current)setScanning(false);
  };
  useEffect(()=>{
-  if(!loading&&rows.length&&checked===0&&autoScan.current){
+  if(!paused&&!loading&&rows.length&&checked===0&&autoScan.current){
    autoScan.current=false;
    void scan();
   }
- },[rows.length,loading,checked,sender]);
+ },[rows.length,loading,checked,sender,paused]);
  const loadQueue=async()=>{
   if(!session||demo||!adminSessionReady(session)||queueBusy)return;
   setQueueBusy(true);setQueueError('');
