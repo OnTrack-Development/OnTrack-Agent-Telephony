@@ -79,6 +79,51 @@ export function buildDuplicateInvoice(source:any,id:number):Record<string,string
  for(let i=0;i<lines.length;i++)encodeLine(params,'item',i,lines[i]!.description,lines[i]!.amount,lines[i]!.taxed);
  return params;
 }
+/**
+ * WHMCS UpdateInvoice(status=Paid) only changes the label and skips payment
+ * automations. AddInvoicePayment records an actual received payment and lets
+ * WHMCS dispatch InvoicePaid, receipt email, and connected notification hooks.
+ *
+ * Stable manual transaction reference per invoice prevents retries/double taps
+ * from fabricating a second collection. Reopened invoices with an existing
+ * reference must be reconciled in WHMCS instead of reusing it.
+ */
+export function manualPaymentReference(id:number):string{
+ if(!positiveId(id))throw Error('رقم الفاتورة غير صالح.');
+ return 'ONTRACK-APP-MANUAL-'+id;
+}
+function paymentDate(now:Date):string{
+ if(!Number.isFinite(now.getTime()))throw Error('تاريخ الدفع غير صالح.');
+ const digits=(v:number)=>String(v).padStart(2,'0');
+ return now.getFullYear()+'-'+digits(now.getMonth()+1)+'-'+digits(now.getDate())+' '+
+  digits(now.getHours())+':'+digits(now.getMinutes())+':'+digits(now.getSeconds());
+}
+function invoiceTransactions(document:any):any[]{
+ const value=document?.transactions;
+ const raw=value?.transaction??value?.item??[];
+ return Array.isArray(raw)?raw:raw&&typeof raw==='object'?[raw]:[];
+}
+export function buildReceivedPayment(id:number,document:any,now:Date=new Date()):
+ Record<string,string|number|boolean>{
+ if(!exactInvoice(document,id))throw Error('تعذر تأكيد هوية الفاتورة ومالكها.');
+ const status=s(document.status).trim().toLowerCase();
+ if(!['unpaid','overdue','payment pending'].includes(status))
+  throw Error('السداد متاح للفواتير غير المدفوعة فقط.');
+ const gateway=s(document.paymentmethod).trim();
+ if(!/^[a-zA-Z0-9_-]{1,80}$/.test(gateway))
+  throw Error('طريقة الدفع غير صالحة؛ عدّلها أولًا في بيانات الفاتورة.');
+ const rawBalance=s(document.balance).trim();
+ if(!/^\d[\d,]*(?:\.\d{1,4})?$/.test(rawBalance))
+  throw Error('رصيد الفاتورة غير متاح للتحقق؛ لن نسجل عملية مالية غير مؤكدة.');
+ const balance=Number(rawBalance.replace(/,/g,''));
+ if(!Number.isFinite(balance)||balance<=0||balance>100000000)
+  throw Error('لا يوجد رصيد موجب مستحق؛ راجع الفاتورة في WHMCS قبل تسجيل السداد.');
+ const transid=manualPaymentReference(id);
+ if(invoiceTransactions(document).some((x:any)=>s(x.transid).trim()===transid))
+  throw Error('يوجد تسجيل دفع سابق من التطبيق؛ راجع المعاملات قبل محاولة سداد جديدة.');
+ return {invoiceid:id,transid,gateway,date:paymentDate(now)};
+}
+
 export type InvoiceBulkAction='Paid'|'Unpaid'|'Cancelled'|'duplicate'|'reminder';
 export interface InvoiceTarget {id:number;status:string}
 export async function invoiceReminderTemplate(session:Session):Promise<string>{
@@ -109,7 +154,16 @@ export async function executeInvoiceAction(session:Session,kind:InvoiceBulkActio
  }
  if(kind==='Paid'&&current==='paid'||kind==='Unpaid'&&current==='unpaid'||kind==='Cancelled'&&current==='cancelled')
   return {ok:true,data:{result:'success',unchanged:true}};
- if(kind==='Paid'&&current==='cancelled')return {ok:false,error:'لا يمكن تعليم فاتورة ملغاة كمدفوعة'};
- // A status change is NOT evidence of a settled transaction.
+ if(kind==='Paid'){
+  // Never fake a receipt by updating invoice.status without applying a payment.
+  let payment:Record<string,string|number|boolean>;
+  try{payment=buildReceivedPayment(target.id,invoice);}
+  catch(e){return {ok:false,error:e instanceof Error?e.message:'بيانات السداد غير صالحة'};}
+  const outcome=await callApi(session,'AddInvoicePayment',payment);
+  if(!outcome.ok)return outcome;
+  // WHMCS owns the payment hooks and notifications. Never separately invoke the
+  // WhatsApp addon (which could double-send a receipt).
+  return {ok:true,data:{result:'success',paymentRecorded:true,invoiceid:target.id}};
+ }
  return callApi(session,'UpdateInvoice',{invoiceid:target.id,status:kind});
 }
