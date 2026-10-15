@@ -339,7 +339,7 @@ assert.ok(creditLogic.includes("callApi(session,'AddCredit'"));
 assert.ok(creditLogic.includes("callApiFresh(session,'GetClientsDetails'"));
 assert.ok(creditLogic.includes("type:operation"));
 assert.ok(creditLogic.includes('currency!==expectedCurrency'));
-assert.ok(creditForm.includes('تأكيد '+"verb"));
+assert.ok(creditForm.includes("text:'تأكيد '+verb"));
 assert.ok(creditForm.includes('تأكيد الخصم'));
 assert.ok(creditForm.includes('إعادة المحاولة'));
 assert.ok(!creditLogic.includes("'AddInvoicePayment'"));
