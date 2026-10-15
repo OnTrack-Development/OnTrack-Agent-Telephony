@@ -32,27 +32,27 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p output
-          (cd companion && zip -q -r ../output/WHMCS-Mobile-Companion-v0.1.0.zip modules README.md)
-          unzip -t output/WHMCS-Mobile-Companion-v0.1.0.zip | tail -2
-          unzip -Z1 output/WHMCS-Mobile-Companion-v0.1.0.zip | grep '^modules/addons/ontrack_mobile_admin/bridge.php$'
-          sha256sum output/WHMCS-Mobile-Companion-v0.1.0.zip
+          (cd companion && zip -q -r ../output/WHMCS-Mobile-Companion-v0.2.0.zip modules README.md)
+          unzip -t output/WHMCS-Mobile-Companion-v0.2.0.zip | tail -2
+          unzip -Z1 output/WHMCS-Mobile-Companion-v0.2.0.zip | grep '^modules/addons/ontrack_mobile_admin/bridge.php$'
+          sha256sum output/WHMCS-Mobile-Companion-v0.2.0.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: WHMCS-Mobile-Companion-v0.1.0
-          path: output/WHMCS-Mobile-Companion-v0.1.0.zip
+          name: WHMCS-Mobile-Companion-v0.2.0
+          path: output/WHMCS-Mobile-Companion-v0.2.0.zip
       - name: Publish server install package
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          ASSET=output/WHMCS-Mobile-Companion-v0.1.0.zip
-          TAG=whmcs-mobile-companion-v0.1.0
+          ASSET=output/WHMCS-Mobile-Companion-v0.2.0.zip
+          TAG=whmcs-mobile-companion-v0.2.0
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$ASSET" --clobber
           else
             gh release create "$TAG" "$ASSET" --target "$GITHUB_SHA" \
-              --title "WHMCS Mobile Companion v0.1.0 — WhatsApp" \
-              --notes "Independent WHMCS admin pairing and WhatsApp Inbox bridge. Extract into WHMCS root and activate Addon Modules. Original whatsapp_notifications and webhooks are unchanged. No provider credentials are embedded."
+              --title "WHMCS Mobile Companion v0.2.0 — WHMCS Push + WhatsApp" \
+              --notes "Independent WHMCS admin pairing, background FCM notification hooks and queue, WhatsApp Inbox bridge. Extract into WHMCS root, activate the addon, configure an external FCM Service Account and run the push CLI worker. Stable whatsapp_notifications and webhooks remain unchanged. No provider credentials embedded."
           fi
           echo "PASS: install package published as GH release"
