@@ -42,6 +42,30 @@ add_hook('InvoiceCreated',1,static function($v) use($ontrackEnqueue) {
     $id=(int)($v['invoiceid']??0);
     $ontrackEnqueue('invoices',$id,'created','فاتورة جديدة #'.$id,'تم إنشاء فاتورة جديدة في WHMCS');
 });
+add_hook('AfterModuleCreate',1,static function($v) use($ontrackEnqueue) {
+    $p=(array)($v['params']??[]);$id=(int)($p['serviceid']??0);
+    $ontrackEnqueue('services',$id,'activated','خدمة مفعّلة #'.$id,
+        'تم تفعيل خدمة '.mb_substr((string)($p['domain']??''),0,115));
+});
+add_hook('AfterModuleSuspend',1,static function($v) use($ontrackEnqueue) {
+    $p=(array)($v['params']??[]);$id=(int)($p['serviceid']??0);
+    $ontrackEnqueue('services',$id,'suspended','تم إيقاف خدمة #'.$id,
+        mb_substr((string)($p['domain']??'تم إيقاف الخدمة'),0,115));
+});
+add_hook('AfterRegistrarRegistration',1,static function($v) use($ontrackEnqueue) {
+    $p=(array)($v['params']??[]);$id=(int)($p['domainid']??0);
+    $domain=(string)($p['sld']??'').(string)($p['tld']??'');
+    $ontrackEnqueue('domains',$id,'registered','دومين مسجل #'.$id,
+        mb_substr($domain?:'تم تسجيل نطاق جديد',0,125));
+});
+add_hook('AfterRegistrarRenewal',1,static function($v) use($ontrackEnqueue) {
+    $p=(array)($v['params']??[]);$id=(int)($p['domainid']??0);
+    $domain=(string)($p['sld']??'').(string)($p['tld']??'');
+    // Do not repeatedly alert for the same renewal invoice.
+    $key='renewed:'.gmdate('Y-m-d');
+    $ontrackEnqueue('domains',$id,$key,'تم تجديد دومين #'.$id,
+        mb_substr($domain?:'تم تجديد نطاق',0,125));
+});
 add_hook('AfterCronJob',1000,static function() {
     try { ontrack_mobile_push_process(25); }
     catch (\Throwable $e) { error_log('OnTrack mobile push cron hook: '.$e->getMessage()); }
