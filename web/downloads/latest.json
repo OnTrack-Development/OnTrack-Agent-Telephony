@@ -1,10 +1,10 @@
 {
   "app_id": "com.ontrackdevelopment.command",
-  "version_name": "0.3.39",
-  "version_code": 50,
-  "filename": "WHMCS-v0.3.39-ARM64-release-signed.apk",
-  "sha256": "fd4850c402da5e8ae1a3940ad71f59f2dfe955809dc7defb235e395cf4828e74",
-  "size_bytes": 30062252,
-  "release_notes": "WHMCS v0.3.39: native WhatsApp Inbox with existing WHMCS module, deduplicated Android alerts for WhatsApp, tickets, invoices, orders, services, domains and clients while active. Background push requires a server sender.",
-  "published_at": "2026-10-15T19:29:05Z"
+  "version_name": "0.3.40",
+  "version_code": 51,
+  "filename": "WHMCS-v0.3.40-ARM64-release-signed.apk",
+  "sha256": "c21781e41ff456b016a45aac0f8fa0303e8df61d780109494f4aca7135672854",
+  "size_bytes": 30066348,
+  "release_notes": "WHMCS v0.3.40: native WhatsApp Inbox with existing WHMCS module, deduplicated Android alerts for WhatsApp, tickets, invoices, orders, services, domains and clients while active. Background push requires a server sender.",
+  "published_at": "2026-10-15T21:26:06Z"
 }
