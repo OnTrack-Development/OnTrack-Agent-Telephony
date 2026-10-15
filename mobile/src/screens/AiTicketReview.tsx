@@ -23,6 +23,7 @@ export function AiTicketReview({session,demo,onBack,onOpen}:{
  session:Session|null;demo:boolean;onBack:()=>void;onOpen:(ticket:Ticket)=>void;
 }){
  const [scope,setScope]=useState<'answered'|'allActive'>('answered');
+ const [senderReady,setSenderReady]=useState(false);
  const [sender,setSender]=useState('AI'),[search,setSearch]=useState('');
  const [rows,setRows]=useState<Ticket[]>([]),[total,setTotal]=useState<number|null>(null);
  const [offset,setOffset]=useState(0),[checked,setChecked]=useState(0);
@@ -35,11 +36,10 @@ export function AiTicketReview({session,demo,onBack,onOpen}:{
  const alive=useRef(true),version=useRef(0),autoScan=useRef(false);
  useEffect(()=>()=>{alive.current=false;version.current++;},[]);
  useEffect(()=>{
-  if(!session)return;
-  let current=true;
-  void SecureStore.getItemAsync(keyFor(session)).then(value=>{
+  let current=true;setSenderReady(false);setSender('AI');
+  if(session)void SecureStore.getItemAsync(keyFor(session)).then(value=>{
    if(current&&value&&value.length<=400)setSender(value);
-  }).catch(()=>{});
+  }).catch(()=>{}).finally(()=>{if(current)setSenderReady(true);});
   return()=>{current=false;};
  },[session]);
  const persist=()=>{if(session&&sender.trim())void SecureStore.setItemAsync(keyFor(session),sender.trim()).catch(()=>{});};
@@ -62,8 +62,8 @@ export function AiTicketReview({session,demo,onBack,onOpen}:{
  useEffect(()=>{
   version.current++;setRows([]);setMatches([]);setChecked(0);setTotal(null);setOffset(0);
   autoScan.current=false;
-  if(session&&!demo)void load();
- },[session,scope,demo]);
+  if(session&&!demo&&senderReady)void load();
+ },[session,scope,demo,senderReady]);
  const scan=async()=>{
   if(!session||demo||loading||scanning||checked>=rows.length)return;
   if(!sender.trim()){setScanError('اكتب اسم مستخدم AI في WHMCS.');return;}
@@ -130,7 +130,7 @@ export function AiTicketReview({session,demo,onBack,onOpen}:{
    </View>
    <T size={11} color={C.muted}>اسم مستخدم الـAI في WHMCS (يمكن كتابة عدة أسماء مفصولة بفاصلة)</T>
    <TextInput value={sender} onChangeText={changeSender} onBlur={persist}
-    editable={!loading&&!scanning} placeholder="AI" placeholderTextColor={C.muted} autoCapitalize="none"
+    editable={senderReady&&!loading&&!scanning} placeholder="AI" placeholderTextColor={C.muted} autoCapitalize="none"
     style={{borderWidth:1,borderColor:C.stroke,borderRadius:10,backgroundColor:C.surface2,
      color:C.text,paddingVertical:9,paddingHorizontal:12,textAlign:'right'}}/>
    <T size={10} color={C.muted}>يتم مطابقة صاحب آخر رد فعلي، وليس حالة التذكرة وحدها. الفحص تدريجي لحماية WHMCS API.</T>
