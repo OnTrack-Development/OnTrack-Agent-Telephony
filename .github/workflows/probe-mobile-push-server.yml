@@ -1,0 +1,46 @@
+name: Diagnose Live WHMCS Mobile Push Endpoint
+on:
+  push:
+    branches: [ontrack-command-native]
+    paths:
+      - '.github/workflows/probe-mobile-push-server.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe public WHMCS Mobile Companion bridge without credentials or mutations
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error
+          base='https://services.ontrackegy.com/modules/addons/ontrack_mobile_admin/bridge.php'
+          req=urllib.request.Request(base,data=b'{"operation":"push.status","payload":{}}',
+              headers={'Content-Type':'application/json','Accept':'application/json','User-Agent':'OnTrack-Companion-HealthCheck'},method='POST')
+          try:
+              r=urllib.request.urlopen(req,timeout=15)
+              status=r.status
+              body=r.read(2048)
+          except urllib.error.HTTPError as e:
+              status=e.code
+              body=e.read(2048)
+          except Exception as e:
+              print('NETWORK_ERROR: '+type(e).__name__)
+              raise SystemExit(0)
+          try:
+              obj=json.loads(body)
+              code=obj.get('code','NONE')
+          except Exception:
+              code='NON_JSON_RESPONSE'
+          print('Companion bridge HTTP:',status)
+          print('Companion bridge error code:',str(code)[:60])
+          if status==401 and code=='NOT_PAIRED': print('BRIDGE_AND_PAIRING_TABLES_PRESENT')
+          elif status==503 and code=='NOT_INSTALLED': print('BRIDGE_PRESENT_BUT_PAIRING_TABLES_MISSING')
+          elif status==404: print('BRIDGE_NOT_FOUND')
+          elif status==403: print('BRIDGE_FORBIDDEN_OR_BLOCKED')
+          elif code=='NON_JSON_RESPONSE': print('BRIDGE_NOT_ACCESSIBLE_AS_API')
+          else: print('BRIDGE_NEEDS_FURTHER_INVESTIGATION')
+          PY
