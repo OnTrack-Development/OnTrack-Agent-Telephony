@@ -7,6 +7,7 @@ import {C} from '../theme';
 import {adminSessionReady} from '../lib/adminSession';
 import {TicketAdminData,readTicketAdmin,returnTicketToAi} from '../lib/ticketAdmin';
 import {NewTicket} from '../components/NewTicket';
+import {AiTicketReview} from './AiTicketReview';
 import {Action,Card,Divider,Header,Icon,Notice,Pill,Search,T} from '../components/UI';
 import {QueueKind,OperatorProfile,TicketDetail,TicketBatch,changeTicket,fetchOperatorProfile,
  fetchSupportStatuses,fetchTicketDetail,fetchTicketQueue,isActionable,isClosed,
@@ -28,6 +29,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
  focusTicket?:Ticket;expectedClientId?:number;onClose?:()=>void
 }){
  const [mode,setMode]=useState<QueueKind>('awaiting'),[search,setSearch]=useState('');
+ const [aiReviewOpen,setAiReviewOpen]=useState(false);
  const [assigned,setAssigned]=useState<Collection>(empty);
  const [general,setGeneral]=useState<Collection>(empty);
  const [selected,setSelected]=useState<Ticket|null>(null),[detail,setDetail]=useState<TicketDetail|null>(null);
@@ -72,7 +74,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
   });
  },[session,mode,demo]);
  useEffect(()=>{
-  if(focusTicket)return;
+  if(focusTicket||aiReviewOpen)return;
   if(demo){
    setAssigned({...empty(),rows:tickets.filter(t=>(t.flag||0)>0&&isActionable(t.status))});
    setGeneral({...empty(),rows:tickets.filter(t=>ticketMatchesQueue(t.status,mode))});
@@ -81,7 +83,7 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
   // Keep previous rows until fresh data is received; a 429 cannot clear the screen.
   if(mode==='awaiting'||mode==='allActive')void load('assigned',0);
   void load('general',0);
- },[session?.baseUrl,session?.mode,session?.username,session?.identifier,mode,demo,reloadCounter,reloadSignal]);
+ },[session?.baseUrl,session?.mode,session?.username,session?.identifier,mode,demo,reloadCounter,reloadSignal,aiReviewOpen]);
  useEffect(()=>{
   if(demo||!session||![assigned.error,general.error].some(x=>/429|اتصال|network|timeout/i.test(x)))return;
   const timer=setTimeout(()=>setReloadCounter(n=>n+1),Math.max(60000,getApiRetryAfterMs()+4500));
@@ -302,9 +304,16 @@ export function Tickets({session,tickets,onReply,demo,reloadSignal,onComposerFoc
   </View>;
  }
  if(newTicket&&session)return <NewTicket session={session} onCancel={()=>setNewTicket(false)} onCreated={ticket=>{setNewTicket(false);refresh();void open(ticket);}} onComposerFocus={onComposerFocus}/>;
+ // This is an administrator-wide audit, never show it in a client-scoped ticket view.
+ if(aiReviewOpen&&!expectedClientId)return <AiTicketReview session={session} demo={demo}
+  onBack={()=>setAiReviewOpen(false)} onOpen={ticket=>void open(ticket)}/>;
  return <View style={{paddingBottom:20}}>
   <Header title="مركز التذاكر" subtitle="التذاكر المسندة أولًا ثم التذاكر التي تحتاج ردًا"/>
-  {!demo?<View style={{marginBottom:14}}><Action label="إضافة تذكرة" icon="plus" onPress={()=>setNewTicket(true)}/></View>:null}
+  {!demo?<View style={{marginBottom:12,gap:8}}>
+   <Action label="إضافة تذكرة" icon="plus" onPress={()=>setNewTicket(true)}/>
+   {!expectedClientId?<Action secondary icon="robot-outline"
+    label="مراجعة تذاكر الـAI • آخر رد والطابور" onPress={()=>setAiReviewOpen(true)}/>:null}
+  </View>:null}
   <Search value={search} onChange={setSearch} placeholder="ابحث في التذاكر المحمّلة"/>
   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{flexDirection:'row-reverse',gap:8,paddingBottom:12}}>
    {sections.map(x=><Pressable accessibilityRole="button" accessibilityState={{selected:mode===x.id}}
