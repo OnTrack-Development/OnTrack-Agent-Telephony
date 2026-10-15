@@ -48,7 +48,7 @@ assert.equal(audit.classifyAiLastReply({...detail(),status:'Closed'},ticket,bot)
 assert.equal(audit.classifyAiLastReply({...detail(),replies:{reply:[
  {replyid:2,admin:'AI',message:'Done'},
  {replyid:3,admin:'',name:'Owner',message:'Still broken'}
-]}},ticket,'AI').kind,'skip');
+]}},ticket,bot).kind,'skip');
 assert.equal(audit.classifyAiLastReply({...detail(),replies:{totalresults:20,reply:[{admin:'AI',message:'Done'}]}},ticket,bot).kind,'error');
 (async()=>{
  apiResult={ok:true,data:detail('supportbot')};
